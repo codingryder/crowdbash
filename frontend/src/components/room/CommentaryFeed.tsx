@@ -1,3 +1,5 @@
+import type { CSSProperties } from 'react';
+
 interface BallEvent {
   over: string;
   runs: number;
@@ -6,12 +8,12 @@ interface BallEvent {
   batter: string;
 }
 
-const chipStyles: Record<string, string> = {
-  six: 'background: rgba(244,185,64,0.12); color: var(--gold)',
-  boundary: 'background: rgba(74,158,255,0.12); color: var(--blue)',
-  wicket: 'background: rgba(240,90,90,0.12); color: var(--red)',
-  dot: 'background: var(--s2); color: var(--mu)',
-  single: 'background: rgba(61,214,140,0.1); color: var(--green)',
+const chipStyles: Record<string, CSSProperties> = {
+  six: { background: 'rgba(244,185,64,0.12)', color: 'var(--gold)' },
+  boundary: { background: 'rgba(74,158,255,0.12)', color: 'var(--blue)' },
+  wicket: { background: 'rgba(240,90,90,0.12)', color: 'var(--red)' },
+  dot: { background: 'var(--s2)', color: 'var(--mu)' },
+  single: { background: 'rgba(61,214,140,0.1)', color: 'var(--green)' },
 };
 
 const chipLabels: Record<string, string> = {
@@ -46,7 +48,7 @@ export function CommentaryFeed() {
           {/* Ball chip */}
           <div
             className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5"
-            style={{ cssText: chipStyles[ball.type] }}
+            style={chipStyles[ball.type]}
           >
             {chipLabels[ball.type]}
           </div>

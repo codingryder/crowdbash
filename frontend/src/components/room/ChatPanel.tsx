@@ -3,7 +3,7 @@ import { useRoomStore } from '../../store/roomStore';
 import { useAuthStore } from '../../store/authStore';
 
 interface ChatPanelProps {
-  onSendChat: (message: string) => void;
+  onSendChat: (_message: string) => void;
 }
 
 // Sample chat messages for mockup display
@@ -15,21 +15,13 @@ const SAMPLE_MESSAGES = [
   { id: '5', initials: 'DM', color: 'var(--gold)', bg: 'rgba(244,185,64,0.1)', name: 'DhoniMagic', over: '47.1', message: "290+ easily. Kohli doesn't miss in death overs.", highlight: false, reactions: [{ emoji: '\u2705', count: 15 }] },
 ];
 
-export function ChatPanel({ onSendChat }: ChatPanelProps) {
+export function ChatPanel({ onSendChat: _onSendChat }: ChatPanelProps) {
   const messages = useRoomStore((s) => s.messages);
-  const user = useAuthStore((s) => s.user);
-  const [input, setInput] = useState('');
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
   }, [messages]);
-
-  function handleSend() {
-    if (!input.trim() || !user) return;
-    onSendChat(input.trim());
-    setInput('');
-  }
 
   // Show sample data when no real messages
   const showSample = messages.length === 0;

@@ -30,7 +30,7 @@ export function LeaderboardSidebar() {
 
   // Use real data if available, otherwise sample
   const leaders = leaderboard.length > 0
-    ? leaderboard.map((e, i) => ({
+    ? leaderboard.map((e, _i) => ({
         id: e.user_id,
         name: e.username || e.user_id.slice(0, 8),
         initials: (e.username || e.user_id).slice(0, 2).toUpperCase(),

@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Link, useParams } from 'react-router-dom';
+import { useParams } from 'react-router-dom';
 
 const AVATAR_STYLES = [
   { bg: 'rgba(244,185,64,0.12)', color: 'var(--gold)' },
@@ -25,7 +25,7 @@ const SAMPLE_ENTRIES = [
 type TabType = 'game' | 'quiz' | 'combined';
 
 export function LeaderboardPage() {
-  const { roomId } = useParams<{ roomId: string }>();
+  const { roomId: _roomId } = useParams<{ roomId: string }>();
   const [activeTab, setActiveTab] = useState<TabType>('game');
 
   return (

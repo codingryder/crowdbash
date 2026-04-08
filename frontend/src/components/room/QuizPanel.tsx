@@ -1,6 +1,5 @@
-import { useState } from 'react';
+import { useState, type CSSProperties } from 'react';
 import { useRoomStore } from '../../store/roomStore';
-import api from '../../lib/api';
 
 // Sample quiz data for mockup
 const SAMPLE_ANSWERED = {
@@ -20,7 +19,8 @@ const SAMPLE_LIVE = {
 };
 
 export function QuizPanel() {
-  const activeQuiz = useRoomStore((s) => s.activeQuiz);
+  // Will be wired to live quiz data
+  useRoomStore((s) => s.activeQuiz);
   const [selectedLive, setSelectedLive] = useState<number | null>(null);
 
   return (
@@ -51,23 +51,23 @@ export function QuizPanel() {
           {SAMPLE_ANSWERED.question}
         </div>
         {SAMPLE_ANSWERED.options.map((opt, i) => {
-          let style = 'background: var(--s2); border: 0.5px solid var(--b1); color: var(--tx)';
+          let optStyle: CSSProperties = { background: 'var(--s2)', border: '0.5px solid var(--b1)', color: 'var(--tx)' };
           let pctColor = 'var(--dm)';
           if (opt.status === 'correct') {
-            style = 'background: rgba(61,214,140,0.07); border: 0.5px solid var(--green); color: var(--green)';
+            optStyle = { background: 'rgba(61,214,140,0.07)', border: '0.5px solid var(--green)', color: 'var(--green)' };
             pctColor = 'var(--green)';
           } else if (opt.status === 'wrong') {
-            style = 'background: rgba(240,90,90,0.05); border: 0.5px solid var(--red); color: var(--red)';
+            optStyle = { background: 'rgba(240,90,90,0.05)', border: '0.5px solid var(--red)', color: 'var(--red)' };
             pctColor = 'var(--red)';
           } else {
-            style += '; opacity: 0.5';
+            optStyle.opacity = 0.5;
           }
 
           return (
             <div
               key={i}
               className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-[7px] text-xs"
-              style={{ cssText: style }}
+              style={optStyle}
             >
               <span>{opt.text}{opt.status === 'correct' ? ' \u2713' : ''}</span>
               <span className="text-[11px]" style={{ color: pctColor }}>{opt.pct} picked</span>

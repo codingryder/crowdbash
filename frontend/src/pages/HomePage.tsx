@@ -35,7 +35,7 @@ const TIME_SAMPLES: Record<string, string> = {
 
 export function HomePage() {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [_loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function fetchRooms() {

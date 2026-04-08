@@ -122,7 +122,7 @@ export function RightGamePanel() {
         </div>
 
         {(game
-          ? game.player_weightages.map((pw, i) => ({
+          ? game.player_weightages.map((pw) => ({
               id: pw.player_id,
               initials: pw.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase(),
               name: pw.player_name,
