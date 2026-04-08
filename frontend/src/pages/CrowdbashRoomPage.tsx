@@ -4,65 +4,60 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useGame } from '../hooks/useGame';
 import { useRoomStore } from '../store/roomStore';
 import { RoomBar } from '../components/layout/RoomBar';
-import { ScoreHeader } from '../components/room/ScoreHeader';
-import { CommentaryFeed } from '../components/room/CommentaryFeed';
-import { ChatPanel } from '../components/room/ChatPanel';
-import { QuizPanel } from '../components/room/QuizPanel';
-import { StatsPanel } from '../components/room/StatsPanel';
-import { GamePanel } from '../components/game/GamePanel';
+import { LeftSidebar } from '../components/room/LeftSidebar';
+import { CenterColumn } from '../components/room/CenterColumn';
+import { RightGamePanel } from '../components/game/RightGamePanel';
 
 export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { room, loading } = useRoom(roomId);
   const { sendChat } = useWebSocket(roomId);
-  const { game, joinGame } = useGame(roomId);
+  useGame(roomId);
   const fanCount = useRoomStore((s) => s.fanCount);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-white/30 font-syne">Loading room...</div>
-      </div>
-    );
-  }
+  // For demo purposes, create a placeholder room
+  const displayRoom = room || {
+    id: roomId || 'demo',
+    match_id: 'demo',
+    match_name: 'India vs Australia',
+    match_format: 'ODI',
+    venue: 'MCG',
+    status: 'live' as const,
+    current_over: 48.3,
+    fan_count: 2841,
+  };
 
-  if (!room) {
+  const displayFanCount = fanCount > 0 ? fanCount : 2841;
+
+  if (loading && !room) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-white/30 font-syne">Room not found</div>
+      <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 52px)' }}>
+        <div className="font-syne" style={{ color: 'var(--mu)' }}>Loading room...</div>
       </div>
     );
   }
 
   return (
-    <div>
-      <RoomBar room={room} fanCount={fanCount} />
+    <div className="flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
+      {/* 3-column layout */}
+      <div
+        className="flex-1 grid overflow-hidden"
+        style={{
+          gridTemplateColumns: '260px minmax(0, 1fr) 300px',
+        }}
+      >
+        {/* Left: Match + Leaderboard/Stats */}
+        <LeftSidebar />
 
-      <div className="max-w-7xl mx-auto px-4 py-6">
-        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* Left column — Score, Commentary, Chat */}
-          <div className="lg:col-span-2 space-y-4">
-            <ScoreHeader />
-            <CommentaryFeed />
-            <ChatPanel onSendChat={sendChat} />
-            <QuizPanel />
-          </div>
+        {/* Center: Commentary / Chat / Quiz */}
+        <CenterColumn onSendChat={sendChat} />
 
-          {/* Right column — Game Panel + Leaderboard */}
-          <div className="space-y-4">
-            {!game && (
-              <button
-                onClick={joinGame}
-                className="w-full py-3 bg-gold text-bg font-syne font-bold rounded-xl hover:bg-gold/90 transition"
-              >
-                Join Weightage Game
-              </button>
-            )}
-            <GamePanel roomId={roomId!} />
-            <StatsPanel />
-          </div>
-        </div>
+        {/* Right: Game Panel */}
+        <RightGamePanel />
       </div>
+
+      {/* Bottom room bar */}
+      <RoomBar room={displayRoom} fanCount={displayFanCount} />
     </div>
   );
 }

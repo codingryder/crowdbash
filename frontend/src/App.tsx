@@ -8,14 +8,17 @@ import { ProfilePage } from './pages/ProfilePage';
 export default function App() {
   return (
     <BrowserRouter>
-      <div className="min-h-screen bg-bg">
+      <div className="flex flex-col" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
         <TopNav />
-        <Routes>
-          <Route path="/" element={<HomePage />} />
-          <Route path="/room/:roomId" element={<CrowdbashRoomPage />} />
-          <Route path="/leaderboard/:roomId" element={<LeaderboardPage />} />
-          <Route path="/profile" element={<ProfilePage />} />
-        </Routes>
+        <div className="flex-1 flex flex-col overflow-hidden">
+          <Routes>
+            <Route path="/" element={<HomePage />} />
+            <Route path="/room/:roomId" element={<CrowdbashRoomPage />} />
+            <Route path="/leaderboard" element={<LeaderboardPage />} />
+            <Route path="/leaderboard/:roomId" element={<LeaderboardPage />} />
+            <Route path="/profile" element={<ProfilePage />} />
+          </Routes>
+        </div>
       </div>
     </BrowserRouter>
   );

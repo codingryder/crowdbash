@@ -2,26 +2,47 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  --bg: #090B0F;
+  --s1: #111418;
+  --s2: #181C23;
+  --s3: #1E232D;
+  --b1: rgba(255,255,255,0.07);
+  --b2: rgba(255,255,255,0.13);
+  --tx: #EEF0F4;
+  --mu: #6E7A8A;
+  --dm: #323B48;
+  --gold: #F4B940;
+  --gold2: #C9901A;
+  --green: #3DD68C;
+  --red: #F05A5A;
+  --blue: #4A9EFF;
+  --purple: #8B6FFF;
+}
+
 body {
   margin: 0;
-  background-color: #0A0C10;
-  color: #ffffff;
+  background-color: var(--bg);
+  color: var(--tx);
   font-family: 'DM Sans', sans-serif;
+  font-size: 13px;
 }
 
 h1, h2, h3, h4, h5, h6 {
   font-family: 'Syne', sans-serif;
 }
 
-::-webkit-scrollbar {
-  width: 6px;
+/* Scrollbar */
+::-webkit-scrollbar { width: 3px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--dm); border-radius: 3px; }
+
+/* Animations */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
 }
 
-::-webkit-scrollbar-track {
-  background: #111418;
-}
-
-::-webkit-scrollbar-thumb {
-  background: #2a2f3a;
-  border-radius: 3px;
+.animate-blink {
+  animation: blink 1s infinite;
 }
