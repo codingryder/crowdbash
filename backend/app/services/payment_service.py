@@ -1,11 +1,15 @@
-import razorpay
 from app.core.config import settings
 
-client = razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
+
+def _get_client():
+    """Lazy import razorpay to avoid pkg_resources crash on startup."""
+    import razorpay
+    return razorpay.Client(auth=(settings.RAZORPAY_KEY_ID, settings.RAZORPAY_KEY_SECRET))
 
 
 async def create_order(amount_paise: int, receipt: str) -> dict:
     """Create a Razorpay order for weightage purchase."""
+    client = _get_client()
     order = client.order.create({
         "amount": amount_paise,
         "currency": "INR",
@@ -17,6 +21,8 @@ async def create_order(amount_paise: int, receipt: str) -> dict:
 
 def verify_payment_signature(order_id: str, payment_id: str, signature: str) -> bool:
     """Verify Razorpay payment signature."""
+    import razorpay
+    client = _get_client()
     try:
         client.utility.verify_payment_signature({
             "razorpay_order_id": order_id,
