@@ -19,7 +19,13 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> List[str]:
-        return json.loads(self.CORS_ORIGINS)
+        if not self.CORS_ORIGINS:
+            return [self.FRONTEND_URL] if self.FRONTEND_URL else ["*"]
+        try:
+            return json.loads(self.CORS_ORIGINS)
+        except (json.JSONDecodeError, TypeError):
+            # Handle comma-separated string or single URL
+            return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     class Config:
         env_file = ".env"
