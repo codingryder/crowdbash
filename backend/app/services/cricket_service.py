@@ -2,38 +2,49 @@ import httpx
 from app.core.config import settings
 from app.core.redis import redis_get_json, redis_set_json
 
-CRICAPI_BASE = "https://api.cricapi.com/v1"
-CACHE_TTL = 60  # seconds — cache score for 1 minute to preserve free tier calls
+# CricketData.org API (replaces CricAPI)
+CRICKETDATA_BASE = "https://api.cricapi.com/v1"
+CACHE_TTL = 60  # seconds — cache score for 1 minute
+
+
+def _api_key() -> str:
+    return settings.CRICKETDATA_API_KEY
 
 
 async def get_live_matches() -> list:
     """Get all live matches. Cached for 5 minutes."""
-    cached = await redis_get_json("cricapi:live_matches")
+    if not _api_key():
+        return []
+
+    cached = await redis_get_json("cricket:live_matches")
     if cached:
         return cached
 
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{CRICAPI_BASE}/cricScore",
-            params={"apikey": settings.CRICAPI_KEY}
+            f"{CRICKETDATA_BASE}/cricScore",
+            params={"apikey": _api_key()}
         )
         data = res.json()
         matches = data.get("data", [])
-        await redis_set_json("cricapi:live_matches", matches, ex=300)
+        await redis_set_json("cricket:live_matches", matches, ex=300)
         return matches
 
 
 async def get_match_score(match_id: str) -> dict:
     """Get current score for a match. Cached for 1 minute."""
-    cache_key = f"cricapi:score:{match_id}"
+    if not _api_key():
+        return {}
+
+    cache_key = f"cricket:score:{match_id}"
     cached = await redis_get_json(cache_key)
     if cached:
         return cached
 
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{CRICAPI_BASE}/match_scorecard",
-            params={"apikey": settings.CRICAPI_KEY, "id": match_id}
+            f"{CRICKETDATA_BASE}/match_scorecard",
+            params={"apikey": _api_key(), "id": match_id}
         )
         data = res.json()
         score_data = data.get("data", {})
@@ -43,15 +54,18 @@ async def get_match_score(match_id: str) -> dict:
 
 async def get_match_players(match_id: str) -> list:
     """Get playing XI for both teams. Cached for 10 minutes."""
-    cache_key = f"cricapi:players:{match_id}"
+    if not _api_key():
+        return []
+
+    cache_key = f"cricket:players:{match_id}"
     cached = await redis_get_json(cache_key)
     if cached:
         return cached
 
     async with httpx.AsyncClient() as client:
         res = await client.get(
-            f"{CRICAPI_BASE}/match_info",
-            params={"apikey": settings.CRICAPI_KEY, "id": match_id}
+            f"{CRICKETDATA_BASE}/match_info",
+            params={"apikey": _api_key(), "id": match_id}
         )
         data = res.json()
         players = data.get("data", {}).get("players", [])
