@@ -69,7 +69,7 @@ export function QuizPanel() {
               className="flex items-center justify-between rounded-lg px-3 py-2.5 mb-[7px] text-xs"
               style={optStyle}
             >
-              <span>{opt.text}{opt.status === 'correct' ? ' \u2713' : ''}</span>
+              <span>{opt.text}{opt.status === 'correct' ? ' ✓' : ''}</span>
               <span className="text-[11px]" style={{ color: pctColor }}>{opt.pct} picked</span>
             </div>
           );

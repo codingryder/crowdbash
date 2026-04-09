@@ -8,11 +8,11 @@ interface ChatPanelProps {
 
 // Sample chat messages for mockup display
 const SAMPLE_MESSAGES = [
-  { id: '1', initials: 'RK', color: 'var(--blue)', bg: 'rgba(74,158,255,0.15)', name: 'Rakesh_K', over: '48.3', message: 'Put all 3 weightage on Kohli from over 1 and never looked back', highlight: true, reactions: [{ emoji: '\uD83D\uDD25', count: 24 }, { emoji: '\uD83D\uDCAA', count: 11 }] },
-  { id: '2', initials: 'SM', color: 'var(--green)', bg: 'rgba(61,214,140,0.1)', name: 'SachinM99', over: '48.1', message: "That Kohli cover drive at 48.1 is why he's GOAT. No debate.", highlight: false, reactions: [{ emoji: '\uD83D\uDC51', count: 42 }] },
-  { id: '3', initials: 'AP', color: 'var(--red)', bg: 'rgba(240,90,90,0.1)', name: 'AussiePhil_7', over: '47.6', message: "Sharma wicket let's goooo!! AUS will chase this", highlight: false, reactions: [{ emoji: '\uD83D\uDE02', count: 18 }, { emoji: '\uD83D\uDE4F', count: 7 }] },
-  { id: '4', initials: 'NK', color: 'var(--purple)', bg: 'rgba(139,111,255,0.1)', name: 'NitinK', over: '47.4', message: "Made a big mistake giving Bumrah 3 weightage. Bowler doesn't bat! Switching to Gill next edit window!", highlight: false, reactions: [{ emoji: '\uD83D\uDE05', count: 31 }] },
-  { id: '5', initials: 'DM', color: 'var(--gold)', bg: 'rgba(244,185,64,0.1)', name: 'DhoniMagic', over: '47.1', message: "290+ easily. Kohli doesn't miss in death overs.", highlight: false, reactions: [{ emoji: '\u2705', count: 15 }] },
+  { id: '1', initials: 'RK', color: 'var(--blue)', bg: 'rgba(74,158,255,0.15)', name: 'Rakesh_K', over: '48.3', message: 'Put all 3 weightage on Kohli from over 1 and never looked back', highlight: true, reactions: [{ emoji: '🔥', count: 24 }, { emoji: '💪', count: 11 }] },
+  { id: '2', initials: 'SM', color: 'var(--green)', bg: 'rgba(61,214,140,0.1)', name: 'SachinM99', over: '48.1', message: "That Kohli cover drive at 48.1 is why he's GOAT. No debate.", highlight: false, reactions: [{ emoji: '👑', count: 42 }] },
+  { id: '3', initials: 'AP', color: 'var(--red)', bg: 'rgba(240,90,90,0.1)', name: 'AussiePhil_7', over: '47.6', message: "Sharma wicket let's goooo!! AUS will chase this", highlight: false, reactions: [{ emoji: '😂', count: 18 }, { emoji: '🙏', count: 7 }] },
+  { id: '4', initials: 'NK', color: 'var(--purple)', bg: 'rgba(139,111,255,0.1)', name: 'NitinK', over: '47.4', message: "Made a big mistake giving Bumrah 3 weightage. Bowler doesn't bat! Switching to Gill next edit window!", highlight: false, reactions: [{ emoji: '😅', count: 31 }] },
+  { id: '5', initials: 'DM', color: 'var(--gold)', bg: 'rgba(244,185,64,0.1)', name: 'DhoniMagic', over: '47.1', message: "290+ easily. Kohli doesn't miss in death overs.", highlight: false, reactions: [{ emoji: '✅', count: 15 }] },
 ];
 
 export function ChatPanel({ onSendChat: _onSendChat }: ChatPanelProps) {

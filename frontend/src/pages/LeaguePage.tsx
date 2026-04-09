@@ -30,7 +30,7 @@ export function LeaguePage() {
   const upcomingRooms = rooms.filter((r) => r.status === 'upcoming');
   const completedRooms = rooms.filter((r) => r.status === 'completed');
   const sport = rooms[0]?.sport || 'cricket';
-  const sportIcon = sport === 'football' ? '\u26BD' : '\uD83C\uDFCF';
+  const sportIcon = sport === 'football' ? '⚽' : '🏏';
 
   return (
     <main style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
@@ -141,7 +141,7 @@ function MatchCard({ room }: { room: Room }) {
     const mp = room.match_progress || {};
     const minute = mp.minute as number;
     if (minute) {
-      progressText = `${minute}\u2019 ${(mp.half as number) === 1 ? '1H' : '2H'}`;
+      progressText = `${minute}' ${(mp.half as number) === 1 ? '1H' : '2H'}`;
     }
   }
 
@@ -200,7 +200,7 @@ function MatchCard({ room }: { room: Room }) {
           className="text-[11px] font-semibold"
           style={{ color: 'var(--gold)' }}
         >
-          {isLive ? 'Join \u2192' : 'View'}
+          {isLive ? 'Join →' : 'View'}
         </span>
       </div>
     </Link>

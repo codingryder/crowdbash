@@ -13,22 +13,22 @@ interface LeagueInfo {
 
 // League display config
 const LEAGUE_ICONS: Record<string, string> = {
-  'Indian Premier League 2026': '\uD83C\uDDEE\uD83C\uDDF3',
-  'Pakistan Super League 2026': '\uD83C\uDDF5\uD83C\uDDF0',
-  'Big Bash League': '\uD83C\uDDE6\uD83C\uDDFA',
-  'Caribbean Premier League': '\uD83C\uDDF9\uD83C\uDDF9',
-  'SA20': '\uD83C\uDDFF\uD83C\uDDE6',
-  'The Hundred': '\uD83C\uDDEC\uD83C\uDDE7',
-  'Lanka Premier League': '\uD83C\uDDF1\uD83C\uDDF0',
-  'Bangladesh Premier League': '\uD83C\uDDE7\uD83C\uDDE9',
-  'Premier League': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F',
-  'La Liga': '\uD83C\uDDEA\uD83C\uDDF8',
-  'Serie A': '\uD83C\uDDEE\uD83C\uDDF9',
-  'Bundesliga': '\uD83C\uDDE9\uD83C\uDDEA',
-  'Ligue 1': '\uD83C\uDDEB\uD83C\uDDF7',
-  'Champions League': '\uD83C\uDFC6',
-  'Copa Libertadores': '\uD83C\uDDe7\uD83C\uDDF7',
-  'World Cup': '\uD83C\uDF0D',
+  'Indian Premier League 2026': '🇮🇳',
+  'Pakistan Super League 2026': '🇵🇰',
+  'Big Bash League': '🇦🇺',
+  'Caribbean Premier League': '🇹🇹',
+  'SA20': '🇿🇦',
+  'The Hundred': '🇬🇧',
+  'Lanka Premier League': '🇱🇰',
+  'Bangladesh Premier League': '🇧🇩',
+  'Premier League': '🏴󠁧󠁢󠁥󠁮󠁧󠁿',
+  'La Liga': '🇪🇸',
+  'Serie A': '🇮🇹',
+  'Bundesliga': '🇩🇪',
+  'Ligue 1': '🇫🇷',
+  'Champions League': '🏆',
+  'Copa Libertadores': '🇧🇷',
+  'World Cup': '🌍',
 };
 
 type FilterTab = 'all' | 'cricket' | 'football';
@@ -81,8 +81,8 @@ export function HomePage() {
       <div className="flex gap-2 mb-8">
         {([
           { key: 'all', label: 'All Sports' },
-          { key: 'cricket', label: '\uD83C\uDFCF Cricket' },
-          { key: 'football', label: '\u26BD Football' },
+          { key: 'cricket', label: '🏏 Cricket' },
+          { key: 'football', label: '⚽ Football' },
         ] as const).map((tab) => (
           <button
             key={tab.key}
@@ -134,7 +134,7 @@ export function HomePage() {
       {!loading && cricketLeagues.length > 0 && (filter === 'all' || filter === 'cricket') && (
         <section className="mb-10">
           <div className="font-syne text-[16px] font-bold mb-4" style={{ color: 'var(--tx)' }}>
-            \uD83C\uDFCF Cricket
+            🏏 Cricket
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
             {cricketLeagues.map((league) => (
@@ -148,7 +148,7 @@ export function HomePage() {
       {!loading && footballLeagues.length > 0 && (filter === 'all' || filter === 'football') && (
         <section className="mb-10">
           <div className="font-syne text-[16px] font-bold mb-4" style={{ color: 'var(--tx)' }}>
-            \u26BD Football
+            ⚽ Football
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
             {footballLeagues.map((league) => (
@@ -174,7 +174,7 @@ export function HomePage() {
 }
 
 function LeagueCard({ league }: { league: LeagueInfo }) {
-  const icon = LEAGUE_ICONS[league.league] || (league.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF');
+  const icon = LEAGUE_ICONS[league.league] || (league.sport === 'football' ? '⚽' : '🏏');
   const hasLive = league.live_rooms > 0;
 
   return (
@@ -222,7 +222,7 @@ function LeagueCard({ league }: { league: LeagueInfo }) {
 }
 
 function LiveRoomCard({ room }: { room: Room }) {
-  const sportIcon = room.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF';
+  const sportIcon = room.sport === 'football' ? '⚽' : '🏏';
 
   return (
     <Link

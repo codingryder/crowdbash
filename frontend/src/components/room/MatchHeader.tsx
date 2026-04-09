@@ -19,17 +19,17 @@ function CricketMatchHeader({ room, score }: { room: Room; score: CricketScoreDa
   const parts = room.match_name.split(' vs ');
   const team1Name = score?.team1?.name || parts[0]?.trim() || 'TBD';
   const team2Name = score?.team2?.name || parts[1]?.trim() || 'TBD';
-  const team1Score = score?.team1?.score || '\u2014';
-  const team1Overs = score?.team1?.overs ? `${score.team1.overs} ov` : '\u2014';
-  const team2Score = score?.team2?.score || '\u2014';
-  const team2Overs = score?.team2?.overs ? `${score.team2.overs} ov` : '\u2014';
+  const team1Score = score?.team1?.score || '—';
+  const team1Overs = score?.team1?.overs ? `${score.team1.overs} ov` : '—';
+  const team2Score = score?.team2?.score || '—';
+  const team2Overs = score?.team2?.overs ? `${score.team2.overs} ov` : '—';
   const crr = score?.current_rate || 0;
   const over = room.current_over || 0;
 
   return (
     <div style={{ padding: '16px 16px 12px', borderBottom: '0.5px solid var(--b1)' }}>
       <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>
-        {room.league || room.match_format || 'Cricket'} {over > 0 ? `\u00b7 Over ${over}` : ''}
+        {room.league || room.match_format || 'Cricket'} {over > 0 ? `· Over ${over}` : ''}
       </div>
       <div className="flex items-center justify-between">
         <div className="text-center">
@@ -46,9 +46,9 @@ function CricketMatchHeader({ room, score }: { room: Room; score: CricketScoreDa
       </div>
       <div className="flex justify-between mt-2.5">
         {[
-          { label: 'CRR', value: crr > 0 ? crr.toFixed(2) : '\u2014' },
+          { label: 'CRR', value: crr > 0 ? crr.toFixed(2) : '—' },
           { label: 'Status', value: room.status === 'live' ? 'Live' : room.status },
-          { label: 'Format', value: room.match_format || '\u2014' },
+          { label: 'Format', value: room.match_format || '—' },
         ].map((item) => (
           <div key={item.label} className="text-center">
             <div className="text-[9px] uppercase tracking-[0.5px]" style={{ color: 'var(--mu)' }}>{item.label}</div>
@@ -64,8 +64,8 @@ function FootballMatchHeader({ room, score }: { room: Room; score: FootballScore
   const parts = room.match_name.split(' vs ');
   const homeName = score?.home?.name || parts[0]?.trim() || 'Home';
   const awayName = score?.away?.name || parts[1]?.trim() || 'Away';
-  const homeGoals = score?.home?.goals ?? '\u2014';
-  const awayGoals = score?.away?.goals ?? '\u2014';
+  const homeGoals = score?.home?.goals ?? '—';
+  const awayGoals = score?.away?.goals ?? '—';
   const mp = room.match_progress || {};
   const minute = score?.minute || (mp.minute as number) || 0;
   const half = score?.half || (mp.half as number) || 1;
@@ -73,7 +73,7 @@ function FootballMatchHeader({ room, score }: { room: Room; score: FootballScore
   return (
     <div style={{ padding: '16px 16px 12px', borderBottom: '0.5px solid var(--b1)' }}>
       <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>
-        {room.league || 'Football'} {minute > 0 ? `\u00b7 ${minute}\u2019` : ''}
+        {room.league || 'Football'} {minute > 0 ? `· ${minute}'` : ''}
       </div>
       <div className="flex items-center justify-between">
         <div className="text-center flex-1">
@@ -82,7 +82,7 @@ function FootballMatchHeader({ room, score }: { room: Room; score: FootballScore
         </div>
         <div className="px-3 text-center">
           <div className="font-syne text-sm font-bold" style={{ color: 'var(--gold)' }}>
-            {minute > 0 ? `${minute}\u2019` : 'vs'}
+            {minute > 0 ? `${minute}'` : 'vs'}
           </div>
           {minute > 0 && (
             <div className="text-[9px]" style={{ color: 'var(--mu)' }}>{half === 1 ? '1H' : '2H'}</div>
@@ -96,8 +96,8 @@ function FootballMatchHeader({ room, score }: { room: Room; score: FootballScore
       <div className="flex justify-between mt-2.5">
         {[
           { label: 'Status', value: room.status === 'live' ? 'Live' : room.status },
-          { label: 'Half', value: minute > 0 ? (half === 1 ? '1st' : '2nd') : '\u2014' },
-          { label: 'League', value: room.league || '\u2014' },
+          { label: 'Half', value: minute > 0 ? (half === 1 ? '1st' : '2nd') : '—' },
+          { label: 'League', value: room.league || '—' },
         ].map((item) => (
           <div key={item.label} className="text-center">
             <div className="text-[9px] uppercase tracking-[0.5px]" style={{ color: 'var(--mu)' }}>{item.label}</div>

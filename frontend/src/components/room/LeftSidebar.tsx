@@ -45,7 +45,7 @@ export function LeftSidebar({ room }: LeftSidebarProps) {
           <div className="flex justify-between py-2" style={{ borderBottom: '0.5px solid var(--b1)' }}>
             <span className="text-[11px]" style={{ color: 'var(--mu)' }}>Sport</span>
             <span className="text-[11px] font-medium capitalize" style={{ color: 'var(--tx)' }}>
-              {room.sport === 'football' ? '\u26BD Football' : '\uD83C\uDFCF Cricket'}
+              {room.sport === 'football' ? '⚽ Football' : '🏏 Cricket'}
             </span>
           </div>
 
@@ -87,7 +87,7 @@ export function LeftSidebar({ room }: LeftSidebarProps) {
             style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)' }}
           >
             <div className="text-2xl mb-2">
-              {room.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF'}
+              {room.sport === 'football' ? '⚽' : '🏏'}
             </div>
             <div className="text-[12px] font-medium mb-1" style={{ color: 'var(--tx)' }}>
               Match hasn&apos;t started yet

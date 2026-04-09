@@ -40,20 +40,20 @@ export function RightGamePanel({ room }: RightGamePanelProps) {
           className="text-[9px] uppercase tracking-[1px] mb-2.5"
           style={{ color: 'var(--mu)' }}
         >
-          Weightage game &middot; {room.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF'} {room.league || room.match_format}
+          Weightage game &middot; {room.sport === 'football' ? '⚽' : '🏏'} {room.league || room.match_format}
         </div>
         <div className="flex items-center justify-between mb-2.5">
           <div className="text-center">
             <div className="text-[11px] font-medium" style={{ color: 'var(--blue)' }}>{team1}</div>
             <div className="font-syne text-[22px] font-extrabold" style={{ color: 'var(--gold)' }}>
-              {game ? game.total_points.toLocaleString() : '\u2014'}
+              {game ? game.total_points.toLocaleString() : '—'}
             </div>
           </div>
           <div className="text-xs" style={{ color: 'var(--dm)' }}>vs</div>
           <div className="text-center">
             <div className="text-[11px] font-medium" style={{ color: 'var(--red)' }}>{team2}</div>
             <div className="font-syne text-[22px] font-extrabold" style={{ color: 'var(--mu)' }}>
-              \u2014
+              —
             </div>
           </div>
         </div>
@@ -61,7 +61,7 @@ export function RightGamePanel({ room }: RightGamePanelProps) {
           {[
             { label: 'Status', value: room.status === 'live' ? 'Live' : room.status, color: room.status === 'live' ? 'var(--green)' : 'var(--tx)' },
             { label: 'Sport', value: room.sport, color: 'var(--tx)' },
-            { label: 'Format', value: room.match_format || '\u2014', color: 'var(--tx)' },
+            { label: 'Format', value: room.match_format || '—', color: 'var(--tx)' },
           ].map((item) => (
             <div key={item.label} className="text-center">
               <div className="text-[9px] uppercase tracking-[0.4px]" style={{ color: 'var(--mu)' }}>
@@ -225,7 +225,7 @@ export function RightGamePanel({ room }: RightGamePanelProps) {
             >
               <div className="text-[11px] font-medium mb-0.5">{item.label}</div>
               <div className="text-[13px] font-bold mb-1.5" style={{ color: 'var(--gold)' }}>
-                \u20B9{item.price_inr}
+                ₹{item.price_inr}
               </div>
               <div className="text-[10px] leading-[1.4] mb-2" style={{ color: 'var(--mu)' }}>
                 {item.description}

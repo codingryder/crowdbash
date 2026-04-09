@@ -12,7 +12,7 @@ const cricketChipStyles: Record<string, CSSProperties> = {
 };
 
 const cricketChipLabels: Record<string, string> = {
-  six: '6', boundary: '4', wicket: 'W', dot: '\u2022', single: '1',
+  six: '6', boundary: '4', wicket: 'W', dot: '•', single: '1',
 };
 
 // Football chip styles
@@ -26,7 +26,7 @@ const footballChipStyles: Record<string, CSSProperties> = {
 };
 
 const footballChipLabels: Record<string, string> = {
-  goal: '\u26BD', assist: 'A', yellow_card: '\uD83D\uDFE8', red_card: '\uD83D\uDFE5', substitution: '\u21C4', save: 'S',
+  goal: '⚽', assist: 'A', yellow_card: '🟨', red_card: '🟥', substitution: '⇄', save: 'S',
 };
 
 interface CommentaryFeedProps {
@@ -60,9 +60,9 @@ export function CommentaryFeed({ room }: CommentaryFeedProps) {
                 {event.commentary || `${event.event_type}: ${event.player_name}`}
               </div>
               <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)' }}>
-                {event.over_number ? `${event.over_number} \u00b7 ` : ''}
-                {event.minute ? `${event.minute}\u2019 \u00b7 ` : ''}
-                {event.player_name} {event.team ? `\u00b7 ${event.team}` : ''}
+                {event.over_number ? `${event.over_number} · ` : ''}
+                {event.minute ? `${event.minute}' · ` : ''}
+                {event.player_name} {event.team ? `· ${event.team}` : ''}
               </div>
             </div>
           </div>
@@ -75,7 +75,7 @@ export function CommentaryFeed({ room }: CommentaryFeedProps) {
   return (
     <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
       <div className="text-2xl mb-3">
-        {sport === 'football' ? '\u26BD' : '\uD83C\uDFCF'}
+        {sport === 'football' ? '⚽' : '🏏'}
       </div>
       <div className="font-syne text-sm font-bold mb-2" style={{ color: 'var(--tx)' }}>
         {room.match_name}
