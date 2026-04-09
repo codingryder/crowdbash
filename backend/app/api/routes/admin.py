@@ -434,10 +434,10 @@ async def scrape_league_results(
 @router.post("/enrich-stats")
 async def enrich_match_stats(db: AsyncSession = Depends(get_db)):
     """
-    One-time enrichment: scrape match stats (possession, shots, etc.)
-    for completed rooms that don't have them yet.
+    Enrich completed rooms with full match data using Gemini Flash.
+    Google Search provides context, Gemini extracts structured data.
     """
-    from app.services.stats_scraper import scrape_football_stats, scrape_cricket_stats
+    from app.services.match_data_service import fetch_football_match_data, fetch_cricket_match_data
     import asyncio
 
     result = await db.execute(select(Room).where(Room.status == "completed"))
@@ -450,8 +450,8 @@ async def enrich_match_stats(db: AsyncSession = Depends(get_db)):
     for room in rooms:
         mp = room.match_progress or {}
 
-        # Skip if already has stats
-        if mp.get("possession_home") or mp.get("detailed_batters") or mp.get("stats_enriched"):
+        # Skip if already enriched with stats
+        if mp.get("stats_enriched"):
             skipped += 1
             continue
 
@@ -464,26 +464,24 @@ async def enrich_match_stats(db: AsyncSession = Depends(get_db)):
 
         try:
             if room.sport == "football":
-                stats = await scrape_football_stats(team1, team2, room.league or "")
+                data = await fetch_football_match_data(team1, team2, room.league or "")
             else:
-                stats = await scrape_cricket_stats(team1, team2, room.league or "")
+                data = await fetch_cricket_match_data(team1, team2, room.league or "")
 
-            if stats:
-                # Merge stats into existing match_progress
-                updated = {**mp, **stats, "stats_enriched": True}
-                room.match_progress = updated
+            if data:
+                room.match_progress = data
                 enriched += 1
             else:
                 failed += 1
         except Exception as e:
-            print(f"Enrich error for {room.match_name}: {e}")
+            print(f"Gemini enrich error for {room.match_name}: {e}")
             failed += 1
 
-        # Rate limit
-        await asyncio.sleep(2)
+        # Rate limit: Gemini free tier is 15 RPM, plus Google search needs gaps
+        await asyncio.sleep(5)
 
-        # Stop after enriching 15 to avoid Google blocking
-        if enriched >= 15:
+        # Process up to 10 per call to stay within Gemini limits
+        if enriched + failed >= 10:
             break
 
     await db.commit()

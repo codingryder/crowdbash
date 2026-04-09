@@ -23,10 +23,12 @@ interface MatchDetails {
   corners?: string[];
   fouls?: string[];
   yellow_cards?: string[];
+  shots_on_target?: string[];
   // Cricket
   teams?: Array<{ name: string; score: string; overs: string }>;
   top_batters?: Array<{ name: string; runs: number; balls: number; team: string }>;
   top_bowlers?: Array<{ name: string; wickets: number; runs_conceded: number; overs: string }>;
+  player_of_match?: string;
   // Cricket stats (from enrichment)
   detailed_batters?: Array<{ name: string; runs: number; balls: number }>;
   detailed_bowlers?: Array<{ name: string; wickets: number; runs: number }>;
@@ -223,6 +225,9 @@ function FootballDetail({ details }: { details: MatchDetails }) {
             {details.shots && details.shots.length >= 2 && (
               <StatRow label="Shots" home={details.shots[0]} away={details.shots[1]} />
             )}
+            {details.shots_on_target && details.shots_on_target.length >= 2 && (
+              <StatRow label="Shots on Target" home={details.shots_on_target[0]} away={details.shots_on_target[1]} />
+            )}
             {details.corners && details.corners.length >= 2 && (
               <StatRow label="Corners" home={details.corners[0]} away={details.corners[1]} />
             )}
@@ -282,6 +287,11 @@ function CricketDetail({ details }: { details: MatchDetails }) {
           style={{ background: 'rgba(61,214,140,0.08)', color: 'var(--green)' }}
         >
           {details.result}
+          {details.player_of_match && (
+            <div className="text-[11px] font-normal mt-1" style={{ color: 'var(--gold)' }}>
+              Player of the Match: {details.player_of_match}
+            </div>
+          )}
         </div>
       )}
 
