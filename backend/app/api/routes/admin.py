@@ -304,6 +304,133 @@ async def backfill_results(db: AsyncSession = Depends(get_db)):
     return {"filled": filled, "skipped": skipped, "errors": errors}
 
 
+@router.post("/scrape-missing")
+async def scrape_missing_results(db: AsyncSession = Depends(get_db)):
+    """
+    Scrape match results from Google for leagues that don't have
+    recent completed matches with summaries. Fallback for when
+    sport APIs hit rate limits.
+    """
+    from app.services.scraper_service import scrape_match_result
+    import asyncio
+
+    # Find leagues that have 0 completed rooms with summaries
+    all_result = await db.execute(select(Room))
+    all_rooms = all_result.scalars().all()
+
+    # Group by league
+    leagues: dict = {}
+    for r in all_rooms:
+        lg = r.league or "Other"
+        if lg not in leagues:
+            leagues[lg] = {"sport": r.sport, "completed_with_summary": 0, "upcoming_rooms": []}
+        mp = r.match_progress or {}
+        if r.status == "completed" and mp.get("status") == "completed" and (mp.get("result") or mp.get("scorers")):
+            leagues[lg]["completed_with_summary"] += 1
+        elif r.status == "upcoming":
+            leagues[lg]["upcoming_rooms"].append(r)
+
+    # For leagues with < 3 completed summaries, scrape results for upcoming rooms
+    # (We'll scrape for the match name to see if results are available)
+    scraped = 0
+    failed = 0
+    skipped_leagues = 0
+
+    for lg, info in leagues.items():
+        if info["completed_with_summary"] >= 3:
+            skipped_leagues += 1
+            continue
+
+        needed = 3 - info["completed_with_summary"]
+        sport = info["sport"]
+
+        # Try to scrape results for some upcoming matches
+        # (they might have already been played but our API missed them)
+        for room_data in info["upcoming_rooms"][:needed]:
+            try:
+                result = await scrape_match_result(room_data.match_name, sport, lg)
+                if result:
+                    room_data.match_progress = result
+                    room_data.status = "completed"
+                    from datetime import datetime, timezone
+                    room_data.completed_at = datetime.now(timezone.utc)
+                    scraped += 1
+                else:
+                    failed += 1
+            except Exception as e:
+                print(f"Scrape failed for {room_data.match_name}: {e}")
+                failed += 1
+
+            # Rate limit: 1 request per 2 seconds to avoid Google blocking
+            await asyncio.sleep(2)
+
+    await db.commit()
+    return {
+        "scraped_successfully": scraped,
+        "scrape_failed": failed,
+        "leagues_already_have_3": skipped_leagues,
+    }
+
+
+@router.post("/scrape-league/{league_name}")
+async def scrape_league_results(
+    league_name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Scrape recent match results for a specific league from Google."""
+    from app.services.scraper_service import scrape_match_result
+    import asyncio
+
+    decoded = league_name
+    result = await db.execute(
+        select(Room).where(Room.league == decoded).order_by(Room.created_at.desc())
+    )
+    rooms = result.scalars().all()
+
+    if not rooms:
+        return {"error": f"No rooms found for league: {decoded}"}
+
+    sport = rooms[0].sport
+    scraped = 0
+    failed = 0
+    already_done = 0
+
+    for room in rooms:
+        mp = room.match_progress or {}
+        if mp.get("status") == "completed" and (mp.get("result") or mp.get("scorers")):
+            already_done += 1
+            continue
+
+        if scraped >= 3:
+            break  # Only scrape up to 3 per league
+
+        try:
+            scrape_result = await scrape_match_result(room.match_name, sport, decoded)
+            if scrape_result:
+                room.match_progress = scrape_result
+                room.status = "completed"
+                from datetime import datetime, timezone
+                room.completed_at = datetime.now(timezone.utc)
+                scraped += 1
+            else:
+                failed += 1
+        except Exception as e:
+            print(f"Scrape failed for {room.match_name}: {e}")
+            failed += 1
+
+        await asyncio.sleep(2)
+
+    await db.commit()
+    return {
+        "league": decoded,
+        "sport": sport,
+        "scraped": scraped,
+        "failed": failed,
+        "already_had_results": already_done,
+        "total_rooms": len(rooms),
+    }
+
+
 @router.get("/sync-status")
 async def sync_status(db: AsyncSession = Depends(get_db)):
     """Get current room counts by sport and status."""
