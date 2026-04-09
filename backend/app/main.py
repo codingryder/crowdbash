@@ -138,62 +138,74 @@ async def score_poller():
 async def room_sync():
     """
     Periodically syncs live matches into rooms table.
-    Runs every 5 minutes. Creates rooms for new live matches.
+    Runs every 5 minutes. Creates rooms for live matches only.
     """
-    from app.api.routes.admin import sync_rooms_from_live_matches
+    import re
 
     while True:
         await asyncio.sleep(300)  # every 5 minutes
         try:
             async with AsyncSessionLocal() as db:
+                from app.models.room import Room
+                from sqlalchemy import select
+
                 for sport in ["cricket", "football"]:
                     try:
                         adapter = get_adapter(sport)
-                        live = await adapter.get_live_matches()
-                        if live:
-                            # Use the admin sync logic
-                            from app.models.room import Room
-                            from sqlalchemy import select
+                        matches = await adapter.get_live_matches()
+                        if not matches:
+                            continue
 
-                            for match in live:
-                                if sport == "cricket":
-                                    mid = match.get("id", "")
-                                    mname = match.get("name", "")
-                                    mformat = match.get("matchType", "")
-                                    venue = match.get("venue", "")
-                                    league = match.get("series", "")
-                                elif sport == "football":
-                                    mid = str(match.get("id", ""))
-                                    home = match.get("homeTeam", {}).get("name", "")
-                                    away = match.get("awayTeam", {}).get("name", "")
-                                    mname = f"{home} vs {away}"
-                                    comp = match.get("competition", {})
-                                    mformat = comp.get("name", "")
-                                    venue = match.get("venue", "")
-                                    league = comp.get("name", "")
-                                else:
+                        for match in matches:
+                            if sport == "cricket":
+                                mid = match.get("id", "")
+                                t1 = match.get("t1", "")
+                                t2 = match.get("t2", "")
+                                mname = f"{t1} vs {t2}" if t1 and t2 else "Unknown"
+                                mname = re.sub(r'\s*\[.*?\]', '', mname).strip()
+                                mformat = match.get("matchType", "")
+                                venue = match.get("venue", "")
+                                league = match.get("series", "")
+                                ms = match.get("ms", "")
+                                if ms != "live":
+                                    continue  # Only auto-create live rooms
+                                status = "live"
+                            elif sport == "football":
+                                mid = str(match.get("id", ""))
+                                home = match.get("homeTeam", {}).get("name", "")
+                                away = match.get("awayTeam", {}).get("name", "")
+                                mname = f"{home} vs {away}"
+                                comp = match.get("competition", {})
+                                mformat = comp.get("name", "")
+                                venue = match.get("venue", "")
+                                league = comp.get("name", "")
+                                status_raw = match.get("status", "")
+                                if status_raw not in ("IN_PLAY", "PAUSED"):
                                     continue
+                                status = "live"
+                            else:
+                                continue
 
-                                if not mid:
-                                    continue
+                            if not mid:
+                                continue
 
-                                existing = await db.execute(
-                                    select(Room).where(Room.match_id == str(mid))
-                                )
-                                if existing.scalar_one_or_none():
-                                    continue
+                            existing = await db.execute(
+                                select(Room).where(Room.match_id == str(mid))
+                            )
+                            if existing.scalar_one_or_none():
+                                continue
 
-                                room = Room(
-                                    match_id=str(mid),
-                                    match_name=mname,
-                                    match_format=mformat,
-                                    venue=venue,
-                                    sport=sport,
-                                    league=league,
-                                    status="live",
-                                    match_progress={},
-                                )
-                                db.add(room)
+                            room = Room(
+                                match_id=str(mid),
+                                match_name=mname,
+                                match_format=mformat,
+                                venue=venue,
+                                sport=sport,
+                                league=league,
+                                status=status,
+                                match_progress={},
+                            )
+                            db.add(room)
 
                             await db.commit()
                     except Exception as e:
