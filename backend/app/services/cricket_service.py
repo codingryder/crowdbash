@@ -46,32 +46,31 @@ class CricketAdapter(SportAdapter):
 
         score_data = {}
 
-        # Priority 1: CricketData.org (has score[] + scorecard[] with batting/bowling)
+        # Priority 1: Gemini Flash (real-time score + full scorecard)
         try:
-            if self._api_key():
-                async with httpx.AsyncClient() as client:
-                    res = await client.get(
-                        f"{CRICKETDATA_BASE}/match_scorecard",
-                        params={"apikey": self._api_key(), "id": match_id}
-                    )
-                    data = res.json()
-                    api_data = data.get("data", {})
-                    if api_data.get("score") or api_data.get("scorecard"):
-                        score_data = api_data
+            from app.services.live_score_service import fetch_live_score_via_gemini
+            if self._current_match_name:
+                gemini_data = await fetch_live_score_via_gemini(self._current_match_name)
+                if gemini_data and (gemini_data.get("score") or gemini_data.get("scorecard")):
+                    score_data = gemini_data
         except Exception as e:
-            print(f"CricketData API error: {e}")
+            print(f"Gemini error: {e}")
 
-        # Priority 2: Gemini (returns score[] + scorecard[] in same format)
+        # Priority 2: CricketData.org (fallback)
         if not score_data.get("score") and not score_data.get("scorecard"):
             try:
-                from app.services.live_score_service import fetch_live_score_via_gemini
-                gemini_data = await fetch_live_score_via_gemini(
-                    self._current_match_name or match_id
-                )
-                if gemini_data:
-                    score_data = gemini_data
+                if self._api_key():
+                    async with httpx.AsyncClient() as client:
+                        res = await client.get(
+                            f"{CRICKETDATA_BASE}/match_scorecard",
+                            params={"apikey": self._api_key(), "id": match_id}
+                        )
+                        data = res.json()
+                        api_data = data.get("data", {})
+                        if api_data.get("score") or api_data.get("scorecard"):
+                            score_data = api_data
             except Exception as e:
-                print(f"Gemini error: {e}")
+                print(f"CricketData error: {e}")
 
         if score_data:
             await redis_set_json(cache_key, score_data, ex=20)
