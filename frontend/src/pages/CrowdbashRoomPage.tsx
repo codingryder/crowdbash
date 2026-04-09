@@ -5,10 +5,12 @@ import { useWebSocket } from '../hooks/useWebSocket';
 import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
 import { useRoomStore } from '../store/roomStore';
+import { useGameStore } from '../store/gameStore';
 import { RoomBar } from '../components/layout/RoomBar';
 import { LeftSidebar } from '../components/room/LeftSidebar';
 import { CenterColumn } from '../components/room/CenterColumn';
 import { RightGamePanel } from '../components/game/RightGamePanel';
+import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
 import { PaymentGate } from '../components/auth/PaymentGate';
 import type { Sport } from '../types';
@@ -17,10 +19,12 @@ export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { room, loading } = useRoom(roomId);
   const { sendChat } = useWebSocket(roomId);
-  useGame(roomId);
+  const { selectSquad, lockSquad, saveWeightages } = useGame(roomId);
   const { user, openAuthModal } = useAuth();
   const fanCount = useRoomStore((s) => s.fanCount);
   const setSport = useRoomStore((s) => s.setSport);
+  const showTeamBuilder = useGameStore((s) => s.showTeamBuilder);
+  const setShowTeamBuilder = useGameStore((s) => s.setShowTeamBuilder);
   const [paymentDone, setPaymentDone] = useState(false);
 
   const sport: Sport = room?.sport || 'cricket';
@@ -99,16 +103,27 @@ export function CrowdbashRoomPage() {
 
   // Full room experience
   return (
-    <div className="flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
-      <div
-        className="flex-1 grid overflow-hidden"
-        style={{ gridTemplateColumns: '260px minmax(0, 1fr) 300px' }}
-      >
-        <LeftSidebar room={room} />
-        <CenterColumn onSendChat={sendChat} room={room} />
-        <RightGamePanel room={room} />
+    <>
+      {showTeamBuilder && (
+        <TeamBuilderModal
+          roomName={room.match_name}
+          onSelectSquad={selectSquad}
+          onSaveWeightages={saveWeightages}
+          onLockSquad={lockSquad}
+          onClose={() => setShowTeamBuilder(false)}
+        />
+      )}
+      <div className="flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
+        <div
+          className="flex-1 grid overflow-hidden"
+          style={{ gridTemplateColumns: '260px minmax(0, 1fr) 300px' }}
+        >
+          <LeftSidebar room={room} />
+          <CenterColumn onSendChat={sendChat} room={room} />
+          <RightGamePanel room={room} />
+        </div>
+        <RoomBar room={room} fanCount={displayFanCount} />
       </div>
-      <RoomBar room={room} fanCount={displayFanCount} />
-    </div>
+    </>
   );
 }

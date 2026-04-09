@@ -9,12 +9,14 @@ interface GameStore {
   leaderboard: LeaderboardEntry[];
   editWindowOpen: boolean;
   remainingBudget: number;
+  showTeamBuilder: boolean;
 
   // Squad selection
   availableSquads: Record<string, SquadPlayer[]>;
   selectedPlayerIds: string[];
 
   setGame: (game: Game) => void;
+  setShowTeamBuilder: (show: boolean) => void;
   setLeaderboard: (entries: LeaderboardEntry[]) => void;
   setEditWindow: (open: boolean) => void;
   setAvailableSquads: (squads: Record<string, SquadPlayer[]>) => void;
@@ -37,8 +39,11 @@ export const useGameStore = create<GameStore>((set, get) => ({
   leaderboard: [],
   editWindowOpen: false,
   remainingBudget: TOTAL_BUDGET,
+  showTeamBuilder: false,
   availableSquads: {},
   selectedPlayerIds: [],
+
+  setShowTeamBuilder: (show) => set({ showTeamBuilder: show }),
 
   setGame: (game) => {
     const used = game.player_weightages.reduce((sum, pw) => sum + pw.weightage, 0);

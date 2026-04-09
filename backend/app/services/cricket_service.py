@@ -61,23 +61,56 @@ class CricketAdapter(SportAdapter):
             return cached
 
         async with httpx.AsyncClient() as client:
+            # Use match_squad endpoint for full squad data
             res = await client.get(
-                f"{CRICKETDATA_BASE}/match_info",
+                f"{CRICKETDATA_BASE}/match_squad",
                 params={"apikey": self._api_key(), "id": match_id}
             )
             data = res.json()
-            raw_players = data.get("data", {}).get("players", [])
+            raw_teams = data.get("data", [])
+
+            # Fallback to match_info if match_squad fails
+            if not raw_teams or data.get("status") != "success":
+                res = await client.get(
+                    f"{CRICKETDATA_BASE}/match_info",
+                    params={"apikey": self._api_key(), "id": match_id}
+                )
+                data = res.json()
+                raw_teams = data.get("data", {}).get("players", [])
 
             # Normalize to standard format
             normalized = []
-            for team in raw_players:
-                team_name = team.get("teamName", "")
+            for team in raw_teams:
+                team_name = team.get("teamName", team.get("name", ""))
                 for player in team.get("players", []):
+                    # Determine role from batting/bowling style
+                    batting = player.get("battingStyle", "")
+                    bowling = player.get("bowlingStyle", "")
+                    if bowling and "keeper" in player.get("playingRole", "").lower():
+                        role = "wicket-keeper"
+                    elif bowling and batting:
+                        role = "all-rounder"
+                    elif bowling:
+                        role = "bowler"
+                    else:
+                        role = "batsman"
+
+                    # Override with playingRole if available
+                    playing_role = player.get("playingRole", "").lower()
+                    if "keeper" in playing_role:
+                        role = "wicket-keeper"
+                    elif "allrounder" in playing_role or "all-rounder" in playing_role:
+                        role = "all-rounder"
+                    elif "bowler" in playing_role:
+                        role = "bowler"
+                    elif "batter" in playing_role or "batsman" in playing_role:
+                        role = "batsman"
+
                     normalized.append({
                         "player_id": player.get("id", ""),
                         "player_name": player.get("name", ""),
-                        "team": team_name[:10],
-                        "role": player.get("role", ""),
+                        "team": team_name,
+                        "role": role,
                     })
 
             await redis_set_json(cache_key, normalized, ex=600)

@@ -67,11 +67,39 @@ async def get_available_squads(
     room_id: str,
     db: AsyncSession = Depends(get_db),
 ):
-    """Get available squads (both teams) for a room."""
+    """Get available squads for a room. Auto-fetches from CricketData.org if not in DB."""
+    # Check DB first
     result = await db.execute(
         select(MatchSquad).where(MatchSquad.room_id == uuid.UUID(room_id))
     )
     squads = result.scalars().all()
+
+    # If no squads in DB, try to fetch from sport API and save
+    if not squads:
+        room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
+        room = room_result.scalar_one_or_none()
+        if room and room.match_id:
+            try:
+                adapter = get_adapter(room.sport)
+                api_players = await adapter.get_match_players(room.match_id)
+                for p in api_players:
+                    sq = MatchSquad(
+                        room_id=uuid.UUID(room_id),
+                        player_id=p.get("player_id", ""),
+                        player_name=p.get("player_name", ""),
+                        team=p.get("team", ""),
+                        player_role=p.get("role", ""),
+                    )
+                    db.add(sq)
+                await db.commit()
+
+                # Re-fetch from DB
+                result = await db.execute(
+                    select(MatchSquad).where(MatchSquad.room_id == uuid.UUID(room_id))
+                )
+                squads = result.scalars().all()
+            except Exception as e:
+                print(f"Failed to fetch squads from API: {e}")
 
     teams: dict = {}
     for s in squads:
