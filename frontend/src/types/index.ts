@@ -61,6 +61,13 @@ export interface Player {
   role: string;
 }
 
+export interface SquadPlayer {
+  player_id: string;
+  player_name: string;
+  team: string;
+  player_role: string;
+}
+
 export interface PlayerWeightage {
   player_id: string;
   player_name: string;
@@ -69,6 +76,7 @@ export interface PlayerWeightage {
   points_earned: number;
   player_role?: string;
   scoring_breakdown?: Record<string, number>;
+  selected?: boolean;
 }
 
 export interface Game {
@@ -82,6 +90,8 @@ export interface Game {
   rank?: number;
   player_weightages: PlayerWeightage[];
   extra_weightage_used: number;
+  squad_locked: boolean;
+  total_budget: number;
 }
 
 export interface LeaderboardEntry {

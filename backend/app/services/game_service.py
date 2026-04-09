@@ -6,7 +6,8 @@ from app.services.sport_service import get_adapter
 import uuid
 from datetime import datetime
 
-TOTAL_WEIGHTAGE_BUDGET = 10
+TOTAL_WEIGHTAGE_BUDGET = 50
+EDIT_WINDOW_DURATION_SECONDS = 120  # 2 minutes
 QUIZ_CORRECT_POINTS = 50
 
 
@@ -19,14 +20,15 @@ async def calculate_and_update_points(
 ):
     """
     Core game engine: recalculate every active game's points
-    using the sport-specific adapter. Called after each score poll.
+    using the sport-specific adapter with full fantasy scoring.
     """
     adapter = get_adapter(sport)
 
     result = await db.execute(
         select(Game).where(
             Game.room_id == uuid.UUID(room_id),
-            Game.status == "active"
+            Game.status == "active",
+            Game.squad_locked == True,
         )
     )
     games = result.scalars().all()
@@ -34,7 +36,10 @@ async def calculate_and_update_points(
     for game in games:
         total = 0
         wt_result = await db.execute(
-            select(PlayerWeightage).where(PlayerWeightage.game_id == game.id)
+            select(PlayerWeightage).where(
+                PlayerWeightage.game_id == game.id,
+                PlayerWeightage.selected == True,
+            )
         )
         weightages = wt_result.scalars().all()
 
@@ -68,7 +73,7 @@ async def update_weightages(
     edit_trigger: str
 ):
     """
-    Apply new weightage distribution. Validates budget.
+    Apply new weightage distribution. Validates budget (50 pts).
     Logs change to weightage_edits.
     """
     total = sum(w["weightage"] for w in new_weightages)
@@ -80,7 +85,8 @@ async def update_weightages(
         result = await db.execute(
             select(PlayerWeightage).where(
                 PlayerWeightage.game_id == game_id,
-                PlayerWeightage.player_id == w["player_id"]
+                PlayerWeightage.player_id == w["player_id"],
+                PlayerWeightage.selected == True,
             )
         )
         pw = result.scalar_one_or_none()

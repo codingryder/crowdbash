@@ -1,7 +1,8 @@
 import { create } from 'zustand';
-import type { Game, LeaderboardEntry } from '../types';
+import type { Game, LeaderboardEntry, SquadPlayer } from '../types';
 
-const TOTAL_BUDGET = 10;
+const TOTAL_BUDGET = 50;
+const MAX_SQUAD = 11;
 
 interface GameStore {
   game: Game | null;
@@ -9,10 +10,22 @@ interface GameStore {
   editWindowOpen: boolean;
   remainingBudget: number;
 
+  // Squad selection
+  availableSquads: Record<string, SquadPlayer[]>;
+  selectedPlayerIds: string[];
+
   setGame: (game: Game) => void;
   setLeaderboard: (entries: LeaderboardEntry[]) => void;
   setEditWindow: (open: boolean) => void;
+  setAvailableSquads: (squads: Record<string, SquadPlayer[]>) => void;
 
+  // Squad selection actions
+  togglePlayer: (playerId: string) => void;
+  isPlayerSelected: (playerId: string) => boolean;
+  canSelectMore: () => boolean;
+  getSelectedCount: () => number;
+
+  // Weightage actions
   updateWeightage: (playerId: string, delta: number) => void;
   getRemainingBudget: () => number;
   canIncrease: (playerId: string) => boolean;
@@ -24,16 +37,35 @@ export const useGameStore = create<GameStore>((set, get) => ({
   leaderboard: [],
   editWindowOpen: false,
   remainingBudget: TOTAL_BUDGET,
+  availableSquads: {},
+  selectedPlayerIds: [],
 
   setGame: (game) => {
     const used = game.player_weightages.reduce((sum, pw) => sum + pw.weightage, 0);
-    const extra = game.extra_weightage_used || 0;
-    set({ game, remainingBudget: TOTAL_BUDGET + extra - used });
+    const budget = (game.total_budget || TOTAL_BUDGET) - used;
+    const selected = game.player_weightages.filter((pw) => pw.selected).map((pw) => pw.player_id);
+    set({ game, remainingBudget: budget, selectedPlayerIds: selected });
   },
 
   setLeaderboard: (entries) => set({ leaderboard: entries }),
   setEditWindow: (open) => set({ editWindowOpen: open }),
+  setAvailableSquads: (squads) => set({ availableSquads: squads }),
 
+  // Squad selection
+  togglePlayer: (playerId) => {
+    const { selectedPlayerIds } = get();
+    if (selectedPlayerIds.includes(playerId)) {
+      set({ selectedPlayerIds: selectedPlayerIds.filter((id) => id !== playerId) });
+    } else if (selectedPlayerIds.length < MAX_SQUAD) {
+      set({ selectedPlayerIds: [...selectedPlayerIds, playerId] });
+    }
+  },
+
+  isPlayerSelected: (playerId) => get().selectedPlayerIds.includes(playerId),
+  canSelectMore: () => get().selectedPlayerIds.length < MAX_SQUAD,
+  getSelectedCount: () => get().selectedPlayerIds.length,
+
+  // Weightage
   updateWeightage: (playerId, delta) => {
     const { game } = get();
     if (!game) return;
@@ -45,18 +77,13 @@ export const useGameStore = create<GameStore>((set, get) => ({
     });
 
     const used = pws.reduce((sum, pw) => sum + pw.weightage, 0);
-    const extra = game.extra_weightage_used || 0;
-    const budget = TOTAL_BUDGET + extra - used;
+    const budget = (game.total_budget || TOTAL_BUDGET) - used;
 
     set({ game: { ...game, player_weightages: pws }, remainingBudget: budget });
   },
 
   getRemainingBudget: () => get().remainingBudget,
-
-  canIncrease: (_playerId) => {
-    return get().remainingBudget > 0;
-  },
-
+  canIncrease: () => get().remainingBudget > 0,
   canDecrease: (playerId) => {
     const pw = get().game?.player_weightages.find((p) => p.player_id === playerId);
     return (pw?.weightage ?? 0) > 0;

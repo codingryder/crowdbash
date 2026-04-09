@@ -84,9 +84,76 @@ class CricketAdapter(SportAdapter):
             return normalized
 
     def calculate_player_points(self, player_id: str, match_data: dict, weightage: int) -> tuple[int, dict]:
-        runs = self._extract_player_runs(match_data, player_id)
-        points = runs * weightage
-        return points, {"runs": runs}
+        """Full fantasy scoring for cricket."""
+        breakdown: dict = {}
+        fantasy_pts = 0
+
+        for innings in match_data.get("scorecard", []):
+            # Batting points
+            for bat in innings.get("batting", []):
+                batsman = bat.get("batsman", {})
+                if isinstance(batsman, dict) and batsman.get("id") == player_id:
+                    runs = bat.get("r", 0)
+                    fours = bat.get("4s", 0)
+                    sixes = bat.get("6s", 0)
+                    is_out = bat.get("dismissal", "") != "" and bat.get("dismissal", "") != "not out"
+
+                    batting_pts = runs  # 1 pt per run
+                    batting_pts += fours * 4  # +4 per boundary
+                    batting_pts += sixes * 6  # +6 per six
+                    if runs >= 100:
+                        batting_pts += 50  # century bonus
+                    elif runs >= 50:
+                        batting_pts += 25  # half-century bonus
+                    if runs == 0 and is_out:
+                        batting_pts -= 5  # duck penalty
+
+                    fantasy_pts += batting_pts
+                    breakdown["runs"] = runs
+                    breakdown["fours"] = fours
+                    breakdown["sixes"] = sixes
+                    breakdown["batting_points"] = batting_pts
+
+            # Bowling points
+            for bowl in innings.get("bowling", []):
+                bowler = bowl.get("bowler", {})
+                if isinstance(bowler, dict) and bowler.get("id") == player_id:
+                    wickets = bowl.get("w", 0)
+                    maidens = bowl.get("m", 0)
+
+                    bowling_pts = wickets * 25  # 25 per wicket
+                    bowling_pts += maidens * 10  # 10 per maiden
+                    if wickets >= 5:
+                        bowling_pts += 50  # 5-wicket haul bonus
+                    elif wickets >= 3:
+                        bowling_pts += 25  # 3-wicket haul bonus
+
+                    fantasy_pts += bowling_pts
+                    breakdown["wickets"] = wickets
+                    breakdown["maidens"] = maidens
+                    breakdown["bowling_points"] = bowling_pts
+
+            # Fielding points (from dismissals in batting entries)
+            for bat in innings.get("batting", []):
+                dismissal = bat.get("dismissal", "")
+                catcher = bat.get("fielder", {})
+                if isinstance(catcher, dict) and catcher.get("id") == player_id:
+                    if "caught" in dismissal.lower():
+                        fantasy_pts += 10
+                        breakdown["catches"] = breakdown.get("catches", 0) + 1
+                    elif "stumped" in dismissal.lower():
+                        fantasy_pts += 15
+                        breakdown["stumpings"] = breakdown.get("stumpings", 0) + 1
+                    elif "run out" in dismissal.lower():
+                        fantasy_pts += 10
+                        breakdown["run_outs"] = breakdown.get("run_outs", 0) + 1
+
+        breakdown["fantasy_points"] = fantasy_pts
+        breakdown["weightage"] = weightage
+        total_points = fantasy_pts * weightage
+        breakdown["total_points"] = total_points
+
+        return total_points, breakdown
 
     def normalize_score(self, match_data: dict, room_name: str) -> dict:
         """Normalize CricketData.org scorecard to frontend CricketScoreData format."""

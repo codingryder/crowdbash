@@ -1,15 +1,9 @@
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
-import { SHOP_ITEMS } from '../../types';
+import { useGame } from '../../hooks/useGame';
+import { SquadSelection } from './SquadSelection';
+import { WeightageAllocation } from './WeightageAllocation';
 import type { Room } from '../../types';
-
-const AVATAR_STYLES = [
-  { bg: 'rgba(74,158,255,0.15)', color: 'var(--blue)' },
-  { bg: 'rgba(244,185,64,0.12)', color: 'var(--gold)' },
-  { bg: 'rgba(61,214,140,0.1)', color: 'var(--green)' },
-  { bg: 'rgba(139,111,255,0.12)', color: 'var(--purple)' },
-  { bg: 'rgba(240,90,90,0.1)', color: 'var(--red)' },
-];
 
 interface RightGamePanelProps {
   room: Room;
@@ -17,233 +11,82 @@ interface RightGamePanelProps {
 
 export function RightGamePanel({ room }: RightGamePanelProps) {
   const game = useGameStore((s) => s.game);
-  const editWindowOpen = useGameStore((s) => s.editWindowOpen);
-  const remainingBudget = useGameStore((s) => s.remainingBudget);
   const user = useAuthStore((s) => s.user);
+  const availableSquads = useGameStore((s) => s.availableSquads);
+  const { joinGame, selectSquad, lockSquad, saveWeightages } = useGame(room.id);
 
-  const budget = game ? remainingBudget : 10;
-  const totalBudget = 10;
-  const parts = room.match_name.split(' vs ');
-  const team1 = parts[0]?.trim() || 'Team 1';
-  const team2 = parts[1]?.trim() || 'Team 2';
+  const hasSquads = Object.keys(availableSquads).length > 0;
+  const hasJoined = !!game;
+  const hasSelectedPlayers = game && game.player_weightages.filter((pw) => pw.selected).length === 11;
+  const isLocked = game?.squad_locked || false;
 
-  // Format edit window info based on sport
-  const editWindowText = room.sport === 'football'
-    ? 'Edit window: Opens at halftime'
-    : `Edit window: Opens every 5 overs`;
-
-  return (
-    <div className="flex flex-col overflow-hidden">
-      {/* Game Header */}
-      <div style={{ padding: '14px 16px 12px', borderBottom: '0.5px solid var(--b1)' }}>
-        <div
-          className="text-[9px] uppercase tracking-[1px] mb-2.5"
-          style={{ color: 'var(--mu)' }}
-        >
-          Weightage game &middot; {room.sport === 'football' ? '⚽' : '🏏'} {room.league || room.match_format}
+  // Phase 0: Not signed in
+  if (!user) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-4 text-center">
+        <div className="text-2xl mb-3">🎮</div>
+        <div className="font-syne text-sm font-bold mb-2" style={{ color: 'var(--tx)' }}>
+          Weightage Game
         </div>
-        <div className="flex items-center justify-between mb-2.5">
-          <div className="text-center">
-            <div className="text-[11px] font-medium" style={{ color: 'var(--blue)' }}>{team1}</div>
-            <div className="font-syne text-[22px] font-extrabold" style={{ color: 'var(--gold)' }}>
-              {game ? game.total_points.toLocaleString() : '—'}
-            </div>
-          </div>
-          <div className="text-xs" style={{ color: 'var(--dm)' }}>vs</div>
-          <div className="text-center">
-            <div className="text-[11px] font-medium" style={{ color: 'var(--red)' }}>{team2}</div>
-            <div className="font-syne text-[22px] font-extrabold" style={{ color: 'var(--mu)' }}>
-              —
-            </div>
-          </div>
-        </div>
-        <div className="flex gap-3 justify-center">
-          {[
-            { label: 'Status', value: room.status === 'live' ? 'Live' : room.status, color: room.status === 'live' ? 'var(--green)' : 'var(--tx)' },
-            { label: 'Sport', value: room.sport, color: 'var(--tx)' },
-            { label: 'Format', value: room.match_format || '—', color: 'var(--tx)' },
-          ].map((item) => (
-            <div key={item.label} className="text-center">
-              <div className="text-[9px] uppercase tracking-[0.4px]" style={{ color: 'var(--mu)' }}>
-                {item.label}
-              </div>
-              <div className="text-xs font-medium mt-0.5 capitalize" style={{ color: item.color }}>
-                {item.value}
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
-
-      {/* Budget bar */}
-      <div
-        className="flex items-center justify-between"
-        style={{
-          padding: '10px 16px',
-          borderBottom: '0.5px solid var(--b1)',
-          background: 'rgba(244,185,64,0.05)',
-        }}
-      >
-        <div>
-          <div className="text-[11px]" style={{ color: 'var(--gold)' }}>Weightage budget</div>
-          <div className="text-[10px] mt-0.5" style={{ color: 'rgba(244,185,64,0.5)' }}>
-            {budget} of {totalBudget} unassigned
-          </div>
-        </div>
-        <div className="text-right">
-          <div className="font-syne text-[17px] font-extrabold" style={{ color: 'var(--gold)' }}>
-            {budget}
-          </div>
-          <div className="text-[10px]" style={{ color: 'rgba(244,185,64,0.5)' }}>remaining</div>
-        </div>
-      </div>
-
-      {/* Lock bar */}
-      <div
-        className="flex items-center justify-between"
-        style={{ padding: '8px 16px', borderBottom: '0.5px solid var(--b1)' }}
-      >
         <div className="text-[11px]" style={{ color: 'var(--mu)' }}>
-          {editWindowText}
+          Sign in to play the Weightage Game
         </div>
-        <div
-          className="text-[10px] px-2.5 py-0.5 rounded-[20px]"
-          style={{
-            background: editWindowOpen ? 'rgba(244,185,64,0.08)' : 'rgba(61,214,140,0.08)',
-            color: editWindowOpen ? 'var(--gold)' : 'var(--green)',
-          }}
+      </div>
+    );
+  }
+
+  // Phase 1: Not joined yet
+  if (!hasJoined) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full px-4 text-center">
+        <div className="text-2xl mb-3">🎮</div>
+        <div className="font-syne text-sm font-bold mb-2" style={{ color: 'var(--tx)' }}>
+          Weightage Game
+        </div>
+        <div className="text-[12px] mb-1" style={{ color: 'var(--tx)' }}>
+          {room.match_name}
+        </div>
+        <div className="text-[11px] mb-4" style={{ color: 'var(--mu)' }}>
+          {hasSquads
+            ? 'Pick 11 players, allocate 50 weightage points, and earn fantasy points!'
+            : 'Squads will be added before the match. Join to get notified.'}
+        </div>
+        <button
+          onClick={joinGame}
+          className="px-6 py-2.5 rounded-lg text-[13px] font-bold cursor-pointer font-syne border-none"
+          style={{ background: 'var(--gold)', color: '#09090F' }}
         >
-          {editWindowOpen ? 'Open' : 'Locked'}
-        </div>
+          Join Game
+        </button>
       </div>
+    );
+  }
 
-      {/* Player cards or sign in prompt */}
-      <div className="flex-1 overflow-y-auto" style={{ padding: '10px 12px' }}>
-        {!user && !game && (
-          <div className="text-center py-8">
-            <div className="text-sm mb-2" style={{ color: 'var(--mu)' }}>
-              Sign in to play the Weightage Game
-            </div>
-            <div className="text-xs" style={{ color: 'var(--dm)' }}>
-              Distribute weightage points across players and earn points based on their performance
-            </div>
+  // Phase 2: Joined but squad not selected yet
+  if (!hasSelectedPlayers && !isLocked) {
+    if (!hasSquads) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full px-4 text-center">
+          <div className="text-2xl mb-3">⏳</div>
+          <div className="font-syne text-sm font-bold mb-2" style={{ color: 'var(--tx)' }}>
+            Waiting for squads
           </div>
-        )}
-
-        {user && !game && (
-          <div className="text-center py-8">
-            <div className="text-sm mb-3" style={{ color: 'var(--mu)' }}>
-              Join this room to start playing
-            </div>
-            <div className="text-xs" style={{ color: 'var(--dm)' }}>
-              Players will appear here once the match goes live and you join the game
-            </div>
+          <div className="text-[11px]" style={{ color: 'var(--mu)' }}>
+            Squads will be announced before the match starts. You'll be able to pick your 11 players then.
           </div>
-        )}
-
-        {game && (
-          <>
-            <div
-              className="text-[9px] uppercase tracking-[1px] mb-2 py-0.5"
-              style={{ color: 'var(--mu)' }}
-            >
-              Your squad
-            </div>
-
-            {game.player_weightages.map((player, i) => (
-              <div
-                key={player.player_id}
-                className="flex items-center gap-2.5 rounded-[10px] mb-[7px]"
-                style={{
-                  background: 'var(--s1)',
-                  border: '0.5px solid var(--b1)',
-                  padding: '10px 12px',
-                }}
-              >
-                <div
-                  className="w-[34px] h-[34px] rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-                  style={{
-                    background: AVATAR_STYLES[i % AVATAR_STYLES.length].bg,
-                    color: AVATAR_STYLES[i % AVATAR_STYLES.length].color,
-                  }}
-                >
-                  {player.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="text-xs font-medium" style={{ color: 'var(--tx)' }}>
-                    {player.player_name}
-                  </div>
-                  <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>
-                    {player.player_role || player.team}
-                  </div>
-                  {player.points_earned > 0 && (
-                    <div className="text-[10px] mt-0.5" style={{ color: 'var(--green)' }}>
-                      +{player.points_earned} pts
-                    </div>
-                  )}
-                </div>
-                <div className="flex items-center gap-1.5">
-                  <button
-                    className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[13px] font-medium cursor-pointer transition-all"
-                    style={{ border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--tx)' }}
-                  >
-                    &minus;
-                  </button>
-                  <div
-                    className="font-syne text-[13px] font-bold min-w-[16px] text-center"
-                    style={{ color: 'var(--gold)' }}
-                  >
-                    {player.weightage}
-                  </div>
-                  <button
-                    className="w-[22px] h-[22px] rounded-full flex items-center justify-center text-[13px] font-medium cursor-pointer transition-all"
-                    style={{ border: '0.5px solid var(--b2)', background: 'var(--s2)', color: 'var(--tx)' }}
-                  >
-                    +
-                  </button>
-                </div>
-              </div>
-            ))}
-          </>
-        )}
-      </div>
-
-      {/* Shop */}
-      <div style={{ padding: '10px 12px', borderTop: '0.5px solid var(--b1)' }}>
-        <div
-          className="text-[9px] uppercase tracking-[1px] mb-2"
-          style={{ color: 'var(--mu)' }}
-        >
-          Buy extra weightage
         </div>
-        <div className="flex gap-2">
-          {SHOP_ITEMS.map((item) => (
-            <div
-              key={item.id}
-              className="flex-1 rounded-[10px] p-2.5"
-              style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}
-            >
-              <div className="text-[11px] font-medium mb-0.5">{item.label}</div>
-              <div className="text-[13px] font-bold mb-1.5" style={{ color: 'var(--gold)' }}>
-                ₹{item.price_inr}
-              </div>
-              <div className="text-[10px] leading-[1.4] mb-2" style={{ color: 'var(--mu)' }}>
-                {item.description}
-              </div>
-              <button
-                className="w-full py-[5px] rounded-md text-[11px] font-semibold cursor-pointer font-syne"
-                style={{
-                  background: 'rgba(244,185,64,0.1)',
-                  border: '0.5px solid rgba(244,185,64,0.25)',
-                  color: 'var(--gold)',
-                }}
-              >
-                Buy now
-              </button>
-            </div>
-          ))}
-        </div>
-      </div>
-    </div>
+      );
+    }
+
+    return <SquadSelection onConfirm={selectSquad} />;
+  }
+
+  // Phase 3 & 4: Squad selected → allocation / locked
+  return (
+    <WeightageAllocation
+      onSave={saveWeightages}
+      onLock={lockSquad}
+      isLocked={isLocked}
+    />
   );
 }

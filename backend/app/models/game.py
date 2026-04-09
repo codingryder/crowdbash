@@ -1,4 +1,4 @@
-from sqlalchemy import Column, String, Integer, Numeric, DateTime, ForeignKey
+from sqlalchemy import Column, String, Integer, Boolean, Numeric, DateTime, ForeignKey
 from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from app.core.database import Base
@@ -17,6 +17,9 @@ class Game(Base):
     extra_weightage_used = Column(Integer, default=0)
     status = Column(String(20), default="active")
     rank = Column(Integer, nullable=True)
+    squad_locked = Column(Boolean, default=False)
+    squad_locked_at = Column(DateTime(timezone=True), nullable=True)
+    total_budget = Column(Integer, default=50)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -32,6 +35,7 @@ class PlayerWeightage(Base):
     points_earned = Column(Integer, default=0)
     player_role = Column(String(30), nullable=True)
     scoring_breakdown = Column(JSONB, default={})
+    selected = Column(Boolean, default=False)
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 

@@ -5,13 +5,22 @@ from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.game import Game, PlayerWeightage
 from app.models.room import Room
+from app.models.match_squad import MatchSquad
 from app.services.game_service import update_weightages
 from app.services.sport_service import get_adapter
 from pydantic import BaseModel
 import uuid
 from typing import List
+from datetime import datetime, timezone
 
 router = APIRouter()
+
+TOTAL_BUDGET = 50
+MAX_SQUAD_SIZE = 11
+
+
+class SelectSquadRequest(BaseModel):
+    player_ids: List[str]
 
 
 class WeightageUpdate(BaseModel):
@@ -27,63 +36,169 @@ class UpdateWeightagesRequest(BaseModel):
 async def join_game(
     room_id: str,
     user_id: uuid.UUID = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Join a game in a room. Creates game + initial weightages using sport-specific adapter."""
-    room_result = await db.execute(
-        select(Room).where(Room.id == uuid.UUID(room_id))
-    )
+    """Join a game in a room. Does NOT select players yet — just creates the game."""
+    room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
     room = room_result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
     # Check if already joined
     existing = await db.execute(
-        select(Game).where(
-            Game.room_id == uuid.UUID(room_id),
-            Game.user_id == user_id
-        )
+        select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == user_id)
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Already joined this room")
 
-    # Create game
-    game = Game(room_id=uuid.UUID(room_id), user_id=user_id)
+    game = Game(
+        room_id=uuid.UUID(room_id),
+        user_id=user_id,
+        total_budget=TOTAL_BUDGET,
+    )
     db.add(game)
-    await db.flush()
+    await db.commit()
 
-    # Fetch players using sport-specific adapter
-    adapter = get_adapter(room.sport)
-    players = await adapter.get_match_players(room.match_id)
+    return {"game_id": str(game.id), "message": "Joined! Now select your 11 players."}
 
-    for player in players:
+
+@router.get("/{room_id}/squads")
+async def get_available_squads(
+    room_id: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Get available squads (both teams) for a room."""
+    result = await db.execute(
+        select(MatchSquad).where(MatchSquad.room_id == uuid.UUID(room_id))
+    )
+    squads = result.scalars().all()
+
+    teams: dict = {}
+    for s in squads:
+        if s.team not in teams:
+            teams[s.team] = []
+        teams[s.team].append({
+            "player_id": s.player_id,
+            "player_name": s.player_name,
+            "team": s.team,
+            "player_role": s.player_role or "",
+        })
+
+    return {"teams": teams, "total_players": len(squads)}
+
+
+@router.post("/{room_id}/select-squad")
+async def select_squad(
+    room_id: str,
+    body: SelectSquadRequest,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Select 11 players for your squad from available players."""
+    # Validate exactly 11
+    if len(body.player_ids) != MAX_SQUAD_SIZE:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Must select exactly {MAX_SQUAD_SIZE} players. Got {len(body.player_ids)}.",
+        )
+
+    # Get game
+    game_result = await db.execute(
+        select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == user_id)
+    )
+    game = game_result.scalar_one_or_none()
+    if not game:
+        raise HTTPException(status_code=404, detail="Join the room first")
+
+    if game.squad_locked:
+        raise HTTPException(status_code=400, detail="Squad is already locked")
+
+    # Validate all player_ids exist in match_squads
+    squad_result = await db.execute(
+        select(MatchSquad).where(MatchSquad.room_id == uuid.UUID(room_id))
+    )
+    available = {s.player_id: s for s in squad_result.scalars().all()}
+
+    for pid in body.player_ids:
+        if pid not in available:
+            raise HTTPException(status_code=400, detail=f"Player {pid} not in match squads")
+
+    # Clear any previous selections
+    old_result = await db.execute(
+        select(PlayerWeightage).where(PlayerWeightage.game_id == game.id)
+    )
+    for old in old_result.scalars().all():
+        await db.delete(old)
+
+    # Create PlayerWeightage records for selected 11
+    for pid in body.player_ids:
+        s = available[pid]
         pw = PlayerWeightage(
             game_id=game.id,
-            player_id=player.get("player_id", ""),
-            player_name=player.get("player_name", ""),
-            team=player.get("team", "")[:10],
-            player_role=player.get("role", ""),
+            player_id=s.player_id,
+            player_name=s.player_name,
+            team=s.team[:10],
+            player_role=s.player_role,
+            selected=True,
+            weightage=0,
         )
         db.add(pw)
 
     await db.commit()
-    return {"game_id": str(game.id), "message": "Joined successfully"}
+    return {"message": "Squad selected! Now allocate your 50 weightage points.", "players": len(body.player_ids)}
+
+
+@router.post("/{room_id}/lock-squad")
+async def lock_squad(
+    room_id: str,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Lock squad and weightages. Called after allocation is done."""
+    game_result = await db.execute(
+        select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == user_id)
+    )
+    game = game_result.scalar_one_or_none()
+    if not game:
+        raise HTTPException(status_code=404, detail="Game not found")
+
+    if game.squad_locked:
+        raise HTTPException(status_code=400, detail="Already locked")
+
+    # Validate weightages sum to budget
+    wt_result = await db.execute(
+        select(PlayerWeightage).where(PlayerWeightage.game_id == game.id, PlayerWeightage.selected == True)
+    )
+    weightages = wt_result.scalars().all()
+
+    if len(weightages) != MAX_SQUAD_SIZE:
+        raise HTTPException(status_code=400, detail="Select 11 players first")
+
+    total = sum(w.weightage for w in weightages)
+    if total != TOTAL_BUDGET:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Weightages must total {TOTAL_BUDGET}. Currently {total}.",
+        )
+
+    game.squad_locked = True
+    game.squad_locked_at = datetime.now(timezone.utc)
+    await db.commit()
+
+    return {"message": "Squad locked! Good luck!", "locked_at": game.squad_locked_at.isoformat()}
 
 
 @router.get("/{room_id}")
 async def get_game_state(
     room_id: str,
     user_id: uuid.UUID = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Get current game state for a user in a room."""
-    result = await db.execute(
-        select(Game).where(
-            Game.room_id == uuid.UUID(room_id),
-            Game.user_id == user_id
-        )
+    """Get full game state: squad, weightages, points."""
+    game_result = await db.execute(
+        select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == user_id)
     )
-    game = result.scalar_one_or_none()
+    game = game_result.scalar_one_or_none()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
@@ -101,6 +216,8 @@ async def get_game_state(
         "extra_weightage_used": game.extra_weightage_used,
         "status": game.status,
         "rank": game.rank,
+        "squad_locked": game.squad_locked,
+        "total_budget": game.total_budget,
         "player_weightages": [
             {
                 "player_id": pw.player_id,
@@ -110,6 +227,7 @@ async def get_game_state(
                 "points_earned": pw.points_earned,
                 "player_role": pw.player_role,
                 "scoring_breakdown": pw.scoring_breakdown or {},
+                "selected": pw.selected,
             }
             for pw in weightages
         ],
@@ -121,26 +239,28 @@ async def update_game_weightages(
     room_id: str,
     body: UpdateWeightagesRequest,
     user_id: uuid.UUID = Depends(get_current_user_id),
-    db: AsyncSession = Depends(get_db)
+    db: AsyncSession = Depends(get_db),
 ):
-    """Update weightage distribution during edit window."""
-    result = await db.execute(
-        select(Game).where(
-            Game.room_id == uuid.UUID(room_id),
-            Game.user_id == user_id
-        )
+    """Update weightage allocation. Must total 50 across 11 selected players."""
+    game_result = await db.execute(
+        select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == user_id)
     )
-    game = result.scalar_one_or_none()
+    game = game_result.scalar_one_or_none()
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
+    # Validate total = budget
+    total = sum(w.weightage for w in body.weightages)
+    if total > game.total_budget:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Total weightage {total} exceeds budget {game.total_budget}",
+        )
+
     # Get room for sport context
-    room_result = await db.execute(
-        select(Room).where(Room.id == uuid.UUID(room_id))
-    )
+    room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
     room = room_result.scalar_one_or_none()
 
-    # Determine edit trigger from current progress
     adapter = get_adapter(room.sport)
     progress = room.match_progress or {}
     edit_trigger = adapter.get_edit_trigger(progress)
@@ -148,6 +268,6 @@ async def update_game_weightages(
     changes = await update_weightages(
         db, game.id, user_id,
         [w.model_dump() for w in body.weightages],
-        edit_trigger
+        edit_trigger,
     )
     return {"changes": changes}

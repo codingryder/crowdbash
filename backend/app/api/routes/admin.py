@@ -518,3 +518,88 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
         "by_sport": stats,
         "rooms": room_list[:30],
     }
+
+
+# ── Squad Management ──
+
+from app.models.match_squad import MatchSquad
+from pydantic import BaseModel
+from typing import List
+
+
+class PlayerEntry(BaseModel):
+    player_id: str
+    player_name: str
+    team: str
+    player_role: str = ""
+
+
+class SquadEntry(BaseModel):
+    players: List[PlayerEntry]
+
+
+@router.post("/squads/{room_id}")
+async def set_match_squads(
+    room_id: str,
+    body: SquadEntry,
+    db: AsyncSession = Depends(get_db),
+):
+    """Admin: set squads for a match (both teams' players)."""
+    import uuid as _uuid
+
+    # Verify room exists
+    room_result = await db.execute(select(Room).where(Room.id == _uuid.UUID(room_id)))
+    room = room_result.scalar_one_or_none()
+    if not room:
+        return {"error": "Room not found"}
+
+    # Clear existing squads for this room
+    await db.execute(delete(MatchSquad).where(MatchSquad.room_id == _uuid.UUID(room_id)))
+
+    # Insert new players
+    added = 0
+    for p in body.players:
+        squad = MatchSquad(
+            room_id=_uuid.UUID(room_id),
+            player_id=p.player_id,
+            player_name=p.player_name,
+            team=p.team,
+            player_role=p.player_role,
+        )
+        db.add(squad)
+        added += 1
+
+    await db.commit()
+    return {
+        "room_id": room_id,
+        "match_name": room.match_name,
+        "players_added": added,
+    }
+
+
+@router.get("/squads/{room_id}")
+async def get_match_squads(room_id: str, db: AsyncSession = Depends(get_db)):
+    """Get squads for a match room."""
+    import uuid as _uuid
+    result = await db.execute(
+        select(MatchSquad).where(MatchSquad.room_id == _uuid.UUID(room_id))
+    )
+    squads = result.scalars().all()
+
+    # Group by team
+    teams: dict = {}
+    for s in squads:
+        if s.team not in teams:
+            teams[s.team] = []
+        teams[s.team].append({
+            "player_id": s.player_id,
+            "player_name": s.player_name,
+            "team": s.team,
+            "player_role": s.player_role or "",
+        })
+
+    return {
+        "room_id": room_id,
+        "total_players": len(squads),
+        "teams": teams,
+    }
