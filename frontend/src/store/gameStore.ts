@@ -1,7 +1,7 @@
 import { create } from 'zustand';
 import type { Game, LeaderboardEntry, SquadPlayer } from '../types';
 
-const TOTAL_BUDGET = 50;
+const TOTAL_BUDGET = 20;
 const MAX_SQUAD = 11;
 
 interface GameStore {

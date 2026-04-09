@@ -6,7 +6,7 @@ from app.services.sport_service import get_adapter
 import uuid
 from datetime import datetime
 
-TOTAL_WEIGHTAGE_BUDGET = 50
+TOTAL_WEIGHTAGE_BUDGET = 20
 EDIT_WINDOW_DURATION_SECONDS = 120  # 2 minutes
 QUIZ_CORRECT_POINTS = 50
 
@@ -73,7 +73,7 @@ async def update_weightages(
     edit_trigger: str
 ):
     """
-    Apply new weightage distribution. Validates budget (50 pts).
+    Apply new weightage distribution. Validates budget (20 pts).
     Logs change to weightage_edits.
     """
     total = sum(w["weightage"] for w in new_weightages)
