@@ -2,6 +2,7 @@ import { useEffect, useRef } from 'react';
 import { CrowdbashWebSocket } from '../lib/ws';
 import { useRoomStore } from '../store/roomStore';
 import { useGameStore } from '../store/gameStore';
+import { useAuthStore } from '../store/authStore';
 import type { WSMessage, ChatMessage, ScoreData, QuizQuestion, LeaderboardEntry, MatchEvent, Sport } from '../types';
 
 export function useWebSocket(roomId: string | undefined) {
@@ -21,12 +22,10 @@ export function useWebSocket(roomId: string | undefined) {
     ws.onMessage((msg: WSMessage) => {
       switch (msg.type) {
         case 'score_update': {
-          // New format: { sport, data } wrapper
           const payload = msg.payload as { sport: Sport; data: Record<string, unknown> };
           if (payload.sport && payload.data) {
             setScore({ sport: payload.sport, ...payload.data } as ScoreData);
           } else {
-            // Backward compat: direct score data
             setScore(msg.payload as ScoreData);
           }
           break;
@@ -68,7 +67,13 @@ export function useWebSocket(roomId: string | undefined) {
   }, [roomId]);
 
   function sendChat(message: string) {
-    wsRef.current?.send('chat', { message });
+    // Include user identity in the chat message
+    const user = useAuthStore.getState().user;
+    wsRef.current?.send('chat', {
+      message,
+      user_id: user?.id || '',
+      username: user ? `${user.first_name} ${user.last_name}`.trim() : 'Anonymous',
+    });
   }
 
   return { sendChat };

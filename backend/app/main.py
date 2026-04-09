@@ -52,10 +52,21 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
 
             if msg["type"] == "ping":
                 await room_manager.send_to_user(websocket, {"type": "pong"})
+
             elif msg["type"] == "chat":
+                import uuid as _uuid
+                from datetime import datetime, timezone
+                payload = msg.get("payload", {})
+                chat_msg = {
+                    "id": str(_uuid.uuid4()),
+                    "user_id": payload.get("user_id", ""),
+                    "username": payload.get("username", "Anonymous"),
+                    "message": payload.get("message", ""),
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                }
                 await room_manager.broadcast(room_id, {
                     "type": "chat",
-                    "payload": msg["payload"]
+                    "payload": chat_msg,
                 })
 
     except WebSocketDisconnect:
@@ -111,12 +122,16 @@ async def score_poller():
                         })
                         continue
 
-                    # Broadcast score update with sport context
+                    # Normalize and broadcast score update
+                    try:
+                        normalized = adapter.normalize_score(match_data, room.match_name)
+                    except Exception:
+                        normalized = match_data
                     await room_manager.broadcast(str(room.id), {
                         "type": "score_update",
                         "payload": {
                             "sport": room.sport,
-                            "data": match_data,
+                            "data": normalized,
                         }
                     })
 

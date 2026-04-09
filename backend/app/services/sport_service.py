@@ -30,6 +30,11 @@ class SportAdapter(ABC):
         ...
 
     @abstractmethod
+    def normalize_score(self, match_data: dict, room_name: str) -> dict:
+        """Normalize API score data to frontend-expected format."""
+        ...
+
+    @abstractmethod
     def extract_match_progress(self, match_data: dict) -> dict:
         """Extract progress. Cricket: {"over": 23.4}. Football: {"half": 2, "minute": 67}"""
         ...

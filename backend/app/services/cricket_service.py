@@ -88,6 +88,43 @@ class CricketAdapter(SportAdapter):
         points = runs * weightage
         return points, {"runs": runs}
 
+    def normalize_score(self, match_data: dict, room_name: str) -> dict:
+        """Normalize CricketData.org scorecard to frontend CricketScoreData format."""
+        parts = room_name.split(" vs ")
+        team1_name = parts[0].strip() if len(parts) > 0 else "Team 1"
+        team2_name = parts[1].strip() if len(parts) > 1 else "Team 2"
+
+        scorecard = match_data.get("scorecard", [])
+        team1_score = "—"
+        team1_overs = "—"
+        team2_score = "—"
+        team2_overs = "—"
+
+        for i, innings in enumerate(scorecard):
+            runs = innings.get("runs", 0)
+            wickets = innings.get("wickets", 0)
+            overs = str(innings.get("overs", "0"))
+            score_str = f"{runs}/{wickets}"
+            if i == 0:
+                team1_score = score_str
+                team1_overs = overs
+            elif i == 1:
+                team2_score = score_str
+                team2_overs = overs
+
+        status = match_data.get("status", "")
+        current_over = self._extract_current_over(match_data)
+
+        return {
+            "sport": "cricket",
+            "match_name": room_name,
+            "team1": {"name": team1_name, "score": team1_score, "overs": team1_overs},
+            "team2": {"name": team2_name, "score": team2_score, "overs": team2_overs},
+            "status": status,
+            "current_rate": 0,
+            "batting_team": "",
+        }
+
     def extract_match_progress(self, match_data: dict) -> dict:
         over = self._extract_current_over(match_data)
         return {"over": over}

@@ -225,6 +225,27 @@ class FootballAdapter(SportAdapter):
         total = raw_points * weightage
         return total, breakdown
 
+    def normalize_score(self, match_data: dict, room_name: str) -> dict:
+        """Normalize Football-Data.org match data to frontend FootballScoreData format."""
+        home_team = match_data.get("homeTeam", {}).get("name", "")
+        away_team = match_data.get("awayTeam", {}).get("name", "")
+        score = match_data.get("score", {})
+        ft = score.get("fullTime", {}) or {}
+        status = match_data.get("status", "")
+        minute = match_data.get("minute", 0) or 0
+        half = 1 if minute <= 45 else 2
+        if status == "PAUSED":
+            half = 1
+
+        return {
+            "sport": "football",
+            "home": {"name": home_team, "goals": ft.get("home", 0)},
+            "away": {"name": away_team, "goals": ft.get("away", 0)},
+            "minute": minute,
+            "half": half,
+            "status": status,
+        }
+
     def extract_match_progress(self, match_data: dict) -> dict:
         """Extract minute and half from Football-Data.org match response."""
         minute = match_data.get("minute", 0) or 0
