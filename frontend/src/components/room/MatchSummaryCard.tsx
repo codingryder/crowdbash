@@ -1,3 +1,4 @@
+import { Link } from 'react-router-dom';
 import type { Room } from '../../types';
 
 interface MatchSummaryCardProps {
@@ -35,16 +36,19 @@ export function MatchSummaryCard({ room }: MatchSummaryCardProps) {
   }
 
   if (room.sport === 'football') {
-    return <FootballSummary room={room} summary={progress as unknown as FootballSummary} />;
+    return <FootballSummaryCard room={room} summary={progress as unknown as FootballSummary} />;
   }
-  return <CricketSummary room={room} summary={progress as unknown as CricketSummary} />;
+  return <CricketSummaryCard room={room} summary={progress as unknown as CricketSummary} />;
 }
 
 function BasicCompletedCard({ room }: { room: Room }) {
   return (
-    <div
-      className="rounded-[14px] p-4"
+    <Link
+      to={`/room/${room.id}`}
+      className="block rounded-[14px] p-4 no-underline transition-all cursor-pointer"
       style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(244,185,64,0.4)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
     >
       <div className="flex items-center justify-between mb-2">
         <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
@@ -58,18 +62,21 @@ function BasicCompletedCard({ room }: { room: Room }) {
       <div className="font-syne text-[14px] font-bold" style={{ color: 'var(--tx)' }}>
         {room.match_name}
       </div>
-      <div className="text-[11px] mt-1" style={{ color: 'var(--dm)' }}>
-        Match details not available
+      <div className="text-[11px] mt-2" style={{ color: 'var(--gold)' }}>
+        View details →
       </div>
-    </div>
+    </Link>
   );
 }
 
-function FootballSummary({ room, summary }: { room: Room; summary: FootballSummary }) {
+function FootballSummaryCard({ room, summary }: { room: Room; summary: FootballSummary }) {
   return (
-    <div
-      className="rounded-[14px] p-4"
+    <Link
+      to={`/room/${room.id}`}
+      className="block rounded-[14px] p-4 no-underline transition-all cursor-pointer"
       style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(244,185,64,0.4)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
@@ -144,15 +151,21 @@ function FootballSummary({ room, summary }: { room: Room; summary: FootballSumma
           ))}
         </div>
       )}
-    </div>
+      <div className="text-[11px] mt-3 font-medium" style={{ color: 'var(--gold)' }}>
+        View full details →
+      </div>
+    </Link>
   );
 }
 
-function CricketSummary({ room, summary }: { room: Room; summary: CricketSummary }) {
+function CricketSummaryCard({ room, summary }: { room: Room; summary: CricketSummary }) {
   return (
-    <div
-      className="rounded-[14px] p-4"
+    <Link
+      to={`/room/${room.id}`}
+      className="block rounded-[14px] p-4 no-underline transition-all cursor-pointer"
       style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(244,185,64,0.4)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
     >
       {/* Header */}
       <div className="flex items-center justify-between mb-3">
@@ -215,6 +228,9 @@ function CricketSummary({ room, summary }: { room: Room; summary: CricketSummary
           ))}
         </div>
       )}
-    </div>
+      <div className="text-[11px] mt-3 font-medium" style={{ color: 'var(--gold)' }}>
+        View full details →
+      </div>
+    </Link>
   );
 }

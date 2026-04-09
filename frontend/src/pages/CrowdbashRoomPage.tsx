@@ -8,6 +8,7 @@ import { RoomBar } from '../components/layout/RoomBar';
 import { LeftSidebar } from '../components/room/LeftSidebar';
 import { CenterColumn } from '../components/room/CenterColumn';
 import { RightGamePanel } from '../components/game/RightGamePanel';
+import { CompletedMatchView } from '../components/room/CompletedMatchView';
 import type { Sport } from '../types';
 
 export function CrowdbashRoomPage() {
@@ -45,6 +46,12 @@ export function CrowdbashRoomPage() {
     );
   }
 
+  // Completed matches get a detail view instead of the live 3-column layout
+  if (room.status === 'completed') {
+    return <CompletedMatchView room={room} />;
+  }
+
+  // Live and upcoming matches get the full fan room experience
   return (
     <div className="flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
       <div

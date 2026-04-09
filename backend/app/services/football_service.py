@@ -75,10 +75,11 @@ class FootballAdapter(SportAdapter):
                 sched_data = sched_res.json()
                 all_matches.extend(sched_data.get("matches", []))
 
-            # 3. Also fetch today's finished matches (for completed rooms)
+            # 3. Fetch finished matches from last 3 days (for recent results)
+            three_days_ago = (date.today() - timedelta(days=3)).isoformat()
             fin_res = await client.get(
                 f"{FOOTBALL_DATA_BASE}/matches",
-                params={"date": today, "status": "FINISHED"},
+                params={"dateFrom": three_days_ago, "dateTo": today, "status": "FINISHED"},
                 headers=self._headers(),
             )
             if fin_res.status_code == 200:

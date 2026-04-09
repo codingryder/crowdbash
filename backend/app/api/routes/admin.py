@@ -152,10 +152,6 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
         if not match_id:
             continue
 
-        # Skip completed
-        if status == "completed":
-            continue
-
         # Check if room already exists
         existing = await db.execute(
             select(Room).where(Room.match_id == str(match_id))
@@ -169,6 +165,19 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
         if "[" in clean_name:
             clean_name = re.sub(r'\s*\[.*?\]', '', clean_name).strip()
 
+        # For completed matches, try to save match summary
+        progress = {}
+        if status == "completed":
+            try:
+                summary = adapter.format_match_summary(match, clean_name)
+                progress = summary
+            except Exception:
+                progress = {"status": "completed"}
+            from datetime import datetime, timezone
+            completed_at = datetime.now(timezone.utc)
+        else:
+            completed_at = None
+
         room = Room(
             match_id=str(match_id),
             match_name=clean_name,
@@ -177,7 +186,8 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
             sport=sport,
             league=league,
             status=status,
-            match_progress={},
+            match_progress=progress,
+            completed_at=completed_at,
         )
         db.add(room)
         created += 1
