@@ -5,14 +5,20 @@ from app.services.sport_service import SportAdapter
 from typing import List, Dict, Any
 
 CRICKETDATA_BASE = "https://api.cricapi.com/v1"
-CACHE_TTL = 60
+CACHE_TTL = 30  # 30 seconds cache for faster live updates
 
 
 class CricketAdapter(SportAdapter):
     """CricketData.org integration for live cricket data."""
 
+    _current_match_name: str = ""
+
     def _api_key(self) -> str:
         return settings.CRICKETDATA_API_KEY
+
+    def set_match_context(self, match_name: str):
+        """Set the current match name for Gemini fallback."""
+        self._current_match_name = match_name
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
         if not self._api_key():
@@ -38,18 +44,40 @@ class CricketAdapter(SportAdapter):
 
         cache_key = f"cricket:score:{match_id}"
         cached = await redis_get_json(cache_key)
-        if cached:
+        if cached and cached.get("score"):
             return cached
 
-        async with httpx.AsyncClient() as client:
-            res = await client.get(
-                f"{CRICKETDATA_BASE}/match_scorecard",
-                params={"apikey": self._api_key(), "id": match_id}
-            )
-            data = res.json()
-            score_data = data.get("data", {})
+        score_data = {}
+
+        # Try CricketData.org API first
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{CRICKETDATA_BASE}/match_scorecard",
+                    params={"apikey": self._api_key(), "id": match_id}
+                )
+                data = res.json()
+                score_data = data.get("data", {})
+        except Exception as e:
+            print(f"CricketData API error: {e}")
+
+        # If API returned empty score, try Gemini as fallback
+        if not score_data.get("score") and not score_data.get("scorecard"):
+            try:
+                from app.services.live_score_service import fetch_live_score_via_gemini
+                # We need the match name — store it in a class-level cache
+                gemini_data = await fetch_live_score_via_gemini(
+                    self._current_match_name or match_id
+                )
+                if gemini_data:
+                    score_data = gemini_data
+                    print(f"[Gemini fallback] Got score for {self._current_match_name}")
+            except Exception as e:
+                print(f"Gemini fallback error: {e}")
+
+        if score_data:
             await redis_set_json(cache_key, score_data, ex=CACHE_TTL)
-            return score_data
+        return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
         if not self._api_key():

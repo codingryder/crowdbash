@@ -98,6 +98,8 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
 
     try:
         adapter = get_adapter(room.sport)
+        if hasattr(adapter, 'set_match_context'):
+            adapter.set_match_context(room.match_name)
         match_data = await adapter.get_match_score(room.match_id)
         if not match_data:
             return {"scorecard": None}
