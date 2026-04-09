@@ -139,7 +139,8 @@ Bowling: {bowlers_str}
 Just the commentary line, nothing else. Be energetic and natural like a real cricket commentator."""
 
         try:
-            response = model.generate_content(prompt)
+            import asyncio
+            response = await asyncio.to_thread(model.generate_content, prompt)
             text = response.text.strip().strip('"').strip("'")
 
             # Determine chip type for frontend

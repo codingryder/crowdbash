@@ -66,7 +66,8 @@ CRITICAL RULES:
 - Do NOT guess or predict results — only report what has actually happened"""
 
     try:
-        response = model.generate_content(prompt)
+        import asyncio
+        response = await asyncio.to_thread(model.generate_content, prompt)
         text = response.text.strip()
 
         if text.startswith("```"):
