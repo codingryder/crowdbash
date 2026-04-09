@@ -19,6 +19,11 @@ async def send_otp_email(email: str, otp: str) -> bool:
         print(f"[DEV] OTP for {email}: {otp}")
         return True
 
+    # Use Resend's default sender if custom domain not verified
+    from_email = settings.FROM_EMAIL
+    if "crowdbash" in from_email and settings.ENVIRONMENT != "production":
+        from_email = "Crowdbash <onboarding@resend.dev>"
+
     try:
         async with httpx.AsyncClient() as client:
             res = await client.post(
@@ -28,7 +33,7 @@ async def send_otp_email(email: str, otp: str) -> bool:
                     "Content-Type": "application/json",
                 },
                 json={
-                    "from": settings.FROM_EMAIL,
+                    "from": from_email,
                     "to": [email],
                     "subject": f"Crowdbash - Your verification code is {otp}",
                     "html": f"""
@@ -43,7 +48,10 @@ async def send_otp_email(email: str, otp: str) -> bool:
                     """,
                 },
             )
-            return res.status_code == 200
+            if res.status_code != 200:
+                print(f"Resend API error: {res.status_code} - {res.text}")
+                return False
+            return True
     except Exception as e:
         print(f"Email send error: {e}")
         return False
