@@ -84,10 +84,13 @@ export function TeamBuilderModal({
         .filter((pw) => pw.selected)
         .map((pw) => ({ player_id: pw.player_id, weightage: pw.weightage }));
       await onSaveWeightages(weightages);
-      await onLockSquad();
+      // Only lock if not already locked
+      if (!game?.squad_locked) {
+        await onLockSquad();
+      }
       onClose();
     } catch (err: unknown) {
-      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to lock squad');
+      setError((err as { response?: { data?: { detail?: string } } })?.response?.data?.detail || 'Failed to save');
     } finally {
       setLoading(false);
     }
@@ -218,7 +221,7 @@ export function TeamBuilderModal({
               className="px-6 py-2.5 rounded-lg text-[13px] font-bold cursor-pointer font-syne border-none disabled:opacity-30"
               style={{ background: 'var(--gold)', color: '#09090F' }}
             >
-              {loading ? 'Locking...' : remainingBudget === 0 ? '🔒 Lock & Start Playing' : `Allocate ${remainingBudget} more points`}
+              {loading ? 'Saving...' : remainingBudget === 0 ? (game?.squad_locked ? '✅ Save Weightages' : '🔒 Lock & Start Playing') : `Allocate ${remainingBudget} more points`}
             </button>
           </>
         )}

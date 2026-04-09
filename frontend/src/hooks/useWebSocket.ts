@@ -49,8 +49,18 @@ export function useWebSocket(roomId: string | undefined) {
             edit_window_open: boolean;
           };
           setMatchProgress(p.progress);
-          setEditWindow(p.edit_window_open);
-          setGameEditWindow(p.edit_window_open);
+          if (p.edit_window_open) {
+            setEditWindow(true);
+            setGameEditWindow(true);
+            // Auto-close edit window after 2 minutes (120 seconds)
+            setTimeout(() => {
+              setEditWindow(false);
+              setGameEditWindow(false);
+            }, 120000);
+          } else {
+            setEditWindow(false);
+            setGameEditWindow(false);
+          }
           break;
         }
         case 'match_event':
