@@ -3,56 +3,82 @@ import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
 
-// Sample rooms shown when backend has no data
-const SAMPLE_ROOMS: Room[] = [
-  { id: 'demo-1', match_id: 'm1', match_name: 'India vs Australia', match_format: 'ICC World Cup \u00b7 ODI \u00b7 MCG', venue: 'MCG', status: 'live', current_over: 48.3, fan_count: 2841, sport: 'cricket', league: 'ICC World Cup', match_progress: { over: 48.3 } },
-  { id: 'demo-f1', match_id: 'f1', match_name: 'Arsenal vs Chelsea', match_format: 'EPL \u00b7 Emirates', venue: 'Emirates Stadium', status: 'live', current_over: 0, fan_count: 8340, sport: 'football', league: 'Premier League', match_progress: { half: 2, minute: 67 } },
-  { id: 'demo-3', match_id: 'm3', match_name: 'England vs Pakistan', match_format: "Test \u00b7 Lord's", venue: "Lord's", status: 'upcoming', current_over: 0, fan_count: 841, sport: 'cricket', league: 'Test Series', match_progress: {} },
-  { id: 'demo-f3', match_id: 'f3', match_name: 'Man City vs Liverpool', match_format: 'EPL \u00b7 Etihad', venue: 'Etihad Stadium', status: 'upcoming', current_over: 0, fan_count: 0, sport: 'football', league: 'Premier League', match_progress: {} },
-];
+interface LeagueInfo {
+  sport: string;
+  league: string;
+  total_rooms: number;
+  live_rooms: number;
+  upcoming_rooms: number;
+}
+
+// League display config
+const LEAGUE_ICONS: Record<string, string> = {
+  'Indian Premier League 2026': '\uD83C\uDDEE\uD83C\uDDF3',
+  'Pakistan Super League 2026': '\uD83C\uDDF5\uD83C\uDDF0',
+  'Big Bash League': '\uD83C\uDDE6\uD83C\uDDFA',
+  'Caribbean Premier League': '\uD83C\uDDF9\uD83C\uDDF9',
+  'SA20': '\uD83C\uDDFF\uD83C\uDDE6',
+  'The Hundred': '\uD83C\uDDEC\uD83C\uDDE7',
+  'Lanka Premier League': '\uD83C\uDDF1\uD83C\uDDF0',
+  'Bangladesh Premier League': '\uD83C\uDDE7\uD83C\uDDE9',
+  'Premier League': '\uD83C\uDFF4\uDB40\uDC67\uDB40\uDC62\uDB40\uDC65\uDB40\uDC6E\uDB40\uDC67\uDB40\uDC7F',
+  'La Liga': '\uD83C\uDDEA\uD83C\uDDF8',
+  'Serie A': '\uD83C\uDDEE\uD83C\uDDF9',
+  'Bundesliga': '\uD83C\uDDE9\uD83C\uDDEA',
+  'Ligue 1': '\uD83C\uDDEB\uD83C\uDDF7',
+  'Champions League': '\uD83C\uDFC6',
+  'Copa Libertadores': '\uD83C\uDDe7\uD83C\uDDF7',
+  'World Cup': '\uD83C\uDF0D',
+};
 
 type FilterTab = 'all' | 'cricket' | 'football';
 
 export function HomePage() {
-  const [rooms, setRooms] = useState<Room[]>([]);
+  const [leagues, setLeagues] = useState<LeagueInfo[]>([]);
+  const [popularRooms, setPopularRooms] = useState<Room[]>([]);
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>('all');
 
   useEffect(() => {
-    async function fetchRooms() {
+    async function fetchData() {
       try {
-        const { data } = await api.get('/api/rooms/');
-        if (Array.isArray(data) && data.length > 0) {
-          setRooms(data);
-        }
+        const [leaguesRes, roomsRes] = await Promise.all([
+          api.get('/api/rooms/leagues'),
+          api.get('/api/rooms/?status=live'),
+        ]);
+        if (Array.isArray(leaguesRes.data)) setLeagues(leaguesRes.data);
+        if (Array.isArray(roomsRes.data)) setPopularRooms(roomsRes.data.slice(0, 6));
       } catch {
-        // Backend not available — sample data shown
+        // Backend not available
       } finally {
         setLoading(false);
       }
     }
-    fetchRooms();
+    fetchData();
   }, []);
 
-  // Use real rooms if available, else sample
-  const allRooms = rooms.length > 0 ? rooms : SAMPLE_ROOMS;
-  const filteredRooms = filter === 'all'
-    ? allRooms
-    : allRooms.filter((r) => r.sport === filter);
+  const filteredLeagues = filter === 'all'
+    ? leagues
+    : leagues.filter((l) => l.sport === filter);
 
-  const liveRooms = filteredRooms.filter((r) => r.status === 'live');
-  const upcomingRooms = filteredRooms.filter((r) => r.status === 'upcoming');
-  const completedRooms = filteredRooms.filter((r) => r.status === 'completed');
+  const cricketLeagues = filteredLeagues.filter((l) => l.sport === 'cricket');
+  const footballLeagues = filteredLeagues.filter((l) => l.sport === 'football');
 
   return (
-    <main style={{ padding: '28px 32px' }}>
-      <div className="font-syne text-[22px] font-extrabold mb-1.5">Live fan rooms</div>
-      <div className="text-[13px] mb-5" style={{ color: 'var(--mu)' }}>
-        Join a room, play the weightage game, and watch with your tribe.
+    <main style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
+      {/* Hero */}
+      <div className="mb-8">
+        <div className="font-syne text-[28px] font-extrabold mb-2" style={{ color: 'var(--tx)' }}>
+          Your live sports arena
+        </div>
+        <div className="text-[14px] leading-relaxed" style={{ color: 'var(--mu)', maxWidth: 500 }}>
+          Watch live matches, chat with fans, play the Weightage Game, and compete on leaderboards.
+          Pick a league to get started.
+        </div>
       </div>
 
       {/* Sport filter tabs */}
-      <div className="flex gap-2 mb-6">
+      <div className="flex gap-2 mb-8">
         {([
           { key: 'all', label: 'All Sports' },
           { key: 'cricket', label: '\uD83C\uDFCF Cricket' },
@@ -61,7 +87,7 @@ export function HomePage() {
           <button
             key={tab.key}
             onClick={() => setFilter(tab.key)}
-            className="rounded-lg px-4 py-1.5 text-xs font-semibold cursor-pointer border-none transition-all"
+            className="rounded-lg px-4 py-2 text-[13px] font-semibold cursor-pointer border-none transition-all"
             style={
               filter === tab.key
                 ? { background: 'var(--gold)', color: '#09090F' }
@@ -73,65 +99,70 @@ export function HomePage() {
         ))}
       </div>
 
+      {/* Live now — popular rooms */}
+      {popularRooms.length > 0 && (
+        <section className="mb-10">
+          <div className="flex items-center gap-2 mb-4">
+            <span
+              className="w-2 h-2 rounded-full animate-blink"
+              style={{ background: 'var(--red)' }}
+            />
+            <span className="font-syne text-[15px] font-bold" style={{ color: 'var(--red)' }}>
+              Live now
+            </span>
+          </div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            {popularRooms.map((room) => (
+              <LiveRoomCard key={room.id} room={room} />
+            ))}
+          </div>
+        </section>
+      )}
+
       {loading && (
-        <div className="grid gap-3.5 mb-8" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          {[1, 2, 3].map((i) => (
-            <div key={i} className="rounded-[14px] p-[18px] animate-pulse" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          {[1, 2, 3, 4, 5, 6].map((i) => (
+            <div key={i} className="rounded-[14px] p-5 animate-pulse" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
               <div className="h-4 rounded w-1/3 mb-3" style={{ background: 'var(--s2)' }} />
-              <div className="h-6 rounded w-2/3 mb-2" style={{ background: 'var(--s2)' }} />
-              <div className="h-3 rounded w-1/2" style={{ background: 'var(--s2)' }} />
+              <div className="h-6 rounded w-2/3" style={{ background: 'var(--s2)' }} />
             </div>
           ))}
         </div>
       )}
 
-      {/* Live section */}
-      {!loading && liveRooms.length > 0 && (
-        <>
-          <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
-            Live now &mdash; {liveRooms.length} rooms
+      {/* Cricket Leagues */}
+      {!loading && cricketLeagues.length > 0 && (filter === 'all' || filter === 'cricket') && (
+        <section className="mb-10">
+          <div className="font-syne text-[16px] font-bold mb-4" style={{ color: 'var(--tx)' }}>
+            \uD83C\uDFCF Cricket
           </div>
-          <div className="grid gap-3.5 mb-8" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-            {liveRooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            {cricketLeagues.map((league) => (
+              <LeagueCard key={league.league} league={league} />
             ))}
           </div>
-        </>
+        </section>
       )}
 
-      {/* Upcoming section */}
-      {!loading && upcomingRooms.length > 0 && (
-        <>
-          <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
-            Scheduled &mdash; coming up
+      {/* Football Leagues */}
+      {!loading && footballLeagues.length > 0 && (filter === 'all' || filter === 'football') && (
+        <section className="mb-10">
+          <div className="font-syne text-[16px] font-bold mb-4" style={{ color: 'var(--tx)' }}>
+            \u26BD Football
           </div>
-          <div className="grid gap-3.5 mb-8" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-            {upcomingRooms.map((room) => (
-              <RoomCard key={room.id} room={room} isUpcoming />
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            {footballLeagues.map((league) => (
+              <LeagueCard key={league.league} league={league} />
             ))}
           </div>
-        </>
+        </section>
       )}
 
-      {/* Completed section */}
-      {!loading && completedRooms.length > 0 && (
-        <>
-          <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
-            Completed
-          </div>
-          <div className="grid gap-3.5" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-            {completedRooms.map((room) => (
-              <RoomCard key={room.id} room={room} />
-            ))}
-          </div>
-        </>
-      )}
-
-      {/* Empty state */}
-      {!loading && filteredRooms.length === 0 && (
+      {/* Empty */}
+      {!loading && leagues.length === 0 && (
         <div className="text-center py-16">
           <div className="font-syne text-lg mb-2" style={{ color: 'var(--mu)' }}>
-            No {filter !== 'all' ? filter : ''} rooms available
+            No leagues available yet
           </div>
           <div className="text-sm" style={{ color: 'var(--dm)' }}>
             Rooms are created automatically when live matches start.
@@ -142,91 +173,85 @@ export function HomePage() {
   );
 }
 
-function RoomCard({ room, isUpcoming }: { room: Room; isUpcoming?: boolean }) {
-  const sportIcon = room.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF';
+function LeagueCard({ league }: { league: LeagueInfo }) {
+  const icon = LEAGUE_ICONS[league.league] || (league.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF');
+  const hasLive = league.live_rooms > 0;
 
-  // Format progress display
-  let progressText = '';
-  if (room.sport === 'cricket' && room.current_over > 0) {
-    progressText = `Over ${room.current_over}`;
-  } else if (room.sport === 'football') {
-    const mp = room.match_progress || {};
-    const minute = mp.minute as number;
-    if (minute) {
-      progressText = `${minute}\u2019 ${(mp.half as number) === 1 ? '1H' : '2H'}`;
-    }
-  }
+  return (
+    <Link
+      to={`/league/${encodeURIComponent(league.league)}`}
+      className="block rounded-[14px] p-5 cursor-pointer transition-all no-underline"
+      style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}
+      onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(244,185,64,0.4)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
+    >
+      <div className="flex items-start justify-between mb-3">
+        <span className="text-2xl">{icon}</span>
+        {hasLive && (
+          <div
+            className="flex items-center gap-1 rounded-[20px] px-2 py-0.5 text-[10px] font-semibold"
+            style={{ background: 'rgba(240,90,90,0.1)', color: 'var(--red)' }}
+          >
+            <span className="w-1 h-1 rounded-full animate-blink" style={{ background: 'var(--red)' }} />
+            {league.live_rooms} Live
+          </div>
+        )}
+      </div>
+
+      <div className="font-syne text-[14px] font-bold mb-1" style={{ color: 'var(--tx)' }}>
+        {league.league}
+      </div>
+
+      <div className="flex gap-3 mt-2">
+        {league.live_rooms > 0 && (
+          <span className="text-[11px]" style={{ color: 'var(--green)' }}>
+            {league.live_rooms} live
+          </span>
+        )}
+        {league.upcoming_rooms > 0 && (
+          <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
+            {league.upcoming_rooms} upcoming
+          </span>
+        )}
+        <span className="text-[11px]" style={{ color: 'var(--dm)' }}>
+          {league.total_rooms} total
+        </span>
+      </div>
+    </Link>
+  );
+}
+
+function LiveRoomCard({ room }: { room: Room }) {
+  const sportIcon = room.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF';
 
   return (
     <Link
       to={`/room/${room.id}`}
-      className="block rounded-[14px] cursor-pointer transition-colors no-underline"
-      style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)', padding: 18 }}
+      className="block rounded-[14px] p-4 no-underline transition-all"
+      style={{ background: 'var(--s1)', border: '0.5px solid rgba(240,90,90,0.2)' }}
       onMouseEnter={(e) => (e.currentTarget.style.borderColor = 'rgba(244,185,64,0.4)')}
-      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
+      onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'rgba(240,90,90,0.2)')}
     >
-      {/* Top row */}
-      <div className="flex items-start justify-between mb-3">
-        <div>
-          <div className="font-syne text-[15px] font-bold" style={{ color: 'var(--tx)' }}>
-            {sportIcon} {room.match_name}
-          </div>
-          <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)' }}>
-            {room.league ? `${room.league} \u00b7 ` : ''}{room.match_format || room.venue}
-          </div>
+      <div className="flex items-center justify-between mb-2">
+        <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
+          {sportIcon} {room.league || room.match_format}
+        </span>
+        <div
+          className="flex items-center gap-1 rounded-[20px] px-2 py-0.5 text-[10px] font-semibold"
+          style={{ background: 'rgba(240,90,90,0.1)', color: 'var(--red)' }}
+        >
+          <span className="w-1 h-1 rounded-full animate-blink" style={{ background: 'var(--red)' }} />
+          Live
         </div>
-        {room.status === 'live' ? (
-          <div
-            className="flex items-center gap-1 rounded-[20px] px-2.5 py-0.5 text-[10px] font-semibold whitespace-nowrap"
-            style={{ background: 'rgba(240,90,90,0.1)', color: 'var(--red)' }}
-          >
-            <span className="w-1 h-1 rounded-full animate-blink" style={{ background: 'var(--red)' }} />
-            Live
-          </div>
-        ) : (
-          <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
-            {isUpcoming ? 'Upcoming' : room.status}
-          </span>
-        )}
       </div>
-
-      {/* Progress */}
-      {progressText && (
-        <div className="font-syne text-[13px] rounded-lg px-3 py-2 mb-3" style={{ background: 'var(--s2)', color: 'var(--tx)' }}>
-          {progressText}
+      <div className="font-syne text-[13px] font-bold" style={{ color: 'var(--tx)' }}>
+        {room.match_name}
+      </div>
+      {room.fan_count > 0 && (
+        <div className="text-[11px] mt-1" style={{ color: 'var(--mu)' }}>
+          {room.fan_count.toLocaleString()} fans
         </div>
       )}
-
-      {/* Stats */}
-      <div className="flex gap-4 mb-3.5">
-        {room.fan_count > 0 && (
-          <div className="text-xs" style={{ color: 'var(--mu)' }}>
-            Fans <span style={{ color: 'var(--tx)', fontWeight: 500 }}>{room.fan_count.toLocaleString()}</span>
-          </div>
-        )}
-      </div>
-
-      {/* Footer */}
-      <div className="flex items-center justify-between">
-        <div className="flex gap-1.5 flex-wrap">
-          <span className="rounded-[20px] px-2.5 py-0.5 text-[10px]"
-            style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)', color: 'var(--mu)' }}>
-            {room.sport === 'football' ? 'Football' : 'Cricket'}
-          </span>
-          {room.status === 'live' && (
-            <span className="rounded-[20px] px-2.5 py-0.5 text-[10px]"
-              style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)', color: 'var(--mu)' }}>
-              Game on
-            </span>
-          )}
-        </div>
-        <button
-          className="rounded-lg px-4 py-1.5 text-xs font-bold cursor-pointer font-syne border-none whitespace-nowrap"
-          style={room.status === 'live' ? { background: 'var(--gold)', color: '#09090F' } : { background: 'var(--s2)', color: 'var(--tx)', border: '0.5px solid var(--b2)' }}
-        >
-          {room.status === 'live' ? 'Join \u2192' : 'Remind'}
-        </button>
-      </div>
     </Link>
   );
 }
