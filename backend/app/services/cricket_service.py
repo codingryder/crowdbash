@@ -45,19 +45,8 @@ class CricketAdapter(SportAdapter):
             return cached
 
         score_data = {}
-        espn_data = {}
 
-        # Step 1: ESPN for real-time team scores (always try)
-        try:
-            from app.services.espn_service import fetch_espn_match_by_name
-            if self._current_match_name:
-                espn_data = await fetch_espn_match_by_name(self._current_match_name) or {}
-                if espn_data.get("score"):
-                    score_data = espn_data
-        except Exception as e:
-            print(f"ESPN error: {e}")
-
-        # Step 2: CricketData.org for detailed scorecard (batting/bowling)
+        # Priority 1: CricketData.org (has score[] + scorecard[] with batting/bowling)
         try:
             if self._api_key():
                 async with httpx.AsyncClient() as client:
@@ -67,37 +56,25 @@ class CricketAdapter(SportAdapter):
                     )
                     data = res.json()
                     api_data = data.get("data", {})
-                    if api_data.get("scorecard"):
-                        # Merge: use ESPN score[] but CricketData scorecard[]
-                        if espn_data.get("score"):
-                            api_data["score"] = espn_data["score"]
-                            api_data["status"] = espn_data.get("status", api_data.get("status", ""))
-                            api_data["matchEnded"] = espn_data.get("matchEnded", False)
+                    if api_data.get("score") or api_data.get("scorecard"):
                         score_data = api_data
         except Exception as e:
             print(f"CricketData API error: {e}")
 
-        # Step 3: Gemini for individual scorecard when CricketData fails
-        if not score_data.get("scorecard"):
+        # Priority 2: Gemini (returns score[] + scorecard[] in same format)
+        if not score_data.get("score") and not score_data.get("scorecard"):
             try:
                 from app.services.live_score_service import fetch_live_score_via_gemini
                 gemini_data = await fetch_live_score_via_gemini(
                     self._current_match_name or match_id
                 )
                 if gemini_data:
-                    # Merge: use ESPN score[] if available
-                    if espn_data.get("score") and not gemini_data.get("score"):
-                        gemini_data["score"] = espn_data["score"]
-                    if espn_data.get("status"):
-                        gemini_data["status"] = espn_data["status"]
-                    if espn_data.get("matchEnded"):
-                        gemini_data["matchEnded"] = espn_data["matchEnded"]
                     score_data = gemini_data
             except Exception as e:
                 print(f"Gemini error: {e}")
 
         if score_data:
-            await redis_set_json(cache_key, score_data, ex=15)
+            await redis_set_json(cache_key, score_data, ex=20)
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
