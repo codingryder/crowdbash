@@ -14,14 +14,13 @@ interface CenterColumnProps {
 }
 
 export function CenterColumn({ onSendChat, room }: CenterColumnProps) {
-  const [activeTab, setActiveTab] = useState<CenterTab>('commentary');
+  const [activeTab, setActiveTab] = useState<CenterTab>('chat');
 
   const tabs: Array<{ key: CenterTab; label: string }> = [
-    { key: 'commentary', label: 'Commentary' },
     { key: 'chat', label: 'Chat' },
     { key: 'my-team', label: 'My Team' },
     { key: 'leaderboard', label: 'Leaderboard' },
-    { key: 'quiz', label: 'Quiz' },
+    { key: 'commentary', label: 'Commentary' },
   ];
 
   return (
