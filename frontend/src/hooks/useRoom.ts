@@ -9,12 +9,16 @@ export function useRoom(roomId: string | undefined) {
   useEffect(() => {
     if (!roomId) return;
 
-    async function fetchRoom() {
+    async function fetchRoom(retryCount = 0) {
       try {
         const { data } = await api.get(`/api/rooms/${roomId}`);
         setRoom(data);
-      } catch (err) {
-        console.error('Failed to fetch room', err);
+      } catch {
+        // Retry on cold start (server waking up)
+        if (retryCount < 3) {
+          await new Promise((r) => setTimeout(r, 3000));
+          return fetchRoom(retryCount + 1);
+        }
       } finally {
         setLoading(false);
       }

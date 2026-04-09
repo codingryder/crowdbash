@@ -334,7 +334,29 @@ async def room_sync():
             print(f"Room sync outer error: {e}")
 
 
+async def keep_alive():
+    """Ping self every 10 minutes to prevent Render free tier from sleeping."""
+    import httpx
+    while True:
+        await asyncio.sleep(600)  # 10 minutes
+        try:
+            async with httpx.AsyncClient() as client:
+                await client.get("https://crowdbash.onrender.com/health", timeout=10)
+        except Exception:
+            pass
+
+
 @app.on_event("startup")
 async def startup():
+    # Warm up DB connection on startup
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text("SELECT 1"))
+            print("DB connection warmed up")
+    except Exception as e:
+        print(f"DB warmup failed: {e}")
+
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
+    asyncio.create_task(keep_alive())

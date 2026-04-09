@@ -14,6 +14,7 @@ import { CenterColumn } from '../components/room/CenterColumn';
 import { RightGamePanel } from '../components/game/RightGamePanel';
 import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
+import { MobileRoomView } from '../components/room/MobileRoomView';
 import { PaymentGate } from '../components/auth/PaymentGate';
 
 export function CrowdbashRoomPage() {
@@ -139,7 +140,8 @@ export function CrowdbashRoomPage() {
           onClose={() => setShowTeamBuilder(false)}
         />
       )}
-      <div className="flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
+      {/* Desktop: 3-column layout */}
+      <div className="hidden lg:flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
         <div
           className="flex-1 grid overflow-hidden"
           style={{ gridTemplateColumns: '260px minmax(0, 1fr) 300px' }}
@@ -149,6 +151,17 @@ export function CrowdbashRoomPage() {
           <RightGamePanel room={room} />
         </div>
         <RoomBar room={room} fanCount={displayFanCount} />
+      </div>
+
+      {/* Mobile: single column with tabs */}
+      <div className="lg:hidden flex flex-col" style={{ height: 'calc(100vh - 52px)' }}>
+        <MobileRoomView
+          room={room}
+          fanCount={displayFanCount}
+          lastUpdated={lastUpdated}
+          onRefresh={refreshScore}
+          onSendChat={sendChat}
+        />
       </div>
     </>
   );

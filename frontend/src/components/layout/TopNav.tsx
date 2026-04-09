@@ -8,7 +8,7 @@ export function TopNav() {
 
   return (
     <nav
-      className="flex items-center gap-0 shrink-0 px-8"
+      className="flex items-center gap-0 shrink-0 px-4 md:px-8"
       style={{ borderBottom: '0.5px solid var(--b1)', background: 'var(--bg)', height: 52 }}
     >
       <Link

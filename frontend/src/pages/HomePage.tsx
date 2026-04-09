@@ -39,8 +39,10 @@ export function HomePage() {
   const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>('all');
 
+  const [waking, setWaking] = useState(false);
+
   useEffect(() => {
-    async function fetchData() {
+    async function fetchData(retryCount = 0) {
       try {
         const [leaguesRes, roomsRes] = await Promise.all([
           api.get('/api/rooms/leagues'),
@@ -48,8 +50,14 @@ export function HomePage() {
         ]);
         if (Array.isArray(leaguesRes.data)) setLeagues(leaguesRes.data);
         if (Array.isArray(roomsRes.data)) setPopularRooms(roomsRes.data.slice(0, 6));
+        setWaking(false);
       } catch {
-        // Backend not available
+        // Backend might be waking up from cold start — retry
+        if (retryCount < 3) {
+          setWaking(true);
+          await new Promise((r) => setTimeout(r, 3000));
+          return fetchData(retryCount + 1);
+        }
       } finally {
         setLoading(false);
       }
@@ -65,7 +73,7 @@ export function HomePage() {
   const footballLeagues = filteredLeagues.filter((l) => l.sport === 'football');
 
   return (
-    <main style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
+    <main className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 1200 }}>
       {/* Hero */}
       <div className="mb-8">
         <div className="font-syne text-[28px] font-extrabold mb-2" style={{ color: 'var(--tx)' }}>
@@ -111,7 +119,7 @@ export function HomePage() {
               Live now
             </span>
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {popularRooms.map((room) => (
               <LiveRoomCard key={room.id} room={room} />
             ))}
@@ -120,13 +128,21 @@ export function HomePage() {
       )}
 
       {loading && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-          {[1, 2, 3, 4, 5, 6].map((i) => (
-            <div key={i} className="rounded-[14px] p-5 animate-pulse" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
-              <div className="h-4 rounded w-1/3 mb-3" style={{ background: 'var(--s2)' }} />
-              <div className="h-6 rounded w-2/3" style={{ background: 'var(--s2)' }} />
+        <div>
+          {waking && (
+            <div className="text-center mb-4 py-3 rounded-lg" style={{ background: 'rgba(244,185,64,0.05)', border: '0.5px solid rgba(244,185,64,0.2)' }}>
+              <div className="text-[13px] font-medium" style={{ color: 'var(--gold)' }}>⏳ Waking up server...</div>
+              <div className="text-[11px] mt-1" style={{ color: 'var(--mu)' }}>First load takes a few seconds</div>
             </div>
-          ))}
+          )}
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
+            {[1, 2, 3, 4, 5, 6].map((i) => (
+              <div key={i} className="rounded-[14px] p-5 animate-pulse" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+                <div className="h-4 rounded w-1/3 mb-3" style={{ background: 'var(--s2)' }} />
+                <div className="h-6 rounded w-2/3" style={{ background: 'var(--s2)' }} />
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
@@ -136,7 +152,7 @@ export function HomePage() {
           <div className="font-syne text-[16px] font-bold mb-4" style={{ color: 'var(--tx)' }}>
             🏏 Cricket
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {cricketLeagues.map((league) => (
               <LeagueCard key={league.league} league={league} />
             ))}
@@ -150,7 +166,7 @@ export function HomePage() {
           <div className="font-syne text-[16px] font-bold mb-4" style={{ color: 'var(--tx)' }}>
             ⚽ Football
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {footballLeagues.map((league) => (
               <LeagueCard key={league.league} league={league} />
             ))}

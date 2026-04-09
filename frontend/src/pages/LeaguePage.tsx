@@ -51,7 +51,7 @@ export function LeaguePage() {
   const sportIcon = sport === 'football' ? '⚽' : '🏏';
 
   return (
-    <main style={{ padding: '28px 32px', maxWidth: 1200, margin: '0 auto' }}>
+    <main className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 1200 }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-6">
         <Link to="/" className="text-xs no-underline" style={{ color: 'var(--gold)' }}>
@@ -78,7 +78,7 @@ export function LeaguePage() {
       </div>
 
       {loading && (
-        <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+        <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
           {[1, 2, 3].map((i) => (
             <div key={i} className="rounded-[14px] p-[18px] animate-pulse" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
               <div className="h-4 rounded w-1/3 mb-3" style={{ background: 'var(--s2)' }} />
@@ -97,7 +97,7 @@ export function LeaguePage() {
               Live now
             </span>
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {liveRooms.map((room) => (
               <MatchCard key={room.id} room={room} />
             ))}
@@ -111,7 +111,7 @@ export function LeaguePage() {
           <div className="text-[11px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
             Upcoming
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {upcomingRooms.map((room) => (
               <MatchCard key={room.id} room={room} />
             ))}
@@ -125,7 +125,7 @@ export function LeaguePage() {
           <div className="text-[11px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
             Recent Results
           </div>
-          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3 grid-cols-1 md:grid-cols-2 lg:grid-cols-3">
             {completedRooms.slice(0, 3).map((room) => (
               <MatchSummaryCard key={room.id} room={room} />
             ))}
