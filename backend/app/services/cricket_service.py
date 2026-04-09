@@ -116,7 +116,28 @@ class CricketAdapter(SportAdapter):
             await redis_set_json(cache_key, normalized, ex=600)
             return normalized
 
-    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int) -> tuple[int, dict]:
+    def _match_player(self, api_player: dict, player_id: str, player_name: str) -> bool:
+        """Match a player from API data by ID or name."""
+        if isinstance(api_player, dict):
+            # Try ID match first
+            if api_player.get("id") == player_id:
+                return True
+            # Fallback: name match (case-insensitive, handles partial names)
+            api_name = (api_player.get("name") or "").lower().strip()
+            our_name = player_name.lower().strip()
+            if api_name and our_name:
+                # Exact match
+                if api_name == our_name:
+                    return True
+                # Last name match (handles "V Kohli" vs "Virat Kohli")
+                api_parts = api_name.split()
+                our_parts = our_name.split()
+                if len(api_parts) > 0 and len(our_parts) > 0:
+                    if api_parts[-1] == our_parts[-1]:  # Same last name
+                        return True
+        return False
+
+    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
         """Full fantasy scoring for cricket."""
         breakdown: dict = {}
         fantasy_pts = 0
@@ -125,7 +146,7 @@ class CricketAdapter(SportAdapter):
             # Batting points
             for bat in innings.get("batting", []):
                 batsman = bat.get("batsman", {})
-                if isinstance(batsman, dict) and batsman.get("id") == player_id:
+                if self._match_player(batsman, player_id, player_name):
                     runs = bat.get("r", 0)
                     fours = bat.get("4s", 0)
                     sixes = bat.get("6s", 0)
@@ -150,7 +171,7 @@ class CricketAdapter(SportAdapter):
             # Bowling points
             for bowl in innings.get("bowling", []):
                 bowler = bowl.get("bowler", {})
-                if isinstance(bowler, dict) and bowler.get("id") == player_id:
+                if self._match_player(bowler, player_id, player_name):
                     wickets = bowl.get("w", 0)
                     maidens = bowl.get("m", 0)
 
@@ -170,7 +191,7 @@ class CricketAdapter(SportAdapter):
             for bat in innings.get("batting", []):
                 dismissal = bat.get("dismissal", "")
                 catcher = bat.get("fielder", {})
-                if isinstance(catcher, dict) and catcher.get("id") == player_id:
+                if self._match_player(catcher, player_id, player_name):
                     if "caught" in dismissal.lower():
                         fantasy_pts += 10
                         breakdown["catches"] = breakdown.get("catches", 0) + 1

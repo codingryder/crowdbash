@@ -45,7 +45,7 @@ async def calculate_and_update_points(
 
         for pw in weightages:
             points, breakdown = adapter.calculate_player_points(
-                pw.player_id, match_data, pw.weightage
+                pw.player_id, match_data, pw.weightage, pw.player_name
             )
             pw.points_earned = points
             pw.scoring_breakdown = breakdown

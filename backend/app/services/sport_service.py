@@ -21,7 +21,7 @@ class SportAdapter(ABC):
         ...
 
     @abstractmethod
-    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int) -> tuple[int, dict]:
+    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
         """
         Calculate points for a player.
         Returns (total_points, scoring_breakdown).

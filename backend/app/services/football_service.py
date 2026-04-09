@@ -162,7 +162,7 @@ class FootballAdapter(SportAdapter):
             await redis_set_json(cache_key, normalized, ex=600)
             return normalized
 
-    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int) -> tuple[int, dict]:
+    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
         """Calculate football fantasy points for a player from match data."""
         goals_list = match_data.get("goals", [])
         bookings = match_data.get("bookings", [])
