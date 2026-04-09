@@ -60,8 +60,10 @@ CRITICAL RULES:
 - Use "not out" for batters still at crease, actual dismissal text for others
 - If 2nd innings has started, include both innings in score[] and scorecard[]
 - Use real player names
-- If match just finished, set matchEnded to true and include result in status
-- If you don't have current data, return {{"not_available": true}}"""
+- ALWAYS set matchEnded to false — do NOT determine if match is over
+- For status, just describe the current state like "LSG need 150 runs in 90 balls" — do NOT say who won
+- If you don't have CURRENT live data, return {{"not_available": true}}
+- Do NOT guess or predict results — only report what has actually happened"""
 
     try:
         response = model.generate_content(prompt)
@@ -77,6 +79,10 @@ CRITICAL RULES:
 
         if data.get("not_available"):
             return None
+
+        # Mark as Gemini source + force matchEnded to false (never trust Gemini for this)
+        data["source"] = "gemini"
+        data["matchEnded"] = False
 
         return data
     except Exception as e:

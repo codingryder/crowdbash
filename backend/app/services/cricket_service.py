@@ -442,13 +442,37 @@ class CricketAdapter(SportAdapter):
             "top_bowlers": top_bowlers[:4],
         }
 
+    async def is_match_finished_reliable(self, match_name: str) -> bool:
+        """
+        Check match completion using ESPN (reliable, real-time).
+        NEVER use Gemini's matchEnded — it hallucinates results.
+        """
+        try:
+            from app.services.espn_service import fetch_espn_match_by_name
+            espn_data = await fetch_espn_match_by_name(match_name)
+            if espn_data:
+                return espn_data.get("matchEnded", False)
+        except Exception:
+            pass
+        return False
+
     def is_match_finished(self, match_data: dict) -> bool:
-        """Check if cricket match is finished from scorecard data."""
-        status = match_data.get("status", "")
+        """
+        Check if cricket match is finished.
+        Only trusts CricketData.org 'ms' field or ESPN data.
+        IGNORES Gemini's matchEnded/status to prevent hallucination.
+        """
+        # Only trust CricketData.org's 'ms' field (not Gemini)
         ms = match_data.get("ms", "")
-        # CricketData.org uses "result" for finished, or status contains "won"/"draw"/"tie"
         if ms == "result":
             return True
+
+        # If data source is Gemini, DON'T trust matchEnded
+        if match_data.get("source") == "gemini" or not ms:
+            return False
+
+        # For CricketData.org, check status keywords
+        status = match_data.get("status", "")
         status_lower = status.lower()
         return any(w in status_lower for w in ["won", "draw", "tie", "abandoned", "no result"])
 

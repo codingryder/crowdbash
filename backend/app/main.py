@@ -125,8 +125,15 @@ async def score_poller():
                         from datetime import datetime as dt2, timezone as tz2
                         unlocked_game.squad_locked_at = dt2.now(tz2.utc)
 
-                    # Check if match has finished — save summary to DB
-                    if adapter.is_match_finished(match_data):
+                    # Check if match has finished using ESPN (reliable) + CricketData
+                    # Never trust Gemini's matchEnded — it hallucinates results
+                    match_finished = adapter.is_match_finished(match_data)
+                    if not match_finished and hasattr(adapter, 'is_match_finished_reliable'):
+                        try:
+                            match_finished = await adapter.is_match_finished_reliable(room.match_name)
+                        except Exception:
+                            pass
+                    if match_finished:
                         room.status = "completed"
                         from datetime import datetime, timezone
                         room.completed_at = datetime.now(timezone.utc)
