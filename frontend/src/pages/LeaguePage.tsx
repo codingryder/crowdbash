@@ -29,8 +29,24 @@ export function LeaguePage() {
   }, [decodedLeague]);
 
   const liveRooms = rooms.filter((r) => r.status === 'live');
-  const upcomingRooms = rooms.filter((r) => r.status === 'upcoming');
-  const completedRooms = rooms.filter((r) => r.status === 'completed');
+
+  // Upcoming: soonest match first (ascending by date)
+  const upcomingRooms = rooms
+    .filter((r) => r.status === 'upcoming')
+    .sort((a, b) => {
+      const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+      const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+      return da - db;
+    });
+
+  // Completed: most recent first (descending by date)
+  const completedRooms = rooms
+    .filter((r) => r.status === 'completed')
+    .sort((a, b) => {
+      const da = a.match_date ? new Date(a.match_date).getTime() : 0;
+      const db = b.match_date ? new Date(b.match_date).getTime() : 0;
+      return db - da;
+    });
   const sport = rooms[0]?.sport || 'cricket';
   const sportIcon = sport === 'football' ? '⚽' : '🏏';
 
