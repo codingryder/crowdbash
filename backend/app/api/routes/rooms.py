@@ -23,6 +23,9 @@ def _room_to_dict(r: Room) -> dict:
         "league": r.league,
         "season": r.season,
         "match_progress": r.match_progress or {},
+        "match_date": r.match_date.isoformat() if r.match_date else None,
+        "created_at": r.created_at.isoformat() if r.created_at else None,
+        "completed_at": r.completed_at.isoformat() if r.completed_at else None,
     }
 
 
@@ -67,8 +70,8 @@ async def list_rooms(
     status: Optional[str] = Query(None, description="Filter by status"),
     db: AsyncSession = Depends(get_db),
 ):
-    """List rooms with optional filters."""
-    query = select(Room).order_by(Room.created_at.desc())
+    """List rooms sorted by match_date (latest first)."""
+    query = select(Room).order_by(Room.match_date.desc().nullslast(), Room.created_at.desc())
     if sport:
         query = query.where(Room.sport == sport)
     if league:

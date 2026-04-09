@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import type { Room } from '../../types';
+import { formatMatchDate } from '../../types';
 
 interface MatchDetails {
   status: string;
@@ -101,6 +102,11 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
         <div className="text-[10px] uppercase tracking-[1px] mb-4" style={{ color: 'var(--mu)' }}>
           {room.sport === 'football' ? '⚽' : '🏏'} {room.league || room.match_format} · Match Result
         </div>
+        {room.match_date && (
+          <div className="text-[12px] mb-4" style={{ color: 'var(--gold)' }}>
+            {formatMatchDate(room.match_date)}
+          </div>
+        )}
 
         {room.sport === 'football' && details ? (
           <FootballDetail details={details} />

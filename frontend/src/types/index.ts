@@ -22,6 +22,36 @@ export interface Room {
   league?: string;
   season?: string;
   match_progress: Record<string, unknown>;
+  match_date?: string;
+  created_at?: string;
+  completed_at?: string;
+}
+
+/** Format a date string for display. */
+export function formatMatchDate(dateStr?: string | null, options?: { showTime?: boolean }): string {
+  if (!dateStr) return '';
+  try {
+    const date = new Date(dateStr);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    const isTomorrow = date.toDateString() === tomorrow.toDateString();
+
+    if (isToday && options?.showTime !== false) {
+      return `Today, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    if (isTomorrow && options?.showTime !== false) {
+      return `Tomorrow, ${date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`;
+    }
+    if (options?.showTime !== false) {
+      return date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ', ' +
+        date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+    }
+    return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return '';
+  }
 }
 
 export interface Player {

@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
+import { formatMatchDate } from '../types';
 import { MatchSummaryCard } from '../components/room/MatchSummaryCard';
 
 export function LeaguePage() {
@@ -176,9 +177,23 @@ function MatchCard({ room }: { room: Room }) {
         )}
       </div>
 
-      <div className="font-syne text-[14px] font-bold mb-1.5" style={{ color: 'var(--tx)' }}>
+      <div className="font-syne text-[14px] font-bold mb-1" style={{ color: 'var(--tx)' }}>
         {room.match_name}
       </div>
+
+      {/* Match date */}
+      {room.match_date && (
+        <div className="text-[11px] mb-1.5" style={{ color: 'var(--gold)' }}>
+          {formatMatchDate(room.match_date)}
+        </div>
+      )}
+
+      {/* Venue */}
+      {room.venue && (
+        <div className="text-[10px] mb-2" style={{ color: 'var(--dm)' }}>
+          {room.venue}
+        </div>
+      )}
 
       {progressText && (
         <div

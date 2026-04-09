@@ -1,5 +1,6 @@
 import { MatchHeader } from './MatchHeader';
 import type { Room } from '../../types';
+import { formatMatchDate } from '../../types';
 
 interface LeftSidebarProps {
   room: Room;
@@ -20,6 +21,13 @@ export function LeftSidebar({ room }: LeftSidebarProps) {
           <div className="text-[9px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
             Match Info
           </div>
+
+          {room.match_date && (
+            <div className="flex justify-between py-2" style={{ borderBottom: '0.5px solid var(--b1)' }}>
+              <span className="text-[11px]" style={{ color: 'var(--mu)' }}>Date</span>
+              <span className="text-[11px] font-medium" style={{ color: 'var(--gold)' }}>{formatMatchDate(room.match_date)}</span>
+            </div>
+          )}
 
           {room.venue && (
             <div className="flex justify-between py-2" style={{ borderBottom: '0.5px solid var(--b1)' }}>

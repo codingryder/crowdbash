@@ -1,5 +1,6 @@
 import { Link } from 'react-router-dom';
 import type { Room } from '../../types';
+import { formatMatchDate } from '../../types';
 
 interface MatchSummaryCardProps {
   room: Room;
@@ -79,7 +80,7 @@ function FootballSummaryCard({ room, summary }: { room: Room; summary: FootballS
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
           ⚽ {room.league || room.match_format}
         </span>
@@ -88,6 +89,11 @@ function FootballSummaryCard({ room, summary }: { room: Room; summary: FootballS
           FT
         </span>
       </div>
+      {room.match_date && (
+        <div className="text-[10px] mb-3" style={{ color: 'var(--dm)' }}>
+          {formatMatchDate(room.match_date, { showTime: false })}
+        </div>
+      )}
 
       {/* Score */}
       <div className="flex items-center justify-between mb-3">
@@ -168,7 +174,7 @@ function CricketSummaryCard({ room, summary }: { room: Room; summary: CricketSum
       onMouseLeave={(e) => (e.currentTarget.style.borderColor = 'var(--b1)')}
     >
       {/* Header */}
-      <div className="flex items-center justify-between mb-3">
+      <div className="flex items-center justify-between mb-1">
         <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
           🏏 {room.league || room.match_format}
         </span>
@@ -177,6 +183,11 @@ function CricketSummaryCard({ room, summary }: { room: Room; summary: CricketSum
           Result
         </span>
       </div>
+      {room.match_date && (
+        <div className="text-[10px] mb-3" style={{ color: 'var(--dm)' }}>
+          {formatMatchDate(room.match_date, { showTime: false })}
+        </div>
+      )}
 
       {/* Team scores */}
       {summary.teams && summary.teams.map((team, i) => (
