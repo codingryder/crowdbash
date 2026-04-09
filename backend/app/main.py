@@ -138,9 +138,10 @@ async def score_poller():
 async def room_sync():
     """
     Periodically syncs live matches into rooms table.
-    Runs every 5 minutes. Creates rooms for live matches only.
+    Runs every 5 minutes. Creates rooms for allowed leagues only.
     """
     import re
+    from app.api.routes.admin import _is_allowed_cricket
 
     while True:
         await asyncio.sleep(300)  # every 5 minutes
@@ -168,7 +169,10 @@ async def room_sync():
                                 league = match.get("series", "")
                                 ms = match.get("ms", "")
                                 if ms != "live":
-                                    continue  # Only auto-create live rooms
+                                    continue
+                                # League filter
+                                if not _is_allowed_cricket(league, mformat):
+                                    continue
                                 status = "live"
                             elif sport == "football":
                                 mid = str(match.get("id", ""))

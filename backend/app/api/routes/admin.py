@@ -1,31 +1,52 @@
 from fastapi import APIRouter, Depends, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, delete
 from app.core.database import get_db
 from app.models.room import Room
-import re
 from app.services.sport_service import get_adapter
-from typing import Optional
+import re
 
 router = APIRouter()
 
-# Popular leagues to prioritize for room creation
-POPULAR_CRICKET_LEAGUES = [
+# ── Allowed cricket leagues / series keywords ──
+# Only matches whose "series" field contains one of these keywords will be synced.
+ALLOWED_CRICKET_KEYWORDS = [
+    # Domestic T20 leagues
     "Indian Premier League", "IPL",
     "Pakistan Super League", "PSL",
     "Big Bash League", "BBL",
     "Caribbean Premier League", "CPL",
     "SA20",
-    "ICC", "World Cup", "Champions Trophy",
-    "County Championship",
-    "tour of", "T20I", "ODI", "Test",
+    "The Hundred",
+    "Lanka Premier League", "LPL",
+    "Bangladesh Premier League", "BPL",
+    "Major League Cricket", "MLC",
+    # ICC events
+    "ICC", "World Cup", "Champions Trophy", "World Test Championship",
+    # International bilateral series (keyword patterns)
+    "tour of",   # e.g. "India tour of England, 2026"
+    "T20I Series", "ODI Series", "Test Series",
 ]
 
-POPULAR_FOOTBALL_LEAGUES = [
-    "Premier League", "La Liga", "Serie A", "Bundesliga",
-    "Ligue 1", "Eredivisie", "Champions League", "Europa League",
-    "World Cup", "Euro", "Copa",
-]
+# Match formats that indicate international matches
+INTERNATIONAL_FORMATS = ["t20i", "odi", "test"]
+
+
+def _is_allowed_cricket(series: str, match_format: str) -> bool:
+    """Check if a cricket match belongs to an allowed league or is international."""
+    series_lower = series.lower()
+    fmt_lower = match_format.lower()
+
+    # Allow if format is international
+    if fmt_lower in INTERNATIONAL_FORMATS:
+        return True
+
+    # Allow if series matches any keyword
+    for keyword in ALLOWED_CRICKET_KEYWORDS:
+        if keyword.lower() in series_lower:
+            return True
+
+    return False
 
 
 @router.post("/sync-rooms/{sport}")
@@ -35,8 +56,8 @@ async def sync_rooms_from_live_matches(
     db: AsyncSession = Depends(get_db),
 ):
     """
-    Fetch matches from the sport API and create rooms for any
-    that don't already exist. Includes live + upcoming matches.
+    Fetch matches from the sport API and create rooms for allowed
+    leagues only. Filters out minor/associate/women's U19 matches.
     """
     try:
         return await _do_sync(sport, include_upcoming, db)
@@ -53,6 +74,7 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
     all_matches = await adapter.get_live_matches()
     created = 0
     skipped = 0
+    filtered = 0
 
     for match in all_matches:
         if sport == "cricket":
@@ -65,6 +87,11 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
             league = match.get("series", "")
             ms = match.get("ms", "")
 
+            # ── League filter ──
+            if not _is_allowed_cricket(league, match_format):
+                filtered += 1
+                continue
+
             if ms == "live":
                 status = "live"
             elif ms == "result":
@@ -72,11 +99,11 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
             else:
                 status = "upcoming"
 
-            # Skip upcoming matches if not requested
             if not include_upcoming and status == "upcoming":
                 continue
 
         elif sport == "football":
+            # Football-Data.org free tier already filters to 12 major leagues
             match_id = str(match.get("id", ""))
             home = match.get("homeTeam", {}).get("name", "")
             away = match.get("awayTeam", {}).get("name", "")
@@ -102,7 +129,7 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
         if not match_id:
             continue
 
-        # Skip completed matches
+        # Skip completed
         if status == "completed":
             continue
 
@@ -114,7 +141,7 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
             skipped += 1
             continue
 
-        # Clean up match name — remove team codes in brackets
+        # Clean team name brackets
         clean_name = match_name
         if "[" in clean_name:
             clean_name = re.sub(r'\s*\[.*?\]', '', clean_name).strip()
@@ -138,7 +165,32 @@ async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
         "total_matches_found": len(all_matches),
         "rooms_created": created,
         "rooms_skipped_existing": skipped,
+        "rooms_filtered_out": filtered,
     }
+
+
+@router.post("/cleanup")
+async def cleanup_rooms(db: AsyncSession = Depends(get_db)):
+    """
+    Remove rooms from non-allowed leagues. Call once to clean up
+    existing junk data, then the filter prevents new ones.
+    """
+    result = await db.execute(select(Room).where(Room.sport == "cricket"))
+    rooms = result.scalars().all()
+
+    removed = 0
+    kept = 0
+    for room in rooms:
+        league = room.league or ""
+        fmt = room.match_format or ""
+        if not _is_allowed_cricket(league, fmt):
+            await db.execute(delete(Room).where(Room.id == room.id))
+            removed += 1
+        else:
+            kept += 1
+
+    await db.commit()
+    return {"cricket_rooms_kept": kept, "cricket_rooms_removed": removed}
 
 
 @router.get("/sync-status")
@@ -153,20 +205,21 @@ async def sync_status(db: AsyncSession = Depends(get_db)):
     }
     room_list = []
     for r in rooms:
-        sport = r.sport or "cricket"
-        status = r.status or "upcoming"
-        if sport in stats and status in stats[sport]:
-            stats[sport][status] += 1
+        sp = r.sport or "cricket"
+        st = r.status or "upcoming"
+        if sp in stats and st in stats[sp]:
+            stats[sp][st] += 1
         room_list.append({
             "id": str(r.id),
             "match_name": r.match_name,
             "sport": r.sport,
             "league": r.league,
             "status": r.status,
+            "match_format": r.match_format,
         })
 
     return {
         "total_rooms": len(rooms),
         "by_sport": stats,
-        "rooms": room_list[:20],
+        "rooms": room_list[:30],
     }
