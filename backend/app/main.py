@@ -285,14 +285,20 @@ async def room_sync():
                                 continue
 
                             # Check if room already exists by API match_id
-                            existing = await db.execute(
+                            existing_result = await db.execute(
                                 select(Room).where(Room.match_id == str(mid))
                             )
-                            if existing.scalar_one_or_none():
+                            existing_room = existing_result.scalar_one_or_none()
+
+                            if existing_room:
+                                # Room exists — update status if API says it's live but room isn't
+                                if existing_room.status != "live" and status == "live":
+                                    existing_room.status = "live"
+                                    existing_room.completed_at = None
+                                    print(f"Room sync: reactivated '{existing_room.match_name}' to live")
                                 continue
 
-                            # Check if an upcoming room exists for these teams
-                            # (might have been manually created with a fake match_id)
+                            # Check if an upcoming room exists for these teams by name
                             all_upcoming = await db.execute(
                                 select(Room).where(
                                     Room.sport == sport,
@@ -307,14 +313,13 @@ async def room_sync():
                                     break
 
                             if matched_room:
-                                # Update existing room with correct API match_id and set to live
                                 matched_room.match_id = str(mid)
                                 matched_room.status = "live"
+                                matched_room.completed_at = None
                                 if venue:
                                     matched_room.venue = venue
                                 print(f"Room sync: updated '{matched_room.match_name}' to live with API ID {mid}")
                             else:
-                                # Create new room
                                 room = Room(
                                     match_id=str(mid),
                                     match_name=mname,
