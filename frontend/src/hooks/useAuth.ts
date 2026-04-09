@@ -1,62 +1,71 @@
 import { useEffect } from 'react';
-import { supabase, isSupabaseConfigured } from '../lib/supabase';
 import { useAuthStore } from '../store/authStore';
 import api from '../lib/api';
 
 export function useAuth() {
-  const { user, isLoading, setUser, setLoading } = useAuthStore();
+  const { user, isLoading, showAuthModal, setUser, setLoading, setShowAuthModal, logout } = useAuthStore();
 
   useEffect(() => {
-    if (!isSupabaseConfigured) {
+    // Check for existing token on mount
+    const token = localStorage.getItem('crowdbash_token');
+    if (token) {
+      fetchMe();
+    } else {
       setLoading(false);
-      return;
     }
-
-    // Check initial session
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      if (session) {
-        syncUser();
-      } else {
-        setLoading(false);
-      }
-    });
-
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      (_event, session) => {
-        if (session) {
-          syncUser();
-        } else {
-          setUser(null);
-        }
-      }
-    );
-
-    return () => subscription.unsubscribe();
   }, []);
 
-  async function syncUser() {
+  async function fetchMe() {
     try {
-      await api.post('/api/auth/register');
-      const me = await api.get('/api/auth/me');
-      setUser(me.data);
+      const { data } = await api.get('/api/auth/me');
+      setUser(data);
     } catch {
+      localStorage.removeItem('crowdbash_token');
       setLoading(false);
     }
   }
 
-  async function signInWithGoogle() {
-    if (!isSupabaseConfigured) {
-      console.warn('Supabase not configured. Set VITE_SUPABASE_URL and VITE_SUPABASE_ANON_KEY.');
-      return;
-    }
-    await supabase.auth.signInWithOAuth({ provider: 'google' });
+  async function signup(firstName: string, lastName: string, email: string, phone: string) {
+    const { data } = await api.post('/api/auth/signup', {
+      first_name: firstName,
+      last_name: lastName,
+      email,
+      phone,
+    });
+    return data;
   }
 
-  async function signOut() {
-    await supabase.auth.signOut();
-    setUser(null);
+  async function signin(email: string) {
+    const { data } = await api.post('/api/auth/signin', { email });
+    return data;
   }
 
-  return { user, isLoading, signInWithGoogle, signOut };
+  async function verifyOtp(email: string, otp: string) {
+    const { data } = await api.post('/api/auth/verify-otp', { email, otp });
+    // Save token
+    localStorage.setItem('crowdbash_token', data.token);
+    setUser(data.user);
+    setShowAuthModal(false);
+    return data;
+  }
+
+  function openAuthModal() {
+    setShowAuthModal(true);
+  }
+
+  function closeAuthModal() {
+    setShowAuthModal(false);
+  }
+
+  return {
+    user,
+    isLoading,
+    showAuthModal,
+    signup,
+    signin,
+    verifyOtp,
+    openAuthModal,
+    closeAuthModal,
+    logout,
+  };
 }

@@ -6,14 +6,21 @@ class Settings(BaseSettings):
     DATABASE_URL: str
     UPSTASH_REDIS_URL: str
     UPSTASH_REDIS_TOKEN: str
-    SUPABASE_URL: str
-    SUPABASE_ANON_KEY: str
-    SUPABASE_JWT_SECRET: str
+    # Custom JWT auth (replaces Supabase)
+    JWT_SECRET: str = "crowdbash-secret-change-in-production"
+    JWT_EXPIRY_HOURS: int = 72
+    # Email OTP via Resend
+    RESEND_API_KEY: str = ""
+    FROM_EMAIL: str = "noreply@crowdbash.codingryder.com"
+    # Sport APIs
     CRICKETDATA_API_KEY: str = ""
     FOOTBALL_API_KEY: str = ""  # Football-Data.org X-Auth-Token
+    # AI
     GEMINI_API_KEY: str = ""
+    # Payments
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
+    # App
     ENVIRONMENT: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
     CORS_ORIGINS: str = '["http://localhost:5173"]'

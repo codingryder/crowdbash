@@ -1,19 +1,40 @@
 import { create } from 'zustand';
-import type { User } from '../types';
+
+interface AuthUser {
+  id: string;
+  first_name: string;
+  last_name: string;
+  email: string;
+  phone: string;
+  username: string;
+  payment_status: string;
+  avatar_url?: string;
+  total_games: number;
+  total_wins: number;
+  weightage_balance: number;
+}
 
 interface AuthStore {
-  user: User | null;
+  user: AuthUser | null;
   isLoading: boolean;
-  setUser: (user: User | null) => void;
+  showAuthModal: boolean;
+
+  setUser: (user: AuthUser | null) => void;
   setLoading: (loading: boolean) => void;
+  setShowAuthModal: (show: boolean) => void;
   logout: () => void;
 }
 
 export const useAuthStore = create<AuthStore>((set) => ({
   user: null,
   isLoading: true,
+  showAuthModal: false,
 
   setUser: (user) => set({ user, isLoading: false }),
   setLoading: (isLoading) => set({ isLoading }),
-  logout: () => set({ user: null, isLoading: false }),
+  setShowAuthModal: (showAuthModal) => set({ showAuthModal }),
+  logout: () => {
+    localStorage.removeItem('crowdbash_token');
+    set({ user: null, isLoading: false });
+  },
 }));

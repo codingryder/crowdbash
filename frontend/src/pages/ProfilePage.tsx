@@ -1,54 +1,77 @@
 import { useAuth } from '../hooks/useAuth';
-import { Avatar } from '../components/ui/Avatar';
 
 export function ProfilePage() {
-  const { user, isLoading, signOut } = useAuth();
+  const { user, isLoading, logout } = useAuth();
 
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-white/30 font-syne">Loading...</div>
+      <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 52px)' }}>
+        <div className="font-syne" style={{ color: 'var(--mu)' }}>Loading...</div>
       </div>
     );
   }
 
   if (!user) {
     return (
-      <div className="flex items-center justify-center h-[60vh]">
-        <div className="text-white/30 font-syne">Please sign in to view your profile.</div>
+      <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 52px)' }}>
+        <div className="font-syne" style={{ color: 'var(--mu)' }}>Please sign in to view your profile.</div>
       </div>
     );
   }
 
   return (
-    <main className="max-w-lg mx-auto px-4 py-8">
-      <div className="bg-surface2 rounded-xl border border-white/[0.07] p-6">
+    <main style={{ maxWidth: 500, margin: '0 auto', padding: '28px 32px' }}>
+      <div className="rounded-2xl p-6" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+        {/* Avatar + Name */}
         <div className="flex items-center gap-4 mb-6">
-          <Avatar url={user.avatar_url} username={user.username} size="lg" />
+          <div
+            className="w-12 h-12 rounded-full flex items-center justify-center text-lg font-bold font-syne"
+            style={{ background: 'rgba(244,185,64,0.15)', color: 'var(--gold)' }}
+          >
+            {(user.first_name?.[0] || '').toUpperCase()}{(user.last_name?.[0] || '').toUpperCase()}
+          </div>
           <div>
-            <h1 className="font-syne font-bold text-xl">{user.username}</h1>
-            <p className="text-xs text-white/40">Member</p>
+            <div className="font-syne text-lg font-bold" style={{ color: 'var(--tx)' }}>
+              {user.first_name} {user.last_name}
+            </div>
+            <div className="text-[12px]" style={{ color: 'var(--mu)' }}>{user.email}</div>
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
-          <div className="bg-surface3 rounded-lg p-3 text-center">
-            <p className="font-syne font-bold text-lg text-gold">{user.total_games}</p>
-            <p className="text-xs text-white/40">Games</p>
+        {/* Details */}
+        <div className="space-y-3 mb-6">
+          {[
+            { label: 'Phone', value: user.phone || 'Not provided' },
+            { label: 'Username', value: user.username },
+            { label: 'Payment Status', value: user.payment_status === 'paid' ? '✅ Paid' : '⏳ Pending' },
+          ].map((item) => (
+            <div key={item.label} className="flex justify-between py-2" style={{ borderBottom: '0.5px solid var(--b1)' }}>
+              <span className="text-[12px]" style={{ color: 'var(--mu)' }}>{item.label}</span>
+              <span className="text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{item.value}</span>
+            </div>
+          ))}
+        </div>
+
+        {/* Stats */}
+        <div className="grid grid-cols-3 gap-3 mb-6">
+          <div className="rounded-lg p-3 text-center" style={{ background: 'var(--s2)' }}>
+            <div className="font-syne text-lg font-bold" style={{ color: 'var(--gold)' }}>{user.total_games}</div>
+            <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Games</div>
           </div>
-          <div className="bg-surface3 rounded-lg p-3 text-center">
-            <p className="font-syne font-bold text-lg text-fangreen">{user.total_wins}</p>
-            <p className="text-xs text-white/40">Wins</p>
+          <div className="rounded-lg p-3 text-center" style={{ background: 'var(--s2)' }}>
+            <div className="font-syne text-lg font-bold" style={{ color: 'var(--green)' }}>{user.total_wins}</div>
+            <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Wins</div>
           </div>
-          <div className="bg-surface3 rounded-lg p-3 text-center">
-            <p className="font-syne font-bold text-lg text-fanpurple">{user.weightage_balance}</p>
-            <p className="text-xs text-white/40">Extra WP</p>
+          <div className="rounded-lg p-3 text-center" style={{ background: 'var(--s2)' }}>
+            <div className="font-syne text-lg font-bold" style={{ color: 'var(--purple)' }}>{user.weightage_balance}</div>
+            <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Extra WP</div>
           </div>
         </div>
 
         <button
-          onClick={signOut}
-          className="w-full py-2 bg-fanred/10 text-fanred text-sm font-semibold rounded-lg border border-fanred/20 hover:bg-fanred/20 transition"
+          onClick={logout}
+          className="w-full py-2 rounded-lg text-[13px] font-semibold cursor-pointer border-none"
+          style={{ background: 'rgba(240,90,90,0.1)', color: 'var(--red)', border: '0.5px solid rgba(240,90,90,0.2)' }}
         >
           Sign Out
         </button>
