@@ -189,31 +189,111 @@ class CricketAdapter(SportAdapter):
         return total_points, breakdown
 
     def normalize_score(self, match_data: dict, room_name: str) -> dict:
-        """Normalize CricketData.org scorecard to frontend CricketScoreData format."""
+        """Normalize CricketData.org scorecard to rich frontend format."""
         parts = room_name.split(" vs ")
         team1_name = parts[0].strip() if len(parts) > 0 else "Team 1"
         team2_name = parts[1].strip() if len(parts) > 1 else "Team 2"
 
         scorecard = match_data.get("scorecard", [])
+        # Also check 'score' array from currentMatches endpoint
+        score_arr = match_data.get("score", [])
+
         team1_score = "—"
         team1_overs = "—"
         team2_score = "—"
         team2_overs = "—"
 
-        for i, innings in enumerate(scorecard):
-            runs = innings.get("runs", 0)
-            wickets = innings.get("wickets", 0)
-            overs = str(innings.get("overs", "0"))
-            score_str = f"{runs}/{wickets}"
-            if i == 0:
-                team1_score = score_str
-                team1_overs = overs
-            elif i == 1:
-                team2_score = score_str
-                team2_overs = overs
+        # Parse from score array (simpler format from currentMatches)
+        if score_arr and isinstance(score_arr, list):
+            for i, s in enumerate(score_arr[:2]):
+                runs = s.get("r", 0)
+                wickets = s.get("w", 0)
+                overs = str(s.get("o", "0"))
+                if i == 0:
+                    team1_score = f"{runs}/{wickets}"
+                    team1_overs = overs
+                elif i == 1:
+                    team2_score = f"{runs}/{wickets}"
+                    team2_overs = overs
+
+        # Override with scorecard data if available (more detailed)
+        if scorecard:
+            for i, innings in enumerate(scorecard):
+                totals = innings.get("totals", {})
+                runs = totals.get("R", innings.get("runs", 0))
+                wickets = totals.get("W", innings.get("wickets", 0))
+                overs = str(totals.get("O", innings.get("overs", "0")))
+                if i == 0:
+                    team1_score = f"{runs}/{wickets}"
+                    team1_overs = overs
+                elif i == 1:
+                    team2_score = f"{runs}/{wickets}"
+                    team2_overs = overs
 
         status = match_data.get("status", "")
         current_over = self._extract_current_over(match_data)
+
+        # Extract current batters and bowlers from scorecard
+        current_batting = []
+        current_bowling = []
+        if scorecard:
+            # Last innings is the currently active one
+            active_innings = scorecard[-1]
+            for bat in active_innings.get("batting", []):
+                batsman = bat.get("batsman", {})
+                name = batsman.get("name", "") if isinstance(batsman, dict) else str(batsman)
+                dismissal = bat.get("dismissal", "")
+                if not dismissal or dismissal == "not out" or dismissal == "batting":
+                    current_batting.append({
+                        "name": name,
+                        "runs": bat.get("r", 0),
+                        "balls": bat.get("b", 0),
+                        "fours": bat.get("4s", 0),
+                        "sixes": bat.get("6s", 0),
+                    })
+            for bowl in active_innings.get("bowling", []):
+                bowler = bowl.get("bowler", {})
+                name = bowler.get("name", "") if isinstance(bowler, dict) else str(bowler)
+                current_bowling.append({
+                    "name": name,
+                    "wickets": bowl.get("w", 0),
+                    "runs": bowl.get("r", 0),
+                    "overs": str(bowl.get("o", 0)),
+                    "maidens": bowl.get("m", 0),
+                })
+
+        # Full scorecard for modal
+        innings_data = []
+        for inn in scorecard:
+            inning_name = inn.get("inning", f"Innings {len(innings_data) + 1}")
+            batting = []
+            for bat in inn.get("batting", []):
+                batsman = bat.get("batsman", {})
+                batting.append({
+                    "name": batsman.get("name", "") if isinstance(batsman, dict) else str(batsman),
+                    "runs": bat.get("r", 0),
+                    "balls": bat.get("b", 0),
+                    "fours": bat.get("4s", 0),
+                    "sixes": bat.get("6s", 0),
+                    "dismissal": bat.get("dismissal", ""),
+                    "sr": round(bat.get("r", 0) / max(bat.get("b", 1), 1) * 100, 1),
+                })
+            bowling = []
+            for bowl in inn.get("bowling", []):
+                bowler = bowl.get("bowler", {})
+                bowling.append({
+                    "name": bowler.get("name", "") if isinstance(bowler, dict) else str(bowler),
+                    "overs": str(bowl.get("o", 0)),
+                    "maidens": bowl.get("m", 0),
+                    "runs": bowl.get("r", 0),
+                    "wickets": bowl.get("w", 0),
+                    "economy": round(bowl.get("r", 0) / max(float(bowl.get("o", 1)), 0.1), 1),
+                })
+            innings_data.append({
+                "name": inning_name,
+                "batting": batting,
+                "bowling": bowling,
+            })
 
         return {
             "sport": "cricket",
@@ -223,6 +303,9 @@ class CricketAdapter(SportAdapter):
             "status": status,
             "current_rate": 0,
             "batting_team": "",
+            "current_batting": current_batting[:2],
+            "current_bowling": current_bowling[:2],
+            "innings": innings_data,
         }
 
     def extract_match_progress(self, match_data: dict) -> dict:

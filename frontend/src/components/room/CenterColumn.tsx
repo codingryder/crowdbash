@@ -2,9 +2,11 @@ import { useState } from 'react';
 import { CommentaryFeed } from './CommentaryFeed';
 import { ChatPanel, ChatInput } from './ChatPanel';
 import { QuizPanel } from './QuizPanel';
+import { MyTeamTab } from './MyTeamTab';
+import { LeaderboardTab } from './LeaderboardTab';
 import type { Room } from '../../types';
 
-type CenterTab = 'commentary' | 'chat' | 'quiz';
+type CenterTab = 'commentary' | 'chat' | 'quiz' | 'my-team' | 'leaderboard';
 
 interface CenterColumnProps {
   onSendChat: (message: string) => void;
@@ -14,6 +16,14 @@ interface CenterColumnProps {
 export function CenterColumn({ onSendChat, room }: CenterColumnProps) {
   const [activeTab, setActiveTab] = useState<CenterTab>('commentary');
 
+  const tabs: Array<{ key: CenterTab; label: string }> = [
+    { key: 'commentary', label: 'Commentary' },
+    { key: 'chat', label: 'Chat' },
+    { key: 'my-team', label: 'My Team' },
+    { key: 'leaderboard', label: 'Leaderboard' },
+    { key: 'quiz', label: 'Quiz' },
+  ];
+
   return (
     <div
       className="flex flex-col overflow-hidden"
@@ -21,21 +31,21 @@ export function CenterColumn({ onSendChat, room }: CenterColumnProps) {
     >
       {/* Tabs */}
       <div
-        className="flex px-2 shrink-0"
+        className="flex px-1 shrink-0 overflow-x-auto"
         style={{ borderBottom: '0.5px solid var(--b1)', background: 'var(--bg)' }}
       >
-        {(['commentary', 'chat', 'quiz'] as const).map((tab) => (
+        {tabs.map((tab) => (
           <button
-            key={tab}
-            onClick={() => setActiveTab(tab)}
-            className="px-3.5 py-2.5 text-xs relative transition-colors bg-transparent border-none cursor-pointer capitalize"
+            key={tab.key}
+            onClick={() => setActiveTab(tab.key)}
+            className="px-3 py-2.5 text-[11px] relative transition-colors bg-transparent border-none cursor-pointer whitespace-nowrap"
             style={{
-              color: activeTab === tab ? 'var(--gold)' : 'var(--mu)',
+              color: activeTab === tab.key ? 'var(--gold)' : 'var(--mu)',
               fontFamily: "'DM Sans', sans-serif",
             }}
           >
-            {tab}
-            {activeTab === tab && (
+            {tab.label}
+            {activeTab === tab.key && (
               <span
                 className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] rounded"
                 style={{ background: 'var(--gold)' }}
@@ -50,9 +60,10 @@ export function CenterColumn({ onSendChat, room }: CenterColumnProps) {
         {activeTab === 'commentary' && <CommentaryFeed room={room} />}
         {activeTab === 'chat' && <ChatPanel onSendChat={onSendChat} />}
         {activeTab === 'quiz' && <QuizPanel />}
+        {activeTab === 'my-team' && <MyTeamTab roomId={room.id} />}
+        {activeTab === 'leaderboard' && <LeaderboardTab roomId={room.id} />}
       </div>
 
-      {/* Chat input - only shown on chat tab */}
       {activeTab === 'chat' && <ChatInput onSendChat={onSendChat} />}
     </div>
   );

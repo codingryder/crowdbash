@@ -83,6 +83,30 @@ async def list_rooms(
     return [_room_to_dict(r) for r in rooms]
 
 
+@router.get("/scorecard/{room_id}")
+async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
+    """Get live scorecard for a room from the sport API."""
+    from app.services.sport_service import get_adapter
+    try:
+        rid = uuid.UUID(room_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Invalid room ID")
+    result = await db.execute(select(Room).where(Room.id == rid))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    try:
+        adapter = get_adapter(room.sport)
+        match_data = await adapter.get_match_score(room.match_id)
+        if not match_data:
+            return {"scorecard": None}
+        normalized = adapter.normalize_score(match_data, room.match_name)
+        return {"scorecard": normalized}
+    except Exception as e:
+        return {"scorecard": None, "error": str(e)}
+
+
 @router.get("/{room_id}")
 async def get_room(room_id: str, db: AsyncSession = Depends(get_db)):
     """Get a specific room."""
