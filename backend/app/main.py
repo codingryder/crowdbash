@@ -217,10 +217,12 @@ async def room_sync():
                                 ms = match.get("ms", "")
                                 if ms != "live":
                                     continue
-                                # League filter
                                 if not _is_allowed_cricket(league, mformat):
                                     continue
                                 status = "live"
+                                # Extract team names for matching
+                                team1_clean = re.sub(r'\s*\[.*?\]', '', t1).strip().lower()
+                                team2_clean = re.sub(r'\s*\[.*?\]', '', t2).strip().lower()
                             elif sport == "football":
                                 mid = str(match.get("id", ""))
                                 home = match.get("homeTeam", {}).get("name", "")
@@ -234,29 +236,56 @@ async def room_sync():
                                 if status_raw not in ("IN_PLAY", "PAUSED"):
                                     continue
                                 status = "live"
+                                team1_clean = home.lower()
+                                team2_clean = away.lower()
                             else:
                                 continue
 
                             if not mid:
                                 continue
 
+                            # Check if room already exists by API match_id
                             existing = await db.execute(
                                 select(Room).where(Room.match_id == str(mid))
                             )
                             if existing.scalar_one_or_none():
                                 continue
 
-                            room = Room(
-                                match_id=str(mid),
-                                match_name=mname,
-                                match_format=mformat,
-                                venue=venue,
-                                sport=sport,
-                                league=league,
-                                status=status,
-                                match_progress={},
+                            # Check if an upcoming room exists for these teams
+                            # (might have been manually created with a fake match_id)
+                            all_upcoming = await db.execute(
+                                select(Room).where(
+                                    Room.sport == sport,
+                                    Room.status == "upcoming",
+                                )
                             )
-                            db.add(room)
+                            matched_room = None
+                            for r in all_upcoming.scalars().all():
+                                rname = r.match_name.lower()
+                                if team1_clean and team2_clean and team1_clean in rname and team2_clean in rname:
+                                    matched_room = r
+                                    break
+
+                            if matched_room:
+                                # Update existing room with correct API match_id and set to live
+                                matched_room.match_id = str(mid)
+                                matched_room.status = "live"
+                                if venue:
+                                    matched_room.venue = venue
+                                print(f"Room sync: updated '{matched_room.match_name}' to live with API ID {mid}")
+                            else:
+                                # Create new room
+                                room = Room(
+                                    match_id=str(mid),
+                                    match_name=mname,
+                                    match_format=mformat,
+                                    venue=venue,
+                                    sport=sport,
+                                    league=league,
+                                    status=status,
+                                    match_progress={},
+                                )
+                                db.add(room)
 
                             await db.commit()
                     except Exception as e:
