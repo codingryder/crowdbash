@@ -80,10 +80,13 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
 async def score_poller():
     """
     Multi-sport score poller. Polls live matches for all sports,
-    broadcasts updates via WebSocket, and recalculates game points.
+    broadcasts updates via WebSocket, recalculates game points,
+    and generates AI commentary from score changes.
     """
     from sqlalchemy import select
     from app.models.room import Room
+    from app.services.commentary_service import detect_cricket_changes, generate_commentary
+    from app.core.redis import redis_get_json, redis_set_json
 
     while True:
         await asyncio.sleep(60)
@@ -148,6 +151,32 @@ async def score_poller():
                             "data": normalized,
                         }
                     })
+
+                    # Generate AI commentary from score changes (cricket)
+                    if room.sport == "cricket":
+                        try:
+                            cache_key = f"prev_score:{room.id}"
+                            prev_score = await redis_get_json(cache_key) or {}
+                            events = detect_cricket_changes(prev_score, match_data)
+
+                            if events and normalized:
+                                batting = normalized.get("current_batting", [])
+                                bowling = normalized.get("current_bowling", [])
+                                commentaries = await generate_commentary(
+                                    room.match_name, events, batting, bowling
+                                )
+                                for comm in commentaries:
+                                    await room_manager.broadcast(str(room.id), {
+                                        "type": "match_event",
+                                        "payload": comm,
+                                    })
+
+                            # Save current score for next comparison
+                            await redis_set_json(cache_key, {
+                                "score": match_data.get("score", []),
+                            }, ex=600)
+                        except Exception as e:
+                            print(f"Commentary error for {room.match_name}: {e}")
 
                     # Recalculate game points
                     await calculate_and_update_points(
