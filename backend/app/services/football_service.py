@@ -4,37 +4,43 @@ from app.core.redis import redis_get_json, redis_set_json
 from app.services.sport_service import SportAdapter
 from typing import List, Dict, Any
 
+# Football-Data.org API v4 (free tier: 12 leagues, 10 req/min)
+FOOTBALL_DATA_BASE = "https://api.football-data.org/v4"
+
+# Free tier competitions
+# PL=Premier League, BL1=Bundesliga, SA=Serie A, PD=La Liga,
+# FL1=Ligue 1, DED=Eredivisie, PPL=Primeira Liga, ELC=Championship,
+# CL=Champions League, WC=World Cup, BSA=Serie A Brazil, EC=Euro
+FREE_COMPETITIONS = ["PL", "BL1", "SA", "PD", "FL1", "DED", "PPL", "ELC", "CL", "WC", "BSA", "EC"]
+
 # Football scoring constants
 POINTS_GOAL = 6
 POINTS_ASSIST = 3
 POINTS_CLEAN_SHEET = 4
-POINTS_PENALTY_SAVED = 5
-POINTS_MINUTES_60 = 1
 POINTS_YELLOW_CARD = -1
 POINTS_RED_CARD = -3
 POINTS_OWN_GOAL = -2
-POINTS_PENALTY_MISSED = -2
+POINTS_MINUTES_PLAYED = 1
 
 
 class FootballAdapter(SportAdapter):
-    """API-Football integration for live football data.
+    """Football-Data.org v4 integration for live football data.
 
-    API: https://v3.football.api-sports.io
-    Auth: x-apisports-key header
+    Free tier: 12 competitions, 10 requests/minute, scores with ~1 min delay.
+    Auth: X-Auth-Token header.
+    Docs: https://docs.football-data.org/general/v4/index.html
     """
 
     def _api_key(self) -> str:
         return settings.FOOTBALL_API_KEY
 
-    def _api_host(self) -> str:
-        return settings.FOOTBALL_API_HOST
-
     def _headers(self) -> dict:
         return {
-            "x-apisports-key": self._api_key(),
+            "X-Auth-Token": self._api_key(),
         }
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
+        """Get all currently live matches across free-tier competitions."""
         if not self._api_key():
             return []
 
@@ -43,17 +49,21 @@ class FootballAdapter(SportAdapter):
             return cached
 
         async with httpx.AsyncClient() as client:
+            # Fetch matches with status IN_PLAY or PAUSED (pseudo-status LIVE)
             res = await client.get(
-                f"https://{self._api_host()}/fixtures",
-                params={"live": "all"},
+                f"{FOOTBALL_DATA_BASE}/matches",
+                params={"status": "LIVE"},
                 headers=self._headers(),
             )
+            if res.status_code != 200:
+                return []
             data = res.json()
-            matches = data.get("response", [])
-            await redis_set_json("football:live_matches", matches, ex=120)
+            matches = data.get("matches", [])
+            await redis_set_json("football:live_matches", matches, ex=60)
             return matches
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
+        """Get match details including score, goals, bookings."""
         if not self._api_key():
             return {}
 
@@ -64,17 +74,17 @@ class FootballAdapter(SportAdapter):
 
         async with httpx.AsyncClient() as client:
             res = await client.get(
-                f"https://{self._api_host()}/fixtures",
-                params={"id": match_id},
+                f"{FOOTBALL_DATA_BASE}/matches/{match_id}",
                 headers=self._headers(),
             )
-            data = res.json()
-            fixtures = data.get("response", [])
-            match_data = fixtures[0] if fixtures else {}
+            if res.status_code != 200:
+                return {}
+            match_data = res.json()
             await redis_set_json(cache_key, match_data, ex=30)
             return match_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
+        """Get lineups for a match. Returns normalized player list."""
         if not self._api_key():
             return []
 
@@ -85,73 +95,74 @@ class FootballAdapter(SportAdapter):
 
         async with httpx.AsyncClient() as client:
             res = await client.get(
-                f"https://{self._api_host()}/fixtures/lineups",
-                params={"fixture": match_id},
+                f"{FOOTBALL_DATA_BASE}/matches/{match_id}",
                 headers=self._headers(),
             )
+            if res.status_code != 200:
+                return []
             data = res.json()
-            lineups = data.get("response", [])
 
-            # Normalize to standard format
             normalized = []
-            for team_lineup in lineups:
-                team_name = team_lineup.get("team", {}).get("name", "")
-                for player in team_lineup.get("startXI", []):
-                    p = player.get("player", {})
+            for side in ["homeTeam", "awayTeam"]:
+                team_data = data.get(side, {})
+                team_name = team_data.get("shortName", team_data.get("name", ""))
+
+                for player in team_data.get("lineup", []):
                     normalized.append({
-                        "player_id": str(p.get("id", "")),
-                        "player_name": p.get("name", ""),
+                        "player_id": str(player.get("id", "")),
+                        "player_name": player.get("name", ""),
                         "team": team_name[:10],
-                        "role": p.get("pos", ""),  # G, D, M, F
+                        "role": player.get("position", ""),
                     })
-                for player in team_lineup.get("substitutes", []):
-                    p = player.get("player", {})
+                for player in team_data.get("bench", []):
                     normalized.append({
-                        "player_id": str(p.get("id", "")),
-                        "player_name": p.get("name", ""),
+                        "player_id": str(player.get("id", "")),
+                        "player_name": player.get("name", ""),
                         "team": team_name[:10],
-                        "role": p.get("pos", "SUB"),
+                        "role": "SUB",
                     })
 
             await redis_set_json(cache_key, normalized, ex=600)
             return normalized
 
     def calculate_player_points(self, player_id: str, match_data: dict, weightage: int) -> tuple[int, dict]:
-        """Calculate football fantasy points for a player."""
-        events = match_data.get("events", [])
-        player_stats = match_data.get("players", [])
+        """Calculate football fantasy points for a player from match data."""
+        goals_list = match_data.get("goals", [])
+        bookings = match_data.get("bookings", [])
 
-        breakdown = {}
+        breakdown: Dict[str, int] = {}
         raw_points = 0
 
-        # Count events
+        # Count goals and assists
         goals = 0
         assists = 0
+        own_goals = 0
+
+        for goal in goals_list:
+            scorer = goal.get("scorer", {})
+            assist = goal.get("assist", {})
+            goal_type = goal.get("type", "REGULAR")
+
+            if str(scorer.get("id")) == player_id:
+                if goal_type == "OWN_GOAL":
+                    own_goals += 1
+                else:
+                    goals += 1
+
+            if assist and str(assist.get("id")) == player_id:
+                assists += 1
+
+        # Count cards
         yellow_cards = 0
         red_cards = 0
-        own_goals = 0
-        penalty_missed = 0
-
-        for event in events:
-            ep = event.get("player", {})
-            ea = event.get("assist", {})
-            event_type = event.get("type", "")
-            detail = event.get("detail", "")
-
-            if str(ep.get("id")) == player_id:
-                if event_type == "Goal" and detail != "Own Goal":
-                    goals += 1
-                elif event_type == "Goal" and detail == "Own Goal":
-                    own_goals += 1
-                elif event_type == "Card" and detail == "Yellow Card":
+        for booking in bookings:
+            booked_player = booking.get("player", {})
+            if str(booked_player.get("id")) == player_id:
+                card = booking.get("card", "")
+                if card == "YELLOW":
                     yellow_cards += 1
-                elif event_type == "Card" and detail == "Red Card":
+                elif card in ("RED", "YELLOW_RED"):
                     red_cards += 1
-                elif event_type == "Goal" and detail == "Missed Penalty":
-                    penalty_missed += 1
-
-            if str(ea.get("id")) == player_id and event_type == "Goal":
-                assists += 1
 
         if goals > 0:
             raw_points += goals * POINTS_GOAL
@@ -159,60 +170,72 @@ class FootballAdapter(SportAdapter):
         if assists > 0:
             raw_points += assists * POINTS_ASSIST
             breakdown["assists"] = assists
+        if own_goals > 0:
+            raw_points += own_goals * POINTS_OWN_GOAL
+            breakdown["own_goals"] = own_goals
         if yellow_cards > 0:
             raw_points += yellow_cards * POINTS_YELLOW_CARD
             breakdown["yellow_cards"] = yellow_cards
         if red_cards > 0:
             raw_points += red_cards * POINTS_RED_CARD
             breakdown["red_cards"] = red_cards
-        if own_goals > 0:
-            raw_points += own_goals * POINTS_OWN_GOAL
-            breakdown["own_goals"] = own_goals
-        if penalty_missed > 0:
-            raw_points += penalty_missed * POINTS_PENALTY_MISSED
-            breakdown["penalty_missed"] = penalty_missed
 
-        # Minutes played bonus
-        # (simplified — full implementation needs player stats from API)
-        if raw_points >= 0:
-            raw_points += POINTS_MINUTES_60
+        # Minutes played bonus (simplified — assume playing if no red card)
+        if red_cards == 0:
+            raw_points += POINTS_MINUTES_PLAYED
             breakdown["minutes_bonus"] = 1
 
         total = raw_points * weightage
         return total, breakdown
 
     def extract_match_progress(self, match_data: dict) -> dict:
-        fixture = match_data.get("fixture", {}) if "fixture" in match_data else match_data
-        status = fixture.get("status", {})
-        elapsed = status.get("elapsed", 0) or 0
-        half = 1 if elapsed <= 45 else 2
-        return {"half": half, "minute": elapsed}
+        """Extract minute and half from Football-Data.org match response."""
+        minute = match_data.get("minute", 0) or 0
+        status = match_data.get("status", "")
+
+        # Determine half from status and minute
+        if status == "PAUSED":
+            half = 1  # Halftime break
+        elif minute > 45:
+            half = 2
+        else:
+            half = 1
+
+        return {"half": half, "minute": minute, "status": status}
 
     def is_edit_window(self, current_progress: dict, last_edit_progress: dict) -> bool:
-        """Edit window opens at halftime (half changes from 1 to 2)."""
+        """Edit window opens at halftime (status changes to PAUSED or half changes)."""
+        current_status = current_progress.get("status", "")
+        last_status = last_edit_progress.get("status", "")
+
+        # Window opens when match enters PAUSED (halftime)
+        if current_status == "PAUSED" and last_status != "PAUSED":
+            return True
+
+        # Also open when half changes from 1 to 2
         current_half = current_progress.get("half", 1)
         last_half = last_edit_progress.get("half", 1)
         return current_half > last_half
 
     def get_edit_trigger(self, current_progress: dict) -> str:
+        status = current_progress.get("status", "")
+        if status == "PAUSED":
+            return "halftime"
         half = current_progress.get("half", 1)
         return "halftime" if half == 2 else "kickoff"
 
     def get_quiz_context(self, match_data: dict, room_name: str) -> dict:
-        fixture = match_data.get("fixture", {}) if "fixture" in match_data else match_data
-        teams = match_data.get("teams", {})
-        goals = match_data.get("goals", {})
-        status = fixture.get("status", {})
-
-        home = teams.get("home", {}).get("name", "")
-        away = teams.get("away", {}).get("name", "")
-        score = f"{goals.get('home', 0)} - {goals.get('away', 0)}"
+        home = match_data.get("homeTeam", {}).get("name", "")
+        away = match_data.get("awayTeam", {}).get("name", "")
+        score = match_data.get("score", {})
+        ft = score.get("fullTime", {}) or {}
+        minute = match_data.get("minute", 0)
 
         return {
             "sport": "football",
             "match_name": room_name,
             "home_team": home,
             "away_team": away,
-            "current_score": score,
-            "minute": status.get("elapsed", 0),
+            "current_score": f"{ft.get('home', 0)} - {ft.get('away', 0)}",
+            "minute": minute,
         }

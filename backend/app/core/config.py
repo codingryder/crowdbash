@@ -10,8 +10,7 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_JWT_SECRET: str
     CRICKETDATA_API_KEY: str = ""
-    FOOTBALL_API_KEY: str = ""
-    FOOTBALL_API_HOST: str = "v3.football.api-sports.io"
+    FOOTBALL_API_KEY: str = ""  # Football-Data.org X-Auth-Token
     GEMINI_API_KEY: str = ""
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
