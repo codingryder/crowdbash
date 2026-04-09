@@ -291,11 +291,32 @@ async def room_sync():
                             existing_room = existing_result.scalar_one_or_none()
 
                             if existing_room:
-                                # Room exists — update status if API says it's live but room isn't
+                                # Room exists — only reactivate if:
+                                # 1. API says it's live
+                                # 2. Room is not already live
+                                # 3. Match date is today (prevents stale API data from reactivating old matches)
                                 if existing_room.status != "live" and status == "live":
-                                    existing_room.status = "live"
-                                    existing_room.completed_at = None
-                                    print(f"Room sync: reactivated '{existing_room.match_name}' to live")
+                                    from datetime import date as date_cls
+                                    match_date = existing_room.match_date
+                                    is_today = match_date and match_date.date() == date_cls.today() if match_date else False
+
+                                    # For football: also check the API match date
+                                    if sport == "football":
+                                        api_date_str = match.get("utcDate", "")
+                                        if api_date_str:
+                                            try:
+                                                from datetime import datetime as dt_parse
+                                                api_date = dt_parse.fromisoformat(api_date_str.replace("Z", "+00:00"))
+                                                is_today = api_date.date() == date_cls.today()
+                                            except Exception:
+                                                pass
+
+                                    if is_today:
+                                        existing_room.status = "live"
+                                        existing_room.completed_at = None
+                                        print(f"Room sync: reactivated '{existing_room.match_name}' to live (today's match)")
+                                    else:
+                                        print(f"Room sync: skipped reactivation of '{existing_room.match_name}' (not today's match)")
                                 continue
 
                             # Check if an upcoming room exists for these teams by name
