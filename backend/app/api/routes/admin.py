@@ -256,6 +256,44 @@ async def check_finished_rooms(db: AsyncSession = Depends(get_db)):
     }
 
 
+@router.post("/backfill-results")
+async def backfill_results(db: AsyncSession = Depends(get_db)):
+    """
+    Backfill match summaries for completed rooms that don't have one.
+    Fetches match data from the sport API and saves summary to match_progress.
+    """
+    result = await db.execute(select(Room).where(Room.status == "completed"))
+    completed_rooms = result.scalars().all()
+
+    filled = 0
+    skipped = 0
+    errors = 0
+
+    for room in completed_rooms:
+        # Skip if already has a summary
+        progress = room.match_progress or {}
+        if progress.get("status") == "completed" and (progress.get("result") or progress.get("scorers")):
+            skipped += 1
+            continue
+
+        try:
+            adapter = get_adapter(room.sport)
+            match_data = await adapter.get_match_score(room.match_id)
+            if not match_data:
+                errors += 1
+                continue
+
+            summary = adapter.format_match_summary(match_data, room.match_name)
+            room.match_progress = summary
+            filled += 1
+        except Exception as e:
+            print(f"Backfill error for {room.match_name}: {e}")
+            errors += 1
+
+    await db.commit()
+    return {"filled": filled, "skipped": skipped, "errors": errors}
+
+
 @router.get("/sync-status")
 async def sync_status(db: AsyncSession = Depends(get_db)):
     """Get current room counts by sport and status."""

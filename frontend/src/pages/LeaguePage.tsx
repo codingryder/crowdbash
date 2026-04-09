@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
+import { MatchSummaryCard } from '../components/room/MatchSummaryCard';
 
 export function LeaguePage() {
   const { leagueName } = useParams<{ leagueName: string }>();
@@ -101,15 +102,15 @@ export function LeaguePage() {
         </section>
       )}
 
-      {/* Completed matches */}
+      {/* Recent Results — completed matches with summaries */}
       {!loading && completedRooms.length > 0 && (
         <section className="mb-8">
-          <div className="text-[11px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--dm)' }}>
-            Completed
+          <div className="text-[11px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
+            Recent Results
           </div>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
-            {completedRooms.map((room) => (
-              <MatchCard key={room.id} room={room} />
+            {completedRooms.slice(0, 3).map((room) => (
+              <MatchSummaryCard key={room.id} room={room} />
             ))}
           </div>
         </section>

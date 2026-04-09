@@ -260,6 +260,59 @@ class FootballAdapter(SportAdapter):
         half = current_progress.get("half", 1)
         return "halftime" if half == 2 else "kickoff"
 
+    def format_match_summary(self, match_data: dict, room_name: str) -> dict:
+        """Extract full match summary for a completed football match."""
+        score = match_data.get("score", {})
+        ft = score.get("fullTime", {}) or {}
+        ht = score.get("halfTime", {}) or {}
+        home_team = match_data.get("homeTeam", {}).get("name", "")
+        away_team = match_data.get("awayTeam", {}).get("name", "")
+        home_goals = ft.get("home", 0)
+        away_goals = ft.get("away", 0)
+
+        # Result text
+        if home_goals > away_goals:
+            result = f"{home_team} won"
+        elif away_goals > home_goals:
+            result = f"{away_team} won"
+        else:
+            result = "Draw"
+
+        # Goalscorers
+        scorers = []
+        for goal in match_data.get("goals", []):
+            scorer = goal.get("scorer", {})
+            scorers.append({
+                "name": scorer.get("name", "Unknown"),
+                "minute": goal.get("minute", 0),
+                "type": goal.get("type", "REGULAR"),
+                "team": "home" if scorer.get("id") in [p.get("id") for p in match_data.get("homeTeam", {}).get("lineup", [])] else "away",
+            })
+
+        # Cards
+        cards = []
+        for booking in match_data.get("bookings", []):
+            player = booking.get("player", {})
+            cards.append({
+                "name": player.get("name", "Unknown"),
+                "card": booking.get("card", ""),
+                "minute": booking.get("minute", 0),
+            })
+
+        return {
+            "status": "completed",
+            "sport": "football",
+            "match_name": room_name,
+            "home_team": home_team,
+            "away_team": away_team,
+            "home_goals": home_goals,
+            "away_goals": away_goals,
+            "halftime": f"{ht.get('home', 0)} - {ht.get('away', 0)}",
+            "result": result,
+            "scorers": scorers[:10],
+            "cards": cards[:10],
+        }
+
     def is_match_finished(self, match_data: dict) -> bool:
         """Check if football match is finished from API response."""
         status = match_data.get("status", "")

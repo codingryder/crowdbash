@@ -93,11 +93,18 @@ async def score_poller():
                     if not match_data:
                         continue
 
-                    # Check if match has finished
+                    # Check if match has finished — save summary to DB
                     if adapter.is_match_finished(match_data):
                         room.status = "completed"
                         from datetime import datetime, timezone
                         room.completed_at = datetime.now(timezone.utc)
+                        # Save full match summary into match_progress
+                        try:
+                            summary = adapter.format_match_summary(match_data, room.match_name)
+                            room.match_progress = summary
+                        except Exception as e:
+                            print(f"Failed to format summary for {room.match_name}: {e}")
+                            room.match_progress = {"status": "completed"}
                         await room_manager.broadcast(str(room.id), {
                             "type": "score_update",
                             "payload": {"sport": room.sport, "data": match_data}

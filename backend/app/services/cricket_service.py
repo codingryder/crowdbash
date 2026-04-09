@@ -103,6 +103,60 @@ class CricketAdapter(SportAdapter):
         over = current_progress.get("over", 0)
         return f"over_{int(float(over))}"
 
+    def format_match_summary(self, match_data: dict, room_name: str) -> dict:
+        """Extract full match summary for a completed cricket match."""
+        status = match_data.get("status", "")
+        scorecard = match_data.get("scorecard", [])
+
+        teams = []
+        top_batters = []
+        top_bowlers = []
+
+        for innings in scorecard:
+            team_name = innings.get("team", {}).get("name", "") or innings.get("team", "")
+            overs = innings.get("overs", "0")
+            runs = innings.get("runs", 0)
+            wickets = innings.get("wickets", 0)
+            teams.append({
+                "name": team_name,
+                "score": f"{runs}/{wickets}",
+                "overs": str(overs),
+            })
+
+            # Top batters from this innings
+            batting = innings.get("batting", [])
+            sorted_batting = sorted(batting, key=lambda b: b.get("r", 0), reverse=True)
+            for b in sorted_batting[:3]:
+                batsman = b.get("batsman", {})
+                top_batters.append({
+                    "name": batsman.get("name", "") if isinstance(batsman, dict) else str(batsman),
+                    "runs": b.get("r", 0),
+                    "balls": b.get("b", 0),
+                    "team": team_name[:15],
+                })
+
+            # Top bowlers from this innings
+            bowling = innings.get("bowling", [])
+            sorted_bowling = sorted(bowling, key=lambda b: b.get("w", 0), reverse=True)
+            for b in sorted_bowling[:2]:
+                bowler = b.get("bowler", {})
+                top_bowlers.append({
+                    "name": bowler.get("name", "") if isinstance(bowler, dict) else str(bowler),
+                    "wickets": b.get("w", 0),
+                    "runs_conceded": b.get("r", 0),
+                    "overs": str(b.get("o", 0)),
+                })
+
+        return {
+            "status": "completed",
+            "sport": "cricket",
+            "match_name": room_name,
+            "result": status,
+            "teams": teams[:2],
+            "top_batters": top_batters[:6],
+            "top_bowlers": top_bowlers[:4],
+        }
+
     def is_match_finished(self, match_data: dict) -> bool:
         """Check if cricket match is finished from scorecard data."""
         status = match_data.get("status", "")

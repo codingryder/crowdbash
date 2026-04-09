@@ -45,6 +45,14 @@ class SportAdapter(ABC):
         ...
 
     @abstractmethod
+    def format_match_summary(self, match_data: dict, room_name: str) -> dict:
+        """
+        Extract a complete match summary from API data.
+        Called when a match finishes — result is stored in room.match_progress.
+        """
+        ...
+
+    @abstractmethod
     def is_match_finished(self, match_data: dict) -> bool:
         """Check if a match has finished based on API response data."""
         ...
