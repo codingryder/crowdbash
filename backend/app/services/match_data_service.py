@@ -72,20 +72,12 @@ async def fetch_football_match_data(
     if cached:
         return cached
 
-    # Step 1: Google search for match data
-    query = f"{home_team} vs {away_team} {league} 2026 match result score stats"
-    snippets = await _google_search_snippets(query)
-    if not snippets:
-        return None
-
-    # Step 2: Ask Gemini to extract structured data
-    prompt = f"""Extract the football match result data from the following search snippets.
+    # Ask Gemini directly — it has knowledge of recent match results
+    prompt = f"""You are a sports data assistant. Provide the football match result data for this match.
 
 Match: {home_team} vs {away_team}
 League: {league}
-
-Search snippets:
-{snippets}
+Year: 2026 (or most recent match between these teams)
 
 Return ONLY valid JSON in this exact format (no other text, no markdown):
 {{
@@ -185,20 +177,12 @@ async def fetch_cricket_match_data(
     if cached:
         return cached
 
-    # Step 1: Google search
-    query = f"{team1} vs {team2} {league} 2026 scorecard result batting bowling"
-    snippets = await _google_search_snippets(query)
-    if not snippets:
-        return None
-
-    # Step 2: Ask Gemini to extract structured data
-    prompt = f"""Extract the cricket match scorecard data from the following search snippets.
+    # Ask Gemini directly — it has knowledge of recent match results
+    prompt = f"""You are a sports data assistant. Provide the cricket match scorecard data for this match.
 
 Match: {team1} vs {team2}
 League: {league}
-
-Search snippets:
-{snippets}
+Year: 2026 (or most recent match between these teams)
 
 Return ONLY valid JSON in this exact format (no other text, no markdown):
 {{
