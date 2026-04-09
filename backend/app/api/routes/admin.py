@@ -193,6 +193,46 @@ async def cleanup_rooms(db: AsyncSession = Depends(get_db)):
     return {"cricket_rooms_kept": kept, "cricket_rooms_removed": removed}
 
 
+@router.post("/check-finished")
+async def check_finished_rooms(db: AsyncSession = Depends(get_db)):
+    """
+    Check all live rooms and mark any finished matches as completed.
+    Uses the sport API to verify match status.
+    """
+    result = await db.execute(select(Room).where(Room.status == "live"))
+    live_rooms = result.scalars().all()
+
+    completed = 0
+    still_live = 0
+    errors = 0
+
+    for room in live_rooms:
+        try:
+            adapter = get_adapter(room.sport)
+            match_data = await adapter.get_match_score(room.match_id)
+            if not match_data:
+                # No data available — could be API limit, skip
+                continue
+
+            if adapter.is_match_finished(match_data):
+                room.status = "completed"
+                from datetime import datetime, timezone
+                room.completed_at = datetime.now(timezone.utc)
+                completed += 1
+            else:
+                still_live += 1
+        except Exception:
+            errors += 1
+
+    await db.commit()
+    return {
+        "checked": len(live_rooms),
+        "marked_completed": completed,
+        "still_live": still_live,
+        "errors": errors,
+    }
+
+
 @router.get("/sync-status")
 async def sync_status(db: AsyncSession = Depends(get_db)):
     """Get current room counts by sport and status."""

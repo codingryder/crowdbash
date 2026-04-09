@@ -103,6 +103,16 @@ class CricketAdapter(SportAdapter):
         over = current_progress.get("over", 0)
         return f"over_{int(float(over))}"
 
+    def is_match_finished(self, match_data: dict) -> bool:
+        """Check if cricket match is finished from scorecard data."""
+        status = match_data.get("status", "")
+        ms = match_data.get("ms", "")
+        # CricketData.org uses "result" for finished, or status contains "won"/"draw"/"tie"
+        if ms == "result":
+            return True
+        status_lower = status.lower()
+        return any(w in status_lower for w in ["won", "draw", "tie", "abandoned", "no result"])
+
     def get_quiz_context(self, match_data: dict, room_name: str) -> dict:
         return {
             "sport": "cricket",

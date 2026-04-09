@@ -45,6 +45,11 @@ class SportAdapter(ABC):
         ...
 
     @abstractmethod
+    def is_match_finished(self, match_data: dict) -> bool:
+        """Check if a match has finished based on API response data."""
+        ...
+
+    @abstractmethod
     def get_quiz_context(self, match_data: dict, room_name: str) -> dict:
         """Build context dict for quiz generation prompt."""
         ...

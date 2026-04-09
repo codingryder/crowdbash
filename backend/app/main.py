@@ -93,6 +93,17 @@ async def score_poller():
                     if not match_data:
                         continue
 
+                    # Check if match has finished
+                    if adapter.is_match_finished(match_data):
+                        room.status = "completed"
+                        from datetime import datetime, timezone
+                        room.completed_at = datetime.now(timezone.utc)
+                        await room_manager.broadcast(str(room.id), {
+                            "type": "score_update",
+                            "payload": {"sport": room.sport, "data": match_data}
+                        })
+                        continue
+
                     # Broadcast score update with sport context
                     await room_manager.broadcast(str(room.id), {
                         "type": "score_update",

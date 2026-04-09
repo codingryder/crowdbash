@@ -224,6 +224,12 @@ class FootballAdapter(SportAdapter):
         half = current_progress.get("half", 1)
         return "halftime" if half == 2 else "kickoff"
 
+    def is_match_finished(self, match_data: dict) -> bool:
+        """Check if football match is finished from API response."""
+        status = match_data.get("status", "")
+        # Football-Data.org statuses for finished matches
+        return status in ("FINISHED", "AWARDED", "CANCELLED")
+
     def get_quiz_context(self, match_data: dict, room_name: str) -> dict:
         home = match_data.get("homeTeam", {}).get("name", "")
         away = match_data.get("awayTeam", {}).get("name", "")
