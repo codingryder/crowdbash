@@ -2,14 +2,16 @@ import { useState } from 'react';
 import { CommentaryFeed } from './CommentaryFeed';
 import { ChatPanel, ChatInput } from './ChatPanel';
 import { QuizPanel } from './QuizPanel';
+import type { Room } from '../../types';
 
 type CenterTab = 'commentary' | 'chat' | 'quiz';
 
 interface CenterColumnProps {
   onSendChat: (message: string) => void;
+  room: Room;
 }
 
-export function CenterColumn({ onSendChat }: CenterColumnProps) {
+export function CenterColumn({ onSendChat, room }: CenterColumnProps) {
   const [activeTab, setActiveTab] = useState<CenterTab>('commentary');
 
   return (
@@ -45,7 +47,7 @@ export function CenterColumn({ onSendChat }: CenterColumnProps) {
 
       {/* Content */}
       <div className="flex-1 overflow-y-auto">
-        {activeTab === 'commentary' && <CommentaryFeed />}
+        {activeTab === 'commentary' && <CommentaryFeed room={room} />}
         {activeTab === 'chat' && <ChatPanel onSendChat={onSendChat} />}
         {activeTab === 'quiz' && <QuizPanel />}
       </div>

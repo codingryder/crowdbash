@@ -1,5 +1,5 @@
 import { useEffect } from 'react';
-import { useParams } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import { useRoom } from '../hooks/useRoom';
 import { useWebSocket } from '../hooks/useWebSocket';
 import { useGame } from '../hooks/useGame';
@@ -18,26 +18,11 @@ export function CrowdbashRoomPage() {
   const fanCount = useRoomStore((s) => s.fanCount);
   const setSport = useRoomStore((s) => s.setSport);
 
-  // Get sport from room data
   const sport: Sport = room?.sport || 'cricket';
 
   useEffect(() => {
     setSport(sport);
   }, [sport, setSport]);
-
-  // Build display room from real data with fallbacks
-  const displayRoom = room || {
-    id: roomId || 'unknown',
-    match_id: '',
-    match_name: 'Loading...',
-    match_format: '',
-    venue: '',
-    status: 'live' as const,
-    current_over: 0,
-    fan_count: 0,
-    sport,
-    match_progress: {},
-  };
 
   const displayFanCount = fanCount > 0 ? fanCount : (room?.fan_count || 0);
 
@@ -49,12 +34,12 @@ export function CrowdbashRoomPage() {
     );
   }
 
-  if (!room && !roomId?.startsWith('demo')) {
+  if (!room) {
     return (
       <div className="flex items-center justify-center" style={{ height: 'calc(100vh - 52px)' }}>
         <div className="text-center">
           <div className="font-syne text-lg mb-2" style={{ color: 'var(--mu)' }}>Room not found</div>
-          <a href="/" className="text-xs" style={{ color: 'var(--gold)' }}>Back to rooms</a>
+          <Link to="/" className="text-xs" style={{ color: 'var(--gold)' }}>Back to rooms</Link>
         </div>
       </div>
     );
@@ -66,11 +51,11 @@ export function CrowdbashRoomPage() {
         className="flex-1 grid overflow-hidden"
         style={{ gridTemplateColumns: '260px minmax(0, 1fr) 300px' }}
       >
-        <LeftSidebar />
-        <CenterColumn onSendChat={sendChat} />
-        <RightGamePanel />
+        <LeftSidebar room={room} />
+        <CenterColumn onSendChat={sendChat} room={room} />
+        <RightGamePanel room={room} />
       </div>
-      <RoomBar room={displayRoom} fanCount={displayFanCount} />
+      <RoomBar room={room} fanCount={displayFanCount} />
     </div>
   );
 }

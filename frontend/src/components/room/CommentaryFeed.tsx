@@ -1,5 +1,6 @@
 import type { CSSProperties } from 'react';
 import { useRoomStore } from '../../store/roomStore';
+import type { Room } from '../../types';
 
 // Cricket chip styles
 const cricketChipStyles: Record<string, CSSProperties> = {
@@ -28,60 +29,73 @@ const footballChipLabels: Record<string, string> = {
   goal: '\u26BD', assist: 'A', yellow_card: '\uD83D\uDFE8', red_card: '\uD83D\uDFE5', substitution: '\u21C4', save: 'S',
 };
 
-interface SampleEvent {
-  type: string;
-  commentary: string;
-  meta: string;
+interface CommentaryFeedProps {
+  room: Room;
 }
 
-const CRICKET_SAMPLES: SampleEvent[] = [
-  { type: 'six', commentary: "Kohli goes downtown! Massive SIX over deep midwicket. The crowd erupts!", meta: '48.3 \u00b7 V Kohli (94*)' },
-  { type: 'dot', commentary: 'Dot ball. Kohli defends firmly to mid-on. Good length delivery.', meta: '48.2 \u00b7 V Kohli (88)' },
-  { type: 'boundary', commentary: 'Driven beautifully through covers! Pure class from the master batter.', meta: '48.1 \u00b7 V Kohli (88)' },
-  { type: 'wicket', commentary: 'WICKET! Sharma caught behind! Maxwell got the edge.', meta: '47.6 \u00b7 R Sharma (71)' },
-  { type: 'single', commentary: 'Clipped to fine leg for a single. India rotating strike well.', meta: '47.5 \u00b7 R Sharma (71)' },
-  { type: 'six', commentary: "Sharma goes big! Cummins tries a yorker and Rohit heaves it over long-on!", meta: '47.4 \u00b7 R Sharma (70)' },
-];
-
-const FOOTBALL_SAMPLES: SampleEvent[] = [
-  { type: 'goal', commentary: "GOAL! Saka cuts inside and curls it into the far corner! Arsenal take the lead!", meta: "67' \u00b7 B. Saka \u00b7 Arsenal" },
-  { type: 'assist', commentary: 'Brilliant through ball from Odegaard to set up the goal.', meta: "67' \u00b7 M. Odegaard \u00b7 Arsenal" },
-  { type: 'yellow_card', commentary: 'Yellow card for a late tackle in midfield. Referee had no choice.', meta: "54' \u00b7 R. James \u00b7 Chelsea" },
-  { type: 'save', commentary: 'Brilliant save! Raya dives full stretch to deny Palmer.', meta: "41' \u00b7 D. Raya \u00b7 Arsenal" },
-  { type: 'substitution', commentary: 'Tactical change at halftime. Fresh legs in midfield.', meta: "46' \u00b7 Substitution \u00b7 Chelsea" },
-  { type: 'goal', commentary: "EQUALIZER! Palmer scores from the penalty spot. Cool as you like.", meta: "38' \u00b7 C. Palmer \u00b7 Chelsea" },
-];
-
-export function CommentaryFeed() {
-  const sport = useRoomStore((s) => s.sport);
-  const samples = sport === 'football' ? FOOTBALL_SAMPLES : CRICKET_SAMPLES;
+export function CommentaryFeed({ room }: CommentaryFeedProps) {
+  const matchEvents = useRoomStore((s) => s.matchEvents);
+  const sport = room.sport;
   const chipStyles = sport === 'football' ? footballChipStyles : cricketChipStyles;
   const chipLabels = sport === 'football' ? footballChipLabels : cricketChipLabels;
 
-  return (
-    <div>
-      {samples.map((event, i) => (
-        <div
-          key={i}
-          className="flex gap-3"
-          style={{ padding: '12px 18px', borderBottom: '0.5px solid var(--b1)' }}
-        >
+  // Show real events from WebSocket if available
+  if (matchEvents.length > 0) {
+    return (
+      <div>
+        {matchEvents.map((event, i) => (
           <div
-            className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5"
-            style={chipStyles[event.type] || { background: 'var(--s2)', color: 'var(--mu)' }}
+            key={event.id || i}
+            className="flex gap-3"
+            style={{ padding: '12px 18px', borderBottom: '0.5px solid var(--b1)' }}
           >
-            {chipLabels[event.type] || '?'}
-          </div>
-          <div>
-            <div className="text-[13px] leading-[1.55]" style={{ color: 'var(--tx)' }}>
-              {event.commentary}
+            <div
+              className="w-8 h-8 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0 mt-0.5"
+              style={chipStyles[event.event_type] || { background: 'var(--s2)', color: 'var(--mu)' }}
+            >
+              {chipLabels[event.event_type] || '?'}
             </div>
-            <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)' }}>
-              {event.meta}
+            <div>
+              <div className="text-[13px] leading-[1.55]" style={{ color: 'var(--tx)' }}>
+                {event.commentary || `${event.event_type}: ${event.player_name}`}
+              </div>
+              <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)' }}>
+                {event.over_number ? `${event.over_number} \u00b7 ` : ''}
+                {event.minute ? `${event.minute}\u2019 \u00b7 ` : ''}
+                {event.player_name} {event.team ? `\u00b7 ${event.team}` : ''}
+              </div>
             </div>
           </div>
+        ))}
+      </div>
+    );
+  }
+
+  // Waiting state — no live data yet
+  return (
+    <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+      <div className="text-2xl mb-3">
+        {sport === 'football' ? '\u26BD' : '\uD83C\uDFCF'}
+      </div>
+      <div className="font-syne text-sm font-bold mb-2" style={{ color: 'var(--tx)' }}>
+        {room.match_name}
+      </div>
+      <div className="text-xs mb-1" style={{ color: 'var(--mu)' }}>
+        {room.league || room.match_format}
+      </div>
+      {room.status === 'live' ? (
+        <div className="text-xs mt-4" style={{ color: 'var(--gold)' }}>
+          Waiting for live commentary...
         </div>
-      ))}
+      ) : room.status === 'upcoming' ? (
+        <div className="text-xs mt-4" style={{ color: 'var(--mu)' }}>
+          Commentary will appear when the match goes live.
+        </div>
+      ) : (
+        <div className="text-xs mt-4" style={{ color: 'var(--mu)' }}>
+          Match completed.
+        </div>
+      )}
     </div>
   );
 }

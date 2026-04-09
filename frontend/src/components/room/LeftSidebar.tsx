@@ -2,10 +2,15 @@ import { useState } from 'react';
 import { MatchHeader } from './MatchHeader';
 import { LeaderboardSidebar } from './LeaderboardSidebar';
 import { StatsSidebar } from './StatsSidebar';
+import type { Room } from '../../types';
 
 type LeftTab = 'leaders' | 'stats';
 
-export function LeftSidebar() {
+interface LeftSidebarProps {
+  room: Room;
+}
+
+export function LeftSidebar({ room }: LeftSidebarProps) {
   const [activeTab, setActiveTab] = useState<LeftTab>('leaders');
 
   return (
@@ -13,7 +18,7 @@ export function LeftSidebar() {
       className="flex flex-col overflow-hidden"
       style={{ borderRight: '0.5px solid var(--b1)' }}
     >
-      <MatchHeader />
+      <MatchHeader room={room} />
 
       {/* Tabs */}
       <div
