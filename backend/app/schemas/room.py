@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional
+from typing import Optional, Dict, Any
 
 
 class RoomResponse(BaseModel):
@@ -11,6 +11,10 @@ class RoomResponse(BaseModel):
     status: str
     current_over: float
     fan_count: int
+    sport: str
+    league: Optional[str] = None
+    season: Optional[str] = None
+    match_progress: Dict[str, Any] = {}
 
     class Config:
         from_attributes = True

@@ -30,6 +30,8 @@ class PlayerWeightage(Base):
     team = Column(String(10), nullable=False)
     weightage = Column(Integer, nullable=False, default=0)
     points_earned = Column(Integer, default=0)
+    player_role = Column(String(30), nullable=True)
+    scoring_breakdown = Column(JSONB, default={})
     updated_at = Column(DateTime(timezone=True), server_default=func.now())
 
 
@@ -40,4 +42,5 @@ class WeightageEdit(Base):
     game_id = Column(UUID(as_uuid=True), ForeignKey("games.id", ondelete="CASCADE"))
     over_number = Column(Numeric(4, 1), nullable=False)
     changes = Column(JSONB, nullable=False)
+    edit_trigger = Column(String(50), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())

@@ -5,8 +5,8 @@ from app.core.database import get_db
 from app.core.security import get_current_user_id
 from app.models.game import Game, PlayerWeightage
 from app.models.room import Room
-from app.services.game_service import update_weightages, is_edit_window_open
-from app.services.cricket_service import get_match_players
+from app.services.game_service import update_weightages
+from app.services.sport_service import get_adapter
 from pydantic import BaseModel
 import uuid
 from typing import List
@@ -29,8 +29,7 @@ async def join_game(
     user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db)
 ):
-    """Join a game in a room. Creates game + initial weightages."""
-    # Check room exists
+    """Join a game in a room. Creates game + initial weightages using sport-specific adapter."""
     room_result = await db.execute(
         select(Room).where(Room.id == uuid.UUID(room_id))
     )
@@ -53,18 +52,19 @@ async def join_game(
     db.add(game)
     await db.flush()
 
-    # Fetch players and create initial weightages (all 0)
-    players = await get_match_players(room.match_id)
-    for team in players:
-        team_name = team.get("teamName", "")
-        for player in team.get("players", []):
-            pw = PlayerWeightage(
-                game_id=game.id,
-                player_id=player.get("id", ""),
-                player_name=player.get("name", ""),
-                team=team_name[:10],
-            )
-            db.add(pw)
+    # Fetch players using sport-specific adapter
+    adapter = get_adapter(room.sport)
+    players = await adapter.get_match_players(room.match_id)
+
+    for player in players:
+        pw = PlayerWeightage(
+            game_id=game.id,
+            player_id=player.get("player_id", ""),
+            player_name=player.get("player_name", ""),
+            team=player.get("team", "")[:10],
+            player_role=player.get("role", ""),
+        )
+        db.add(pw)
 
     await db.commit()
     return {"game_id": str(game.id), "message": "Joined successfully"}
@@ -108,6 +108,8 @@ async def get_game_state(
                 "team": pw.team,
                 "weightage": pw.weightage,
                 "points_earned": pw.points_earned,
+                "player_role": pw.player_role,
+                "scoring_breakdown": pw.scoring_breakdown or {},
             }
             for pw in weightages
         ],
@@ -132,16 +134,20 @@ async def update_game_weightages(
     if not game:
         raise HTTPException(status_code=404, detail="Game not found")
 
-    # Get current over from room
+    # Get room for sport context
     room_result = await db.execute(
         select(Room).where(Room.id == uuid.UUID(room_id))
     )
     room = room_result.scalar_one_or_none()
-    current_over = float(room.current_over) if room and room.current_over else 0
+
+    # Determine edit trigger from current progress
+    adapter = get_adapter(room.sport)
+    progress = room.match_progress or {}
+    edit_trigger = adapter.get_edit_trigger(progress)
 
     changes = await update_weightages(
         db, game.id, user_id,
         [w.model_dump() for w in body.weightages],
-        current_over
+        edit_trigger
     )
     return {"changes": changes}

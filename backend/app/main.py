@@ -3,13 +3,14 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.websocket import room_manager
 from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, cricket
+from app.api.routes import sports
 from app.services.game_service import calculate_and_update_points
-from app.services.cricket_service import get_match_score, extract_current_over
+from app.services.sport_service import get_adapter
 from app.core.database import AsyncSessionLocal
 import asyncio
 import json
 
-app = FastAPI(title="Crowdbash API", version="1.0.0")
+app = FastAPI(title="Crowdbash API", version="2.0.0")
 
 app.add_middleware(
     CORSMiddleware,
@@ -27,11 +28,12 @@ app.include_router(quiz.router, prefix="/api/quiz", tags=["quiz"])
 app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderboard"])
 app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
 app.include_router(cricket.router, prefix="/api/cricket", tags=["cricket"])
+app.include_router(sports.router, prefix="/api/sports", tags=["sports"])
 
 
 @app.get("/health")
 async def health():
-    return {"status": "ok"}
+    return {"status": "ok", "version": "2.0.0", "sports": ["cricket", "football"]}
 
 
 @app.websocket("/ws/{room_id}")
@@ -65,8 +67,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
 
 async def score_poller():
     """
-    Polls CricAPI for live scores and broadcasts to all active rooms.
-    Runs every 60 seconds. Designed to stay within 100 calls/day free limit.
+    Multi-sport score poller. Polls live matches for all sports,
+    broadcasts updates via WebSocket, and recalculates game points.
     """
     from sqlalchemy import select
     from app.models.room import Room
@@ -81,29 +83,49 @@ async def score_poller():
                 live_rooms = result.scalars().all()
 
                 for room in live_rooms:
-                    scorecard = await get_match_score(room.match_id)
-                    if not scorecard:
+                    try:
+                        adapter = get_adapter(room.sport)
+                    except ValueError:
                         continue
 
+                    match_data = await adapter.get_match_score(room.match_id)
+                    if not match_data:
+                        continue
+
+                    # Broadcast score update with sport context
                     await room_manager.broadcast(str(room.id), {
                         "type": "score_update",
-                        "payload": scorecard
+                        "payload": {
+                            "sport": room.sport,
+                            "data": match_data,
+                        }
                     })
 
+                    # Recalculate game points
                     await calculate_and_update_points(
-                        db, str(room.id), room.match_id, scorecard
+                        db, str(room.id), room.match_id, match_data, room.sport
                     )
 
-                    current_over = extract_current_over(scorecard)
-                    if current_over != float(room.current_over or 0):
-                        room.current_over = current_over
-                        over_int = int(current_over)
-                        if over_int > 0 and over_int % 5 == 0 and current_over == over_int:
+                    # Check match progress and edit windows
+                    new_progress = adapter.extract_match_progress(match_data)
+                    old_progress = room.match_progress or {}
+
+                    if new_progress != old_progress:
+                        room.match_progress = new_progress
+
+                        # Also update current_over for cricket backward compat
+                        if room.sport == "cricket":
+                            room.current_over = new_progress.get("over", 0)
+
+                        # Check edit window
+                        if adapter.is_edit_window(new_progress, old_progress):
                             await room_manager.broadcast(str(room.id), {
-                                "type": "over_complete",
+                                "type": "edit_window",
                                 "payload": {
-                                    "over": current_over,
-                                    "edit_window_open": True
+                                    "sport": room.sport,
+                                    "progress": new_progress,
+                                    "edit_window_open": True,
+                                    "trigger": adapter.get_edit_trigger(new_progress),
                                 }
                             })
 

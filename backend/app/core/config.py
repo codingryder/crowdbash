@@ -10,6 +10,8 @@ class Settings(BaseSettings):
     SUPABASE_ANON_KEY: str
     SUPABASE_JWT_SECRET: str
     CRICKETDATA_API_KEY: str = ""
+    FOOTBALL_API_KEY: str = ""
+    FOOTBALL_API_HOST: str = "v3.football.api-sports.io"
     GEMINI_API_KEY: str = ""
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
@@ -24,7 +26,6 @@ class Settings(BaseSettings):
         try:
             return json.loads(self.CORS_ORIGINS)
         except (json.JSONDecodeError, TypeError):
-            # Handle comma-separated string or single URL
             return [o.strip() for o in self.CORS_ORIGINS.split(",") if o.strip()]
 
     class Config:

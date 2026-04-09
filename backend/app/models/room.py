@@ -1,5 +1,5 @@
 from sqlalchemy import Column, String, Integer, Numeric, DateTime
-from sqlalchemy.dialects.postgresql import UUID
+from sqlalchemy.dialects.postgresql import UUID, JSONB
 from sqlalchemy.sql import func
 from app.core.database import Base
 import uuid
@@ -16,5 +16,9 @@ class Room(Base):
     status = Column(String(20), default="upcoming")
     current_over = Column(Numeric(4, 1), default=0)
     fan_count = Column(Integer, default=0)
+    sport = Column(String(20), nullable=False, default="cricket")
+    league = Column(String(100), nullable=True)
+    season = Column(String(20), nullable=True)
+    match_progress = Column(JSONB, default={})
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)

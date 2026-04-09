@@ -1,5 +1,5 @@
 from pydantic import BaseModel
-from typing import Optional, List
+from typing import Optional, List, Dict, Any
 
 
 class PlayerWeightageResponse(BaseModel):
@@ -8,6 +8,8 @@ class PlayerWeightageResponse(BaseModel):
     team: str
     weightage: int
     points_earned: int
+    player_role: Optional[str] = None
+    scoring_breakdown: Dict[str, Any] = {}
 
 
 class GameResponse(BaseModel):

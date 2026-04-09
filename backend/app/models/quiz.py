@@ -14,6 +14,7 @@ class QuizQuestion(Base):
     options = Column(JSONB, nullable=False)
     correct_index = Column(Integer, nullable=False)
     over_number = Column(Numeric(4, 1))
+    match_minute = Column(Integer, nullable=True)
     expires_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
 

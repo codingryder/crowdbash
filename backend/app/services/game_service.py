@@ -1,13 +1,12 @@
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.models.game import Game, PlayerWeightage, WeightageEdit
-from app.core.redis import redis_set_json, redis_get_json, redis_zadd
-from app.services.cricket_service import extract_player_runs
+from app.core.redis import redis_zadd
+from app.services.sport_service import get_adapter
 import uuid
 from datetime import datetime
 
 TOTAL_WEIGHTAGE_BUDGET = 10
-EDIT_WINDOW_EVERY_N_OVERS = 5  # users can edit after every 5 overs
 QUIZ_CORRECT_POINTS = 50
 
 
@@ -15,12 +14,15 @@ async def calculate_and_update_points(
     db: AsyncSession,
     room_id: str,
     match_id: str,
-    scorecard: dict
+    match_data: dict,
+    sport: str
 ):
     """
     Core game engine: recalculate every active game's points
-    based on current scorecard. Called after each score poll.
+    using the sport-specific adapter. Called after each score poll.
     """
+    adapter = get_adapter(sport)
+
     result = await db.execute(
         select(Game).where(
             Game.room_id == uuid.UUID(room_id),
@@ -37,32 +39,33 @@ async def calculate_and_update_points(
         weightages = wt_result.scalars().all()
 
         for pw in weightages:
-            runs = extract_player_runs(scorecard, pw.player_id)
-            points = runs * pw.weightage
+            points, breakdown = adapter.calculate_player_points(
+                pw.player_id, match_data, pw.weightage
+            )
             pw.points_earned = points
+            pw.scoring_breakdown = breakdown
             total += points
 
         game.total_points = total
 
-        # Update Redis leaderboard (sorted set)
+        # Update Redis leaderboard
         await redis_zadd(f"leaderboard:{room_id}", total, str(game.user_id))
 
     await db.commit()
 
 
-async def is_edit_window_open(current_over: float, last_edit_over: float) -> bool:
-    """Check if it's a valid edit window (every 5 overs)."""
-    current_5 = int(current_over / EDIT_WINDOW_EVERY_N_OVERS)
-    last_5 = int(last_edit_over / EDIT_WINDOW_EVERY_N_OVERS)
-    return current_5 > last_5
+async def is_edit_window_open(sport: str, current_progress: dict, last_edit_progress: dict) -> bool:
+    """Check if edit window should open, using sport-specific logic."""
+    adapter = get_adapter(sport)
+    return adapter.is_edit_window(current_progress, last_edit_progress)
 
 
 async def update_weightages(
     db: AsyncSession,
     game_id: uuid.UUID,
     user_id: uuid.UUID,
-    new_weightages: list[dict],  # [{player_id, weightage}]
-    current_over: float
+    new_weightages: list[dict],
+    edit_trigger: str
 ):
     """
     Apply new weightage distribution. Validates budget.
@@ -90,8 +93,9 @@ async def update_weightages(
     # Log the edit
     edit = WeightageEdit(
         game_id=game_id,
-        over_number=current_over,
-        changes=changes
+        over_number=0,
+        changes=changes,
+        edit_trigger=edit_trigger,
     )
     db.add(edit)
     await db.commit()
@@ -103,7 +107,6 @@ async def get_leaderboard(room_id: str, limit: int = 50) -> list:
     from app.core.redis import redis_zrevrange
     raw = await redis_zrevrange(f"leaderboard:{room_id}", 0, limit - 1)
     result = []
-    # raw is [member, score, member, score, ...]
     for i in range(0, len(raw), 2):
         result.append({
             "user_id": raw[i],

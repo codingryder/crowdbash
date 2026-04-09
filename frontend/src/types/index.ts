@@ -1,3 +1,5 @@
+export type Sport = 'cricket' | 'football';
+
 export interface User {
   id: string;
   username: string;
@@ -16,6 +18,10 @@ export interface Room {
   status: 'upcoming' | 'live' | 'completed';
   current_over: number;
   fan_count: number;
+  sport: Sport;
+  league?: string;
+  season?: string;
+  match_progress: Record<string, unknown>;
 }
 
 export interface Player {
@@ -31,6 +37,8 @@ export interface PlayerWeightage {
   team: string;
   weightage: number;
   points_earned: number;
+  player_role?: string;
+  scoring_breakdown?: Record<string, number>;
 }
 
 export interface Game {
@@ -63,7 +71,9 @@ export interface ChatMessage {
   timestamp: string;
 }
 
-export interface ScoreData {
+// Sport-specific score data
+export interface CricketScoreData {
+  sport: 'cricket';
   match_id: string;
   match_name: string;
   team1: { name: string; score: string; overs: string };
@@ -71,6 +81,32 @@ export interface ScoreData {
   status: string;
   current_rate: number;
   batting_team: string;
+}
+
+export interface FootballScoreData {
+  sport: 'football';
+  home: { name: string; goals: number; logo?: string };
+  away: { name: string; goals: number; logo?: string };
+  minute: number;
+  half: number;
+  status: string;
+  possession_home?: number;
+  possession_away?: number;
+}
+
+export type ScoreData = CricketScoreData | FootballScoreData;
+
+// Match events for commentary feed
+export interface MatchEvent {
+  id: string;
+  sport: Sport;
+  event_type: string; // cricket: six/boundary/wicket/dot/single. football: goal/assist/yellow_card/red_card/substitution
+  player_name: string;
+  team: string;
+  minute?: number;
+  over_number?: number;
+  details?: Record<string, string>;
+  commentary?: string;
 }
 
 export interface QuizQuestion {
@@ -89,7 +125,8 @@ export interface WSMessage {
     | 'quiz_result'
     | 'game_update'
     | 'fan_count'
-    | 'over_complete'
+    | 'edit_window'
+    | 'match_event'
     | 'error'
     | 'pong';
   payload: unknown;
@@ -116,7 +153,7 @@ export const SHOP_ITEMS: WeightageShopItem[] = [
   {
     id: 'power_5',
     label: '+5 Power pack',
-    description: '5 bonus weightage points + skip the over-edit lock once.',
+    description: '5 bonus weightage points + skip the edit lock once.',
     extra_weightage: 5,
     price_inr: 39,
     price_paise: 3900,
