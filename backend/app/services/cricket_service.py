@@ -39,9 +39,6 @@ class CricketAdapter(SportAdapter):
             return matches
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
-        if not self._api_key():
-            return {}
-
         cache_key = f"cricket:score:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached and cached.get("score"):
@@ -49,34 +46,49 @@ class CricketAdapter(SportAdapter):
 
         score_data = {}
 
-        # Try CricketData.org API first
+        # Priority 1: ESPN (free, real-time, most reliable)
         try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(
-                    f"{CRICKETDATA_BASE}/match_scorecard",
-                    params={"apikey": self._api_key(), "id": match_id}
-                )
-                data = res.json()
-                score_data = data.get("data", {})
+            from app.services.espn_service import fetch_espn_match_by_name
+            if self._current_match_name:
+                espn_data = await fetch_espn_match_by_name(self._current_match_name)
+                if espn_data and espn_data.get("score"):
+                    score_data = espn_data
+                    print(f"[ESPN] Got score for {self._current_match_name}")
         except Exception as e:
-            print(f"CricketData API error: {e}")
+            print(f"ESPN error: {e}")
 
-        # If API returned empty score, try Gemini as fallback
+        # Priority 2: CricketData.org API (has detailed scorecard)
+        if not score_data.get("score"):
+            try:
+                if self._api_key():
+                    async with httpx.AsyncClient() as client:
+                        res = await client.get(
+                            f"{CRICKETDATA_BASE}/match_scorecard",
+                            params={"apikey": self._api_key(), "id": match_id}
+                        )
+                        data = res.json()
+                        api_data = data.get("data", {})
+                        if api_data.get("score") or api_data.get("scorecard"):
+                            score_data = api_data
+                            print(f"[CricketData] Got score for {self._current_match_name}")
+            except Exception as e:
+                print(f"CricketData API error: {e}")
+
+        # Priority 3: Gemini Flash (AI-powered fallback)
         if not score_data.get("score") and not score_data.get("scorecard"):
             try:
                 from app.services.live_score_service import fetch_live_score_via_gemini
-                # We need the match name — store it in a class-level cache
                 gemini_data = await fetch_live_score_via_gemini(
                     self._current_match_name or match_id
                 )
                 if gemini_data:
                     score_data = gemini_data
-                    print(f"[Gemini fallback] Got score for {self._current_match_name}")
+                    print(f"[Gemini] Got score for {self._current_match_name}")
             except Exception as e:
                 print(f"Gemini fallback error: {e}")
 
         if score_data:
-            await redis_set_json(cache_key, score_data, ex=CACHE_TTL)
+            await redis_set_json(cache_key, score_data, ex=15)  # 15s cache for ESPN freshness
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
