@@ -431,6 +431,65 @@ async def scrape_league_results(
     }
 
 
+@router.post("/enrich-stats")
+async def enrich_match_stats(db: AsyncSession = Depends(get_db)):
+    """
+    One-time enrichment: scrape match stats (possession, shots, etc.)
+    for completed rooms that don't have them yet.
+    """
+    from app.services.stats_scraper import scrape_football_stats, scrape_cricket_stats
+    import asyncio
+
+    result = await db.execute(select(Room).where(Room.status == "completed"))
+    rooms = result.scalars().all()
+
+    enriched = 0
+    skipped = 0
+    failed = 0
+
+    for room in rooms:
+        mp = room.match_progress or {}
+
+        # Skip if already has stats
+        if mp.get("possession_home") or mp.get("detailed_batters") or mp.get("stats_enriched"):
+            skipped += 1
+            continue
+
+        parts = room.match_name.split(" vs ")
+        if len(parts) != 2:
+            continue
+
+        team1 = parts[0].strip()
+        team2 = parts[1].strip()
+
+        try:
+            if room.sport == "football":
+                stats = await scrape_football_stats(team1, team2, room.league or "")
+            else:
+                stats = await scrape_cricket_stats(team1, team2, room.league or "")
+
+            if stats:
+                # Merge stats into existing match_progress
+                updated = {**mp, **stats, "stats_enriched": True}
+                room.match_progress = updated
+                enriched += 1
+            else:
+                failed += 1
+        except Exception as e:
+            print(f"Enrich error for {room.match_name}: {e}")
+            failed += 1
+
+        # Rate limit
+        await asyncio.sleep(2)
+
+        # Stop after enriching 15 to avoid Google blocking
+        if enriched >= 15:
+            break
+
+    await db.commit()
+    return {"enriched": enriched, "skipped": skipped, "failed": failed}
+
+
 @router.get("/sync-status")
 async def sync_status(db: AsyncSession = Depends(get_db)):
     """Get current room counts by sport and status."""

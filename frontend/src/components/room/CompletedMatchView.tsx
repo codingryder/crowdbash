@@ -16,10 +16,20 @@ interface MatchDetails {
   halftime?: string;
   scorers?: Array<{ name: string; minute: number; type: string }>;
   cards?: Array<{ name: string; card: string; minute: number }>;
+  // Football stats (from enrichment)
+  possession_home?: number;
+  possession_away?: number;
+  shots?: string[];
+  corners?: string[];
+  fouls?: string[];
+  yellow_cards?: string[];
   // Cricket
   teams?: Array<{ name: string; score: string; overs: string }>;
   top_batters?: Array<{ name: string; runs: number; balls: number; team: string }>;
   top_bowlers?: Array<{ name: string; wickets: number; runs_conceded: number; overs: string }>;
+  // Cricket stats (from enrichment)
+  detailed_batters?: Array<{ name: string; runs: number; balls: number }>;
+  detailed_bowlers?: Array<{ name: string; wickets: number; runs: number }>;
 }
 
 interface CompletedMatchViewProps {
@@ -201,6 +211,42 @@ function FootballDetail({ details }: { details: MatchDetails }) {
           ))}
         </div>
       )}
+
+      {/* Match Stats */}
+      {details.possession_home != null && (
+        <div className="mt-4 pt-4" style={{ borderTop: '0.5px solid var(--b1)' }}>
+          <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
+            Match Statistics
+          </div>
+          <div className="space-y-2.5">
+            <StatRow label="Possession" home={`${details.possession_home}%`} away={`${details.possession_away}%`} />
+            {details.shots && details.shots.length >= 2 && (
+              <StatRow label="Shots" home={details.shots[0]} away={details.shots[1]} />
+            )}
+            {details.corners && details.corners.length >= 2 && (
+              <StatRow label="Corners" home={details.corners[0]} away={details.corners[1]} />
+            )}
+            {details.fouls && details.fouls.length >= 2 && (
+              <StatRow label="Fouls" home={details.fouls[0]} away={details.fouls[1]} />
+            )}
+            {details.yellow_cards && details.yellow_cards.length >= 2 && (
+              <StatRow label="Yellow Cards" home={details.yellow_cards[0]} away={details.yellow_cards[1]} />
+            )}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function StatRow({ label, home, away }: { label: string; home: string; away: string }) {
+  return (
+    <div className="flex items-center">
+      <span className="text-[13px] font-medium w-10 text-center" style={{ color: 'var(--tx)' }}>{home}</span>
+      <div className="flex-1 mx-3">
+        <div className="text-[11px] text-center" style={{ color: 'var(--mu)' }}>{label}</div>
+      </div>
+      <span className="text-[13px] font-medium w-10 text-center" style={{ color: 'var(--tx)' }}>{away}</span>
     </div>
   );
 }
