@@ -6,6 +6,8 @@ import { useGame } from '../hooks/useGame';
 import { useAuth } from '../hooks/useAuth';
 import { useRoomStore } from '../store/roomStore';
 import { useGameStore } from '../store/gameStore';
+import api from '../lib/api';
+import type { ScoreData, Sport } from '../types';
 import { RoomBar } from '../components/layout/RoomBar';
 import { LeftSidebar } from '../components/room/LeftSidebar';
 import { CenterColumn } from '../components/room/CenterColumn';
@@ -13,7 +15,6 @@ import { RightGamePanel } from '../components/game/RightGamePanel';
 import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
 import { PaymentGate } from '../components/auth/PaymentGate';
-import type { Sport } from '../types';
 
 export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -28,10 +29,32 @@ export function CrowdbashRoomPage() {
   const [paymentDone, setPaymentDone] = useState(false);
 
   const sport: Sport = room?.sport || 'cricket';
+  const setScore = useRoomStore((s) => s.setScore);
 
   useEffect(() => {
     setSport(sport);
   }, [sport, setSport]);
+
+  // Fetch score immediately on page load (don't wait for WebSocket poll)
+  useEffect(() => {
+    if (!roomId || !room || room.status !== 'live') return;
+
+    async function fetchInitialScore() {
+      try {
+        const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
+        if (data.scorecard) {
+          setScore(data.scorecard as ScoreData);
+        }
+      } catch {
+        // Score not available yet
+      }
+    }
+    fetchInitialScore();
+
+    // Also poll every 30 seconds as backup to WebSocket
+    const interval = setInterval(fetchInitialScore, 30000);
+    return () => clearInterval(interval);
+  }, [roomId, room?.status]);
 
   // Check if user has already paid
   useEffect(() => {

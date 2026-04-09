@@ -305,13 +305,22 @@ class CricketAdapter(SportAdapter):
                 "bowling": bowling,
             })
 
+        # Calculate CRR from score array
+        crr = 0
+        if score_arr:
+            last = score_arr[-1]
+            runs = last.get("r", 0)
+            overs = float(last.get("o", 0))
+            if overs > 0:
+                crr = round(runs / overs, 2)
+
         return {
             "sport": "cricket",
             "match_name": room_name,
             "team1": {"name": team1_name, "score": team1_score, "overs": team1_overs},
             "team2": {"name": team2_name, "score": team2_score, "overs": team2_overs},
             "status": status,
-            "current_rate": 0,
+            "current_rate": crr,
             "batting_team": "",
             "current_batting": current_batting[:2],
             "current_bowling": current_bowling[:2],
