@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select, func
+from sqlalchemy import select
 from app.core.database import get_db
 from app.models.room import Room
 from typing import Optional
@@ -26,26 +26,7 @@ def _room_to_dict(r: Room) -> dict:
     }
 
 
-@router.get("/")
-async def list_rooms(
-    sport: Optional[str] = Query(None, description="Filter by sport"),
-    league: Optional[str] = Query(None, description="Filter by league name"),
-    status: Optional[str] = Query(None, description="Filter by status: live, upcoming, completed"),
-    db: AsyncSession = Depends(get_db),
-):
-    """List rooms with optional filters."""
-    query = select(Room).order_by(Room.created_at.desc())
-    if sport:
-        query = query.where(Room.sport == sport)
-    if league:
-        query = query.where(Room.league == league)
-    if status:
-        query = query.where(Room.status == status)
-    result = await db.execute(query)
-    rooms = result.scalars().all()
-    return [_room_to_dict(r) for r in rooms]
-
-
+# IMPORTANT: /leagues MUST be defined before /{room_id} to avoid path conflict
 @router.get("/leagues")
 async def list_leagues(db: AsyncSession = Depends(get_db)):
     """Get all leagues grouped by sport with room counts."""
@@ -71,7 +52,6 @@ async def list_leagues(db: AsyncSession = Depends(get_db)):
         elif r.status == "upcoming":
             leagues[key]["upcoming_rooms"] += 1
 
-    # Sort: live rooms first, then by total
     sorted_leagues = sorted(
         leagues.values(),
         key=lambda x: (-x["live_rooms"], -x["total_rooms"])
@@ -80,12 +60,34 @@ async def list_leagues(db: AsyncSession = Depends(get_db)):
     return sorted_leagues
 
 
+@router.get("/")
+async def list_rooms(
+    sport: Optional[str] = Query(None, description="Filter by sport"),
+    league: Optional[str] = Query(None, description="Filter by league name"),
+    status: Optional[str] = Query(None, description="Filter by status"),
+    db: AsyncSession = Depends(get_db),
+):
+    """List rooms with optional filters."""
+    query = select(Room).order_by(Room.created_at.desc())
+    if sport:
+        query = query.where(Room.sport == sport)
+    if league:
+        query = query.where(Room.league == league)
+    if status:
+        query = query.where(Room.status == status)
+    result = await db.execute(query)
+    rooms = result.scalars().all()
+    return [_room_to_dict(r) for r in rooms]
+
+
 @router.get("/{room_id}")
 async def get_room(room_id: str, db: AsyncSession = Depends(get_db)):
     """Get a specific room."""
-    result = await db.execute(
-        select(Room).where(Room.id == uuid.UUID(room_id))
-    )
+    try:
+        rid = uuid.UUID(room_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Invalid room ID")
+    result = await db.execute(select(Room).where(Room.id == rid))
     room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
