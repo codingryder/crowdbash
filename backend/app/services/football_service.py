@@ -40,27 +40,63 @@ class FootballAdapter(SportAdapter):
         }
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
-        """Get all currently live matches across free-tier competitions."""
+        """Get live + scheduled matches for next 7 days across free-tier competitions."""
         if not self._api_key():
             return []
 
-        cached = await redis_get_json("football:live_matches")
+        cached = await redis_get_json("football:all_matches")
         if cached:
             return cached
 
+        from datetime import date, timedelta
+        today = date.today().isoformat()
+        week_later = (date.today() + timedelta(days=7)).isoformat()
+
+        all_matches = []
+
         async with httpx.AsyncClient() as client:
-            # Fetch matches with status IN_PLAY or PAUSED (pseudo-status LIVE)
-            res = await client.get(
+            # 1. Fetch currently live matches
+            live_res = await client.get(
                 f"{FOOTBALL_DATA_BASE}/matches",
                 params={"status": "LIVE"},
                 headers=self._headers(),
             )
-            if res.status_code != 200:
-                return []
-            data = res.json()
-            matches = data.get("matches", [])
-            await redis_set_json("football:live_matches", matches, ex=60)
-            return matches
+            if live_res.status_code == 200:
+                live_data = live_res.json()
+                all_matches.extend(live_data.get("matches", []))
+
+            # 2. Fetch scheduled matches for the next 7 days
+            sched_res = await client.get(
+                f"{FOOTBALL_DATA_BASE}/matches",
+                params={"dateFrom": today, "dateTo": week_later, "status": "SCHEDULED,TIMED"},
+                headers=self._headers(),
+            )
+            if sched_res.status_code == 200:
+                sched_data = sched_res.json()
+                all_matches.extend(sched_data.get("matches", []))
+
+            # 3. Also fetch today's finished matches (for completed rooms)
+            fin_res = await client.get(
+                f"{FOOTBALL_DATA_BASE}/matches",
+                params={"date": today, "status": "FINISHED"},
+                headers=self._headers(),
+            )
+            if fin_res.status_code == 200:
+                fin_data = fin_res.json()
+                all_matches.extend(fin_data.get("matches", []))
+
+        # Deduplicate by match id
+        seen = set()
+        unique = []
+        for m in all_matches:
+            mid = m.get("id")
+            if mid and mid not in seen:
+                seen.add(mid)
+                unique.append(m)
+
+        matches = unique
+        await redis_set_json("football:all_matches", matches, ex=300)
+        return matches
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
         """Get match details including score, goals, bookings."""
