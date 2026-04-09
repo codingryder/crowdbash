@@ -216,13 +216,23 @@ class CricketAdapter(SportAdapter):
                     team2_score = f"{runs}/{wickets}"
                     team2_overs = overs
 
-        # Override with scorecard data if available (more detailed)
-        if scorecard:
+        # Only use scorecard totals if score_arr was empty AND totals has data
+        if not score_arr and scorecard:
             for i, innings in enumerate(scorecard):
                 totals = innings.get("totals", {})
-                runs = totals.get("R", innings.get("runs", 0))
-                wickets = totals.get("W", innings.get("wickets", 0))
-                overs = str(totals.get("O", innings.get("overs", "0")))
+                if not totals:
+                    # Compute from batting entries
+                    batting = innings.get("batting", [])
+                    runs = sum(b.get("r", 0) for b in batting)
+                    extras = innings.get("extras", {})
+                    if isinstance(extras, dict):
+                        runs += extras.get("t", extras.get("total", 0))
+                    wickets = sum(1 for b in batting if b.get("dismissal", "") and b.get("dismissal", "") not in ("not out", "batting", ""))
+                    overs = str(innings.get("overs", "0"))
+                else:
+                    runs = totals.get("R", 0)
+                    wickets = totals.get("W", 0)
+                    overs = str(totals.get("O", "0"))
                 if i == 0:
                     team1_score = f"{runs}/{wickets}"
                     team1_overs = overs
@@ -406,12 +416,20 @@ class CricketAdapter(SportAdapter):
                     return batting_entry.get("r", 0)
         return 0
 
-    def _extract_current_over(self, scorecard: dict) -> float:
+    def _extract_current_over(self, match_data: dict) -> float:
+        """Get current over from score array or scorecard."""
         try:
-            for innings in scorecard.get("scorecard", []):
-                if innings.get("inningsId") == 1:
-                    overs_str = innings.get("overs", "0")
-                    return float(overs_str)
+            # Best source: score[] array has current overs
+            score_arr = match_data.get("score", [])
+            if score_arr:
+                # Last innings in score array is the active one
+                last = score_arr[-1]
+                return float(last.get("o", 0))
+            # Fallback: scorecard innings
+            for innings in match_data.get("scorecard", []):
+                overs = innings.get("overs", innings.get("totals", {}).get("O", 0))
+                if overs:
+                    return float(overs)
         except Exception:
             pass
         return 0.0
