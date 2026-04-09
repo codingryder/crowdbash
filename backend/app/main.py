@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.websocket import room_manager
 from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, cricket
-from app.api.routes import sports
+from app.api.routes import sports, admin
 from app.services.game_service import calculate_and_update_points
 from app.services.sport_service import get_adapter
 from app.core.database import AsyncSessionLocal
@@ -29,6 +29,7 @@ app.include_router(leaderboard.router, prefix="/api/leaderboard", tags=["leaderb
 app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
 app.include_router(cricket.router, prefix="/api/cricket", tags=["cricket"])
 app.include_router(sports.router, prefix="/api/sports", tags=["sports"])
+app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 
 
 @app.get("/health")
@@ -134,6 +135,74 @@ async def score_poller():
             print(f"Score poller error: {e}")
 
 
+async def room_sync():
+    """
+    Periodically syncs live matches into rooms table.
+    Runs every 5 minutes. Creates rooms for new live matches.
+    """
+    from app.api.routes.admin import sync_rooms_from_live_matches
+
+    while True:
+        await asyncio.sleep(300)  # every 5 minutes
+        try:
+            async with AsyncSessionLocal() as db:
+                for sport in ["cricket", "football"]:
+                    try:
+                        adapter = get_adapter(sport)
+                        live = await adapter.get_live_matches()
+                        if live:
+                            # Use the admin sync logic
+                            from app.models.room import Room
+                            from sqlalchemy import select
+
+                            for match in live:
+                                if sport == "cricket":
+                                    mid = match.get("id", "")
+                                    mname = match.get("name", "")
+                                    mformat = match.get("matchType", "")
+                                    venue = match.get("venue", "")
+                                    league = match.get("series", "")
+                                elif sport == "football":
+                                    mid = str(match.get("id", ""))
+                                    home = match.get("homeTeam", {}).get("name", "")
+                                    away = match.get("awayTeam", {}).get("name", "")
+                                    mname = f"{home} vs {away}"
+                                    comp = match.get("competition", {})
+                                    mformat = comp.get("name", "")
+                                    venue = match.get("venue", "")
+                                    league = comp.get("name", "")
+                                else:
+                                    continue
+
+                                if not mid:
+                                    continue
+
+                                existing = await db.execute(
+                                    select(Room).where(Room.match_id == str(mid))
+                                )
+                                if existing.scalar_one_or_none():
+                                    continue
+
+                                room = Room(
+                                    match_id=str(mid),
+                                    match_name=mname,
+                                    match_format=mformat,
+                                    venue=venue,
+                                    sport=sport,
+                                    league=league,
+                                    status="live",
+                                    match_progress={},
+                                )
+                                db.add(room)
+
+                            await db.commit()
+                    except Exception as e:
+                        print(f"Room sync error ({sport}): {e}")
+        except Exception as e:
+            print(f"Room sync outer error: {e}")
+
+
 @app.on_event("startup")
 async def startup():
     asyncio.create_task(score_poller())
+    asyncio.create_task(room_sync())

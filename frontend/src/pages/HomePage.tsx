@@ -3,57 +3,30 @@ import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
 
-// Sample rooms for mockup display
+// Sample rooms shown when backend has no data
 const SAMPLE_ROOMS: Room[] = [
-  // Cricket
   { id: 'demo-1', match_id: 'm1', match_name: 'India vs Australia', match_format: 'ICC World Cup \u00b7 ODI \u00b7 MCG', venue: 'MCG', status: 'live', current_over: 48.3, fan_count: 2841, sport: 'cricket', league: 'ICC World Cup', match_progress: { over: 48.3 } },
-  { id: 'demo-2', match_id: 'm2', match_name: 'RCB vs MI', match_format: 'IPL 2025 \u00b7 T20 \u00b7 Chinnaswamy', venue: 'Chinnaswamy', status: 'live', current_over: 15.2, fan_count: 5122, sport: 'cricket', league: 'IPL', match_progress: { over: 15.2 } },
-  // Football
   { id: 'demo-f1', match_id: 'f1', match_name: 'Arsenal vs Chelsea', match_format: 'EPL \u00b7 Emirates', venue: 'Emirates Stadium', status: 'live', current_over: 0, fan_count: 8340, sport: 'football', league: 'Premier League', match_progress: { half: 2, minute: 67 } },
-  { id: 'demo-f2', match_id: 'f2', match_name: 'Real Madrid vs Barcelona', match_format: 'La Liga \u00b7 Bernab\u00e9u', venue: 'Santiago Bernab\u00e9u', status: 'live', current_over: 0, fan_count: 12450, sport: 'football', league: 'La Liga', match_progress: { half: 1, minute: 34 } },
-  // Upcoming cricket
   { id: 'demo-3', match_id: 'm3', match_name: 'England vs Pakistan', match_format: "Test \u00b7 Lord's", venue: "Lord's", status: 'upcoming', current_over: 0, fan_count: 841, sport: 'cricket', league: 'Test Series', match_progress: {} },
-  { id: 'demo-4', match_id: 'm4', match_name: 'CSK vs KKR', match_format: 'IPL \u00b7 Chepauk', venue: 'Chepauk', status: 'upcoming', current_over: 0, fan_count: 0, sport: 'cricket', league: 'IPL', match_progress: {} },
-  // Upcoming football
   { id: 'demo-f3', match_id: 'f3', match_name: 'Man City vs Liverpool', match_format: 'EPL \u00b7 Etihad', venue: 'Etihad Stadium', status: 'upcoming', current_over: 0, fan_count: 0, sport: 'football', league: 'Premier League', match_progress: {} },
-  { id: 'demo-f4', match_id: 'f4', match_name: 'Bayern vs Dortmund', match_format: 'Bundesliga \u00b7 Allianz Arena', venue: 'Allianz Arena', status: 'upcoming', current_over: 0, fan_count: 0, sport: 'football', league: 'Bundesliga', match_progress: {} },
 ];
-
-const SCORE_SAMPLES: Record<string, string> = {
-  'demo-1': 'IND 287/8 (48.3) vs AUS \u2014',
-  'demo-2': 'RCB 142/4 (15.2) vs MI 167/6',
-  'demo-f1': 'Arsenal 2 - 1 Chelsea \u00b7 67\u2019',
-  'demo-f2': 'Real Madrid 0 - 0 Barcelona \u00b7 34\u2019',
-};
-
-const STATS_SAMPLES: Record<string, { fans: number; games: number }> = {
-  'demo-1': { fans: 2841, games: 147 },
-  'demo-2': { fans: 5122, games: 390 },
-  'demo-f1': { fans: 8340, games: 562 },
-  'demo-f2': { fans: 12450, games: 891 },
-};
-
-const TIME_SAMPLES: Record<string, string> = {
-  'demo-3': 'In 2h 15m',
-  'demo-4': 'Sat 7:30 PM',
-  'demo-f3': 'Tomorrow 8 PM',
-  'demo-f4': 'Sun 6:30 PM',
-};
 
 type FilterTab = 'all' | 'cricket' | 'football';
 
 export function HomePage() {
   const [rooms, setRooms] = useState<Room[]>([]);
-  const [_loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(true);
   const [filter, setFilter] = useState<FilterTab>('all');
 
   useEffect(() => {
     async function fetchRooms() {
       try {
         const { data } = await api.get('/api/rooms/');
-        setRooms(data);
+        if (Array.isArray(data) && data.length > 0) {
+          setRooms(data);
+        }
       } catch {
-        // Backend not running, use sample data
+        // Backend not available — sample data shown
       } finally {
         setLoading(false);
       }
@@ -61,6 +34,7 @@ export function HomePage() {
     fetchRooms();
   }, []);
 
+  // Use real rooms if available, else sample
   const allRooms = rooms.length > 0 ? rooms : SAMPLE_ROOMS;
   const filteredRooms = filter === 'all'
     ? allRooms
@@ -68,6 +42,7 @@ export function HomePage() {
 
   const liveRooms = filteredRooms.filter((r) => r.status === 'live');
   const upcomingRooms = filteredRooms.filter((r) => r.status === 'upcoming');
+  const completedRooms = filteredRooms.filter((r) => r.status === 'completed');
 
   return (
     <main style={{ padding: '28px 32px' }}>
@@ -98,8 +73,20 @@ export function HomePage() {
         ))}
       </div>
 
+      {loading && (
+        <div className="grid gap-3.5 mb-8" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          {[1, 2, 3].map((i) => (
+            <div key={i} className="rounded-[14px] p-[18px] animate-pulse" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+              <div className="h-4 rounded w-1/3 mb-3" style={{ background: 'var(--s2)' }} />
+              <div className="h-6 rounded w-2/3 mb-2" style={{ background: 'var(--s2)' }} />
+              <div className="h-3 rounded w-1/2" style={{ background: 'var(--s2)' }} />
+            </div>
+          ))}
+        </div>
+      )}
+
       {/* Live section */}
-      {liveRooms.length > 0 && (
+      {!loading && liveRooms.length > 0 && (
         <>
           <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
             Live now &mdash; {liveRooms.length} rooms
@@ -113,27 +100,62 @@ export function HomePage() {
       )}
 
       {/* Upcoming section */}
-      {upcomingRooms.length > 0 && (
+      {!loading && upcomingRooms.length > 0 && (
         <>
           <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
             Scheduled &mdash; coming up
           </div>
-          <div className="grid gap-3.5" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+          <div className="grid gap-3.5 mb-8" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
             {upcomingRooms.map((room) => (
               <RoomCard key={room.id} room={room} isUpcoming />
             ))}
           </div>
         </>
       )}
+
+      {/* Completed section */}
+      {!loading && completedRooms.length > 0 && (
+        <>
+          <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>
+            Completed
+          </div>
+          <div className="grid gap-3.5" style={{ gridTemplateColumns: 'repeat(3, minmax(0, 1fr))' }}>
+            {completedRooms.map((room) => (
+              <RoomCard key={room.id} room={room} />
+            ))}
+          </div>
+        </>
+      )}
+
+      {/* Empty state */}
+      {!loading && filteredRooms.length === 0 && (
+        <div className="text-center py-16">
+          <div className="font-syne text-lg mb-2" style={{ color: 'var(--mu)' }}>
+            No {filter !== 'all' ? filter : ''} rooms available
+          </div>
+          <div className="text-sm" style={{ color: 'var(--dm)' }}>
+            Rooms are created automatically when live matches start.
+          </div>
+        </div>
+      )}
     </main>
   );
 }
 
 function RoomCard({ room, isUpcoming }: { room: Room; isUpcoming?: boolean }) {
-  const scoreText = SCORE_SAMPLES[room.id];
-  const stats = STATS_SAMPLES[room.id];
-  const timeText = TIME_SAMPLES[room.id];
   const sportIcon = room.sport === 'football' ? '\u26BD' : '\uD83C\uDFCF';
+
+  // Format progress display
+  let progressText = '';
+  if (room.sport === 'cricket' && room.current_over > 0) {
+    progressText = `Over ${room.current_over}`;
+  } else if (room.sport === 'football') {
+    const mp = room.match_progress || {};
+    const minute = mp.minute as number;
+    if (minute) {
+      progressText = `${minute}\u2019 ${(mp.half as number) === 1 ? '1H' : '2H'}`;
+    }
+  }
 
   return (
     <Link
@@ -150,7 +172,7 @@ function RoomCard({ room, isUpcoming }: { room: Room; isUpcoming?: boolean }) {
             {sportIcon} {room.match_name}
           </div>
           <div className="text-[11px] mt-0.5" style={{ color: 'var(--mu)' }}>
-            {room.league ? `${room.league} \u00b7 ` : ''}{room.match_format}
+            {room.league ? `${room.league} \u00b7 ` : ''}{room.match_format || room.venue}
           </div>
         </div>
         {room.status === 'live' ? (
@@ -162,33 +184,27 @@ function RoomCard({ room, isUpcoming }: { room: Room; isUpcoming?: boolean }) {
             Live
           </div>
         ) : (
-          <span className="text-[11px]" style={{ color: 'var(--mu)' }}>{timeText || 'Upcoming'}</span>
+          <span className="text-[11px]" style={{ color: 'var(--mu)' }}>
+            {isUpcoming ? 'Upcoming' : room.status}
+          </span>
         )}
       </div>
 
-      {/* Score */}
-      {scoreText && (
+      {/* Progress */}
+      {progressText && (
         <div className="font-syne text-[13px] rounded-lg px-3 py-2 mb-3" style={{ background: 'var(--s2)', color: 'var(--tx)' }}>
-          {scoreText}
-        </div>
-      )}
-      {isUpcoming && !scoreText && (
-        <div className="font-syne text-[13px] rounded-lg px-3 py-2 mb-3" style={{ background: 'var(--s2)', color: 'var(--mu)' }}>
-          Match starts soon
+          {progressText}
         </div>
       )}
 
       {/* Stats */}
-      {stats && (
-        <div className="flex gap-4 mb-3.5">
+      <div className="flex gap-4 mb-3.5">
+        {room.fan_count > 0 && (
           <div className="text-xs" style={{ color: 'var(--mu)' }}>
-            Fans <span style={{ color: 'var(--tx)', fontWeight: 500 }}>{stats.fans.toLocaleString()}</span>
+            Fans <span style={{ color: 'var(--tx)', fontWeight: 500 }}>{room.fan_count.toLocaleString()}</span>
           </div>
-          <div className="text-xs" style={{ color: 'var(--mu)' }}>
-            Games <span style={{ color: 'var(--tx)', fontWeight: 500 }}>{stats.games}</span>
-          </div>
-        </div>
-      )}
+        )}
+      </div>
 
       {/* Footer */}
       <div className="flex items-center justify-between">
@@ -198,16 +214,10 @@ function RoomCard({ room, isUpcoming }: { room: Room; isUpcoming?: boolean }) {
             {room.sport === 'football' ? 'Football' : 'Cricket'}
           </span>
           {room.status === 'live' && (
-            <>
-              <span className="rounded-[20px] px-2.5 py-0.5 text-[10px]"
-                style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)', color: 'var(--mu)' }}>
-                Game on
-              </span>
-              <span className="rounded-[20px] px-2.5 py-0.5 text-[10px]"
-                style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)', color: 'var(--mu)' }}>
-                Quiz
-              </span>
-            </>
+            <span className="rounded-[20px] px-2.5 py-0.5 text-[10px]"
+              style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)', color: 'var(--mu)' }}>
+              Game on
+            </span>
           )}
         </div>
         <button
