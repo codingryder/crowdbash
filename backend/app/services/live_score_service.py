@@ -1,6 +1,6 @@
 """
 Gemini-powered live score fetcher.
-Uses Gemini Flash with Google Search grounding to get real-time cricket scores
+Uses Gemini Flash to get real-time cricket scores and full scorecard
 when the primary API (CricketData.org) fails or returns stale data.
 """
 from app.core.config import settings
@@ -22,46 +22,46 @@ def _get_model():
 
 async def fetch_live_score_via_gemini(match_name: str, sport: str = "cricket") -> dict | None:
     """
-    Ask Gemini for the current live score of a match.
-    Returns normalized score data or None.
+    Ask Gemini for the current live score AND full scorecard of a match.
+    Returns data in the same format as CricketData.org for compatibility.
     """
     model = _get_model()
     if not model:
         return None
 
-    parts = match_name.split(" vs ")
-    team1 = parts[0].strip() if len(parts) > 0 else ""
-    team2 = parts[1].strip() if len(parts) > 1 else ""
+    if sport != "cricket":
+        return None
 
-    if sport == "cricket":
-        prompt = f"""What is the current LIVE score of the cricket match: {match_name}?
+    prompt = f"""What is the current LIVE score and scorecard of: {match_name}?
 
-If the match is currently in progress, return the live score.
-If it just finished, return the final score.
-
-Return ONLY valid JSON, no other text:
+Return ONLY valid JSON matching this exact structure:
 {{
   "score": [
-    {{"r": <runs>, "w": <wickets>, "o": <overs as float>, "inning": "<team name> Inning <number>"}},
-    {{"r": <runs>, "w": <wickets>, "o": <overs as float>, "inning": "<team name> Inning <number>"}}
+    {{"r": <total_runs>, "w": <wickets>, "o": <overs_float>, "inning": "<Team Name> Inning 1"}}
   ],
-  "status": "<match status text, e.g. 'Team A won by X runs' or 'Team A batting'>",
-  "matchEnded": <true or false>,
-  "current_batting": [
-    {{"name": "<batter name>", "runs": <int>, "balls": <int>, "fours": <int>, "sixes": <int>}}
+  "scorecard": [
+    {{
+      "inning": "<Team Name> Inning 1",
+      "batting": [
+        {{"batsman": {{"id": "p1", "name": "<Name>"}}, "r": <runs>, "b": <balls>, "4s": <fours>, "6s": <sixes>, "dismissal": "<how out or not out>"}}
+      ],
+      "bowling": [
+        {{"bowler": {{"id": "b1", "name": "<Name>"}}, "o": <overs_float>, "m": <maidens>, "r": <runs_conceded>, "w": <wickets_taken>}}
+      ]
+    }}
   ],
-  "current_bowling": [
-    {{"name": "<bowler name>", "wickets": <int>, "runs": <int>, "overs": "<overs>", "maidens": <int>}}
-  ]
+  "status": "<match status>",
+  "matchEnded": false
 }}
 
-Rules:
-- Only include the innings that have been played so far
-- For current_batting, only include batters currently at the crease (not out)
-- For current_bowling, include the current bowler
-- If match hasn't started or you don't know, return {{"not_available": true}}"""
-    else:
-        return None  # Football handled by Football-Data.org
+CRITICAL RULES:
+- Include ALL batters who have batted (not just current two)
+- Include ALL bowlers who have bowled
+- Use "not out" for batters still at crease, actual dismissal text for others
+- If 2nd innings has started, include both innings in score[] and scorecard[]
+- Use real player names
+- If match just finished, set matchEnded to true and include result in status
+- If you don't have current data, return {{"not_available": true}}"""
 
     try:
         response = model.generate_content(prompt)

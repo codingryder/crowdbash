@@ -52,7 +52,7 @@ export function CrowdbashRoomPage() {
     fetchInitialScore();
 
     // Also poll every 30 seconds as backup to WebSocket
-    const interval = setInterval(fetchInitialScore, 30000);
+    const interval = setInterval(fetchInitialScore, 15000); // Poll every 15 seconds
     return () => clearInterval(interval);
   }, [roomId, room?.status]);
 

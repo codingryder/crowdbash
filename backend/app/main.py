@@ -89,7 +89,7 @@ async def score_poller():
     from app.core.redis import redis_get_json, redis_set_json
 
     while True:
-        await asyncio.sleep(60)
+        await asyncio.sleep(30)  # Poll every 30 seconds for faster live updates
         try:
             async with AsyncSessionLocal() as db:
                 result = await db.execute(
