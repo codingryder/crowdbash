@@ -106,26 +106,54 @@ export function RightGamePanel({ room }: RightGamePanelProps) {
     );
   }
 
-  // Locked → show live game view
+  // Locked or match started → show game view
+  const matchStarted = game?.match_started || false;
+  const canModifyTeam = !matchStarted; // Can modify team + weightages before match
+
   return (
     <div className="flex flex-col h-full">
-      <div className="px-4 py-3" style={{ borderBottom: '0.5px solid var(--b1)', background: 'rgba(61,214,140,0.05)' }}>
+      <div className="px-4 py-3" style={{ borderBottom: '0.5px solid var(--b1)', background: matchStarted ? 'rgba(61,214,140,0.05)' : 'rgba(244,185,64,0.05)' }}>
         <div className="flex items-center gap-2">
-          <span className="text-sm">🔒</span>
-          <div>
-            <div className="font-syne text-sm font-bold" style={{ color: 'var(--green)' }}>Squad Locked</div>
+          <span className="text-sm">{matchStarted ? '🔒' : '✅'}</span>
+          <div className="flex-1">
+            <div className="font-syne text-sm font-bold" style={{ color: matchStarted ? 'var(--green)' : 'var(--gold)' }}>
+              {matchStarted ? 'Squad Locked' : 'Team Ready'}
+            </div>
             <div className="text-[10px]" style={{ color: 'var(--mu)' }}>
-              {game?.total_points || 0} total points
+              {matchStarted
+                ? `${game?.total_points || 0} total points`
+                : 'You can modify your team until the match starts'}
             </div>
           </div>
         </div>
       </div>
 
-      {editWindowOpen && (
+      {/* Pre-match: Modify team button */}
+      {canModifyTeam && (
+        <div className="px-4 py-2" style={{ borderBottom: '0.5px solid var(--b1)' }}>
+          <button
+            onClick={() => setShowTeamBuilder(true)}
+            className="w-full py-2 rounded-lg text-[12px] font-semibold cursor-pointer font-syne border-none"
+            style={{ background: 'var(--s2)', color: 'var(--gold)', border: '0.5px solid rgba(244,185,64,0.3)' }}
+          >
+            ✏️ Modify Team & Weightages
+          </button>
+        </div>
+      )}
+
+      {/* During match: edit window indicator */}
+      {matchStarted && editWindowOpen && (
         <div className="px-4 py-2 text-center" style={{ background: 'rgba(244,185,64,0.08)', borderBottom: '0.5px solid var(--b1)' }}>
           <div className="text-[11px] font-semibold" style={{ color: 'var(--gold)' }}>
-            Edit window open! Shuffle your weightages
+            Edit window open! Shuffle your weightages (2 min)
           </div>
+          <button
+            onClick={() => setShowTeamBuilder(true)}
+            className="mt-1 px-4 py-1 rounded text-[11px] font-semibold cursor-pointer border-none"
+            style={{ background: 'var(--gold)', color: '#09090F' }}
+          >
+            Shuffle Weightages
+          </button>
         </div>
       )}
 

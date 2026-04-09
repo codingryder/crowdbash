@@ -92,6 +92,9 @@ export interface Game {
   extra_weightage_used: number;
   squad_locked: boolean;
   total_budget: number;
+  match_started?: boolean;
+  can_edit_players?: boolean;
+  can_edit_weightages?: boolean;
 }
 
 export interface LeaderboardEntry {

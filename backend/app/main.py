@@ -104,6 +104,20 @@ async def score_poller():
                     if not match_data:
                         continue
 
+                    # Auto-lock all unlocked squads when match is live
+                    from app.models.game import Game as GameModel
+                    unlock_result = await db.execute(
+                        select(GameModel).where(
+                            GameModel.room_id == room.id,
+                            GameModel.squad_locked == False,
+                            GameModel.status == "active",
+                        )
+                    )
+                    for unlocked_game in unlock_result.scalars().all():
+                        unlocked_game.squad_locked = True
+                        from datetime import datetime as dt2, timezone as tz2
+                        unlocked_game.squad_locked_at = dt2.now(tz2.utc)
+
                     # Check if match has finished — save summary to DB
                     if adapter.is_match_finished(match_data):
                         room.status = "completed"
