@@ -36,6 +36,11 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
   const [innings, setInnings] = useState<InningsData[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeInnings, setActiveInnings] = useState(0);
+  const [teamScores, setTeamScores] = useState<{
+    team1?: { name: string; score: string; overs: string };
+    team2?: { name: string; score: string; overs: string };
+    status?: string;
+  }>({});
 
   useEffect(() => {
     async function fetchScorecard() {
@@ -43,6 +48,13 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
         const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
         if (data.scorecard?.innings) {
           setInnings(data.scorecard.innings);
+        }
+        if (data.scorecard) {
+          setTeamScores({
+            team1: data.scorecard.team1,
+            team2: data.scorecard.team2,
+            status: data.scorecard.status,
+          });
         }
       } catch {
         // No scorecard
@@ -98,6 +110,28 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
 
             {/* Scorecard content */}
             <div className="flex-1 overflow-y-auto px-5 py-4">
+              {/* Team scores summary */}
+              {(teamScores.team1 || teamScores.team2) && (
+                <div className="flex items-center justify-between mb-4 px-2 py-3 rounded-lg" style={{ background: 'var(--s2)' }}>
+                  <div>
+                    <div className="text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{teamScores.team1?.name}</div>
+                    <div className="font-syne text-lg font-bold" style={{ color: 'var(--gold)' }}>
+                      {teamScores.team1?.score || '—'} <span className="text-[10px] font-normal" style={{ color: 'var(--mu)' }}>({teamScores.team1?.overs || '—'} ov)</span>
+                    </div>
+                  </div>
+                  <div className="text-[11px]" style={{ color: 'var(--dm)' }}>vs</div>
+                  <div className="text-right">
+                    <div className="text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{teamScores.team2?.name}</div>
+                    <div className="font-syne text-lg font-bold" style={{ color: 'var(--gold)' }}>
+                      {teamScores.team2?.score || '—'} <span className="text-[10px] font-normal" style={{ color: 'var(--mu)' }}>({teamScores.team2?.overs || '—'} ov)</span>
+                    </div>
+                  </div>
+                </div>
+              )}
+              {teamScores.status && (
+                <div className="text-[11px] text-center mb-4" style={{ color: 'var(--green)' }}>{teamScores.status}</div>
+              )}
+
               {innings[activeInnings] && (
                 <>
                   {/* Batting */}
@@ -161,6 +195,13 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
                       ))}
                     </tbody>
                   </table>
+
+                  {/* Live match note */}
+                  <div className="text-center mt-4 py-3 rounded-lg" style={{ background: 'var(--s2)' }}>
+                    <div className="text-[11px]" style={{ color: 'var(--mu)' }}>
+                      📡 Live scorecard — updates as players bat and bowl
+                    </div>
+                  </div>
                 </>
               )}
             </div>
