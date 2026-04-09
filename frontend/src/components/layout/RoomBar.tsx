@@ -8,31 +8,26 @@ interface RoomBarProps {
 export function RoomBar({ room, fanCount }: RoomBarProps) {
   return (
     <div
-      className="flex items-center gap-6 px-8 shrink-0"
+      className="flex items-center gap-2 md:gap-6 px-3 md:px-8 shrink-0"
       style={{
-        height: 48,
+        height: 40,
         borderTop: '0.5px solid var(--b1)',
         background: 'var(--bg)',
       }}
     >
       <div
-        className="flex items-center gap-[5px] text-xs px-2 py-1 rounded-md"
+        className="flex items-center gap-1 text-[10px] md:text-xs truncate"
         style={{ color: 'var(--tx)' }}
       >
-        <span style={{ color: 'var(--gold)' }}>&#9889;</span> {room.match_name}
-      </div>
-      <div className="text-xs" style={{ color: 'var(--mu)' }}>
-        Over {room.current_over}
+        <span style={{ color: 'var(--gold)' }}>⚡</span>
+        <span className="truncate">{room.match_name}</span>
       </div>
 
       <div className="flex-1" />
 
-      <div className="flex items-center gap-[5px] text-xs" style={{ color: 'var(--mu)' }}>
-        <div
-          className="w-1.5 h-1.5 rounded-full"
-          style={{ background: 'var(--green)' }}
-        />
-        {fanCount > 0 ? fanCount.toLocaleString() : '—'} fans watching
+      <div className="flex items-center gap-1 text-[10px] md:text-xs shrink-0" style={{ color: 'var(--mu)' }}>
+        <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--green)' }} />
+        {fanCount > 0 ? fanCount.toLocaleString() : '—'} fans
       </div>
     </div>
   );

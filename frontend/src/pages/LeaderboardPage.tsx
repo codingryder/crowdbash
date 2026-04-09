@@ -29,7 +29,7 @@ export function LeaderboardPage() {
   const [activeTab, setActiveTab] = useState<TabType>('game');
 
   return (
-    <main style={{ padding: '28px 32px' }}>
+    <main className="px-4 md:px-8 py-6 md:py-7">
       <div className="font-syne text-[22px] font-extrabold mb-1.5">Leaderboard</div>
       <div className="text-[13px] mb-5" style={{ color: 'var(--mu)' }}>
         India vs Australia &middot; Weightage game rankings

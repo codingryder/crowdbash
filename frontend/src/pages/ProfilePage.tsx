@@ -20,7 +20,7 @@ export function ProfilePage() {
   }
 
   return (
-    <main style={{ maxWidth: 500, margin: '0 auto', padding: '28px 32px' }}>
+    <main className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 500 }}>
       <div className="rounded-2xl p-6" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
         {/* Avatar + Name */}
         <div className="flex items-center gap-4 mb-6">

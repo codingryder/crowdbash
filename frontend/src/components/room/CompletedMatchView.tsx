@@ -78,7 +78,7 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
   }
 
   return (
-    <div style={{ maxWidth: 800, margin: '0 auto', padding: '28px 32px' }}>
+    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 800 }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-6">
         <Link to="/" className="text-xs no-underline" style={{ color: 'var(--gold)' }}>Home</Link>

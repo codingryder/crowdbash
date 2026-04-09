@@ -103,7 +103,7 @@ export function TeamBuilderModal({
     >
       {/* Top bar */}
       <div
-        className="flex items-center justify-between px-6 h-14 shrink-0"
+        className="flex items-center justify-between px-3 md:px-6 h-12 md:h-14 shrink-0"
         style={{ borderBottom: '0.5px solid var(--b1)' }}
       >
         <div>
@@ -177,7 +177,7 @@ export function TeamBuilderModal({
 
       {/* Bottom bar */}
       <div
-        className="flex items-center justify-between px-6 py-3 shrink-0"
+        className="flex flex-col md:flex-row items-center justify-between gap-2 px-3 md:px-6 py-3 shrink-0"
         style={{ borderTop: '0.5px solid var(--b1)', background: 'var(--s1)' }}
       >
         {step === 'select' ? (
@@ -246,7 +246,7 @@ function SelectStep({
   allPlayers: Record<string, SquadPlayer>;
 }) {
   return (
-    <div className="grid grid-cols-2 gap-0" style={{ minHeight: '100%' }}>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-0" style={{ minHeight: '100%' }}>
       {teams.map(([teamName, players], teamIdx) => (
         <div
           key={teamName}
@@ -357,7 +357,7 @@ function AllocateStep({
       </div>
 
       {/* Player grid */}
-      <div className="grid grid-cols-3 gap-3">
+      <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         {selectedPlayers.map((player, i) => {
           const avStyle = AVATAR_COLORS[i % AVATAR_COLORS.length];
           const initials = player.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
