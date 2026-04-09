@@ -9,8 +9,7 @@ import re
 router = APIRouter()
 
 # ── Allowed cricket leagues / series keywords ──
-# Only matches whose "series" field contains one of these keywords will be synced.
-ALLOWED_CRICKET_KEYWORDS = [
+ALLOWED_CRICKET_LEAGUES = [
     # Domestic T20 leagues
     "Indian Premier League", "IPL",
     "Pakistan Super League", "PSL",
@@ -23,13 +22,26 @@ ALLOWED_CRICKET_KEYWORDS = [
     "Major League Cricket", "MLC",
     # ICC events
     "ICC", "World Cup", "Champions Trophy", "World Test Championship",
-    # International bilateral series (keyword patterns)
-    "tour of",   # e.g. "India tour of England, 2026"
-    "T20I Series", "ODI Series", "Test Series",
 ]
 
-# Match formats that indicate international matches
-INTERNATIONAL_FORMATS = ["t20i", "odi", "test"]
+# Major cricket nations — only tours involving these teams are allowed
+MAJOR_CRICKET_NATIONS = [
+    "india", "australia", "england", "south africa", "new zealand",
+    "pakistan", "sri lanka", "bangladesh", "west indies", "afghanistan",
+    "ireland", "zimbabwe",
+]
+
+# Exclude these keywords
+EXCLUDED_KEYWORDS = [
+    "women", "u19", "under-19", "under 19",
+    "county championship", "division one", "division two",
+    "warm-up", "practice", "unofficial",
+    "a tour", "a team",
+    "indonesia", "cyprus", "greece", "uganda", "nepal",
+    "namibia", "sweden", "oman", "bahrain", "qatar",
+    "kuwait", "saudi", "maldives", "bhutan", "vanuatu",
+    "papua", "bermuda", "jersey", "guernsey", "gibraltar",
+]
 
 
 def _is_allowed_cricket(series: str, match_format: str) -> bool:
@@ -37,14 +49,25 @@ def _is_allowed_cricket(series: str, match_format: str) -> bool:
     series_lower = series.lower()
     fmt_lower = match_format.lower()
 
-    # Allow if format is international
-    if fmt_lower in INTERNATIONAL_FORMATS:
-        return True
+    # Exclude if any excluded keyword matches
+    for excl in EXCLUDED_KEYWORDS:
+        if excl in series_lower:
+            return False
 
-    # Allow if series matches any keyword
-    for keyword in ALLOWED_CRICKET_KEYWORDS:
+    # Allow if series matches a known league
+    for keyword in ALLOWED_CRICKET_LEAGUES:
         if keyword.lower() in series_lower:
             return True
+
+    # Allow tours only between major nations
+    if "tour of" in series_lower:
+        has_major = any(nation in series_lower for nation in MAJOR_CRICKET_NATIONS)
+        return has_major
+
+    # Allow international formats only if between major nations
+    if fmt_lower in ("t20i", "odi", "test"):
+        has_major = any(nation in series_lower for nation in MAJOR_CRICKET_NATIONS)
+        return has_major
 
     return False
 
