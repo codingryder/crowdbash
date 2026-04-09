@@ -7,6 +7,8 @@ import { formatMatchDate } from '../../types';
 
 interface LeftSidebarProps {
   room: Room;
+  lastUpdated?: Date | null;
+  onRefresh?: () => void;
 }
 
 interface BatterInfo {
@@ -24,7 +26,7 @@ interface BowlerInfo {
   overs: string;
 }
 
-export function LeftSidebar({ room }: LeftSidebarProps) {
+export function LeftSidebar({ room, lastUpdated, onRefresh }: LeftSidebarProps) {
   const [showScorecard, setShowScorecard] = useState(false);
   const score = useRoomStore((s) => s.score);
 
@@ -113,15 +115,34 @@ export function LeftSidebar({ room }: LeftSidebarProps) {
           </div>
         )}
 
-        {/* View Scorecard button */}
+        {/* Action buttons */}
         {(room.status === 'live' || room.status === 'completed') && (
-          <button
-            onClick={() => setShowScorecard(true)}
-            className="w-full py-2 rounded-lg text-[12px] font-semibold cursor-pointer font-syne border-none mb-4"
-            style={{ background: 'var(--s2)', color: 'var(--gold)', border: '0.5px solid rgba(244,185,64,0.3)' }}
-          >
-            📋 View Scorecard
-          </button>
+          <div className="space-y-2 mb-4">
+            <button
+              onClick={() => setShowScorecard(true)}
+              className="w-full py-2 rounded-lg text-[12px] font-semibold cursor-pointer font-syne border-none"
+              style={{ background: 'var(--s2)', color: 'var(--gold)', border: '0.5px solid rgba(244,185,64,0.3)' }}
+            >
+              📋 View Scorecard
+            </button>
+
+            {room.status === 'live' && onRefresh && (
+              <button
+                onClick={onRefresh}
+                className="w-full py-2 rounded-lg text-[11px] cursor-pointer border-none flex items-center justify-center gap-1.5"
+                style={{ background: 'var(--s2)', color: 'var(--mu)', border: '0.5px solid var(--b1)' }}
+              >
+                🔄 Refresh Scores
+              </button>
+            )}
+
+            {lastUpdated && room.status === 'live' && (
+              <div className="text-[10px] text-center" style={{ color: 'var(--dm)' }}>
+                Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
+                <span className="ml-1" style={{ color: 'var(--green)' }}>· Auto-refreshing</span>
+              </div>
+            )}
+          </div>
         )}
 
         {/* Upcoming info */}

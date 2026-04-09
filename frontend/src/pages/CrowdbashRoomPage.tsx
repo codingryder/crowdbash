@@ -35,24 +35,27 @@ export function CrowdbashRoomPage() {
     setSport(sport);
   }, [sport, setSport]);
 
-  // Fetch score immediately on page load (don't wait for WebSocket poll)
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+
+  async function refreshScore() {
+    if (!roomId) return;
+    try {
+      const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
+      if (data.scorecard) {
+        setScore(data.scorecard as ScoreData);
+        setLastUpdated(new Date());
+      }
+    } catch {
+      // Score not available yet
+    }
+  }
+
+  // Fetch score immediately on page load + poll every 15 seconds
   useEffect(() => {
     if (!roomId || !room || room.status !== 'live') return;
 
-    async function fetchInitialScore() {
-      try {
-        const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
-        if (data.scorecard) {
-          setScore(data.scorecard as ScoreData);
-        }
-      } catch {
-        // Score not available yet
-      }
-    }
-    fetchInitialScore();
-
-    // Also poll every 30 seconds as backup to WebSocket
-    const interval = setInterval(fetchInitialScore, 15000); // Poll every 15 seconds
+    refreshScore();
+    const interval = setInterval(refreshScore, 15000);
     return () => clearInterval(interval);
   }, [roomId, room?.status]);
 
@@ -141,7 +144,7 @@ export function CrowdbashRoomPage() {
           className="flex-1 grid overflow-hidden"
           style={{ gridTemplateColumns: '260px minmax(0, 1fr) 300px' }}
         >
-          <LeftSidebar room={room} />
+          <LeftSidebar room={room} lastUpdated={lastUpdated} onRefresh={refreshScore} />
           <CenterColumn onSendChat={sendChat} room={room} />
           <RightGamePanel room={room} />
         </div>
