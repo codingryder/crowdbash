@@ -3,6 +3,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from app.core.database import get_db
 from app.models.room import Room
+import re
 from app.services.sport_service import get_adapter
 from typing import Optional
 
@@ -37,6 +38,13 @@ async def sync_rooms_from_live_matches(
     Fetch matches from the sport API and create rooms for any
     that don't already exist. Includes live + upcoming matches.
     """
+    try:
+        return await _do_sync(sport, include_upcoming, db)
+    except Exception as e:
+        return {"error": str(e), "type": type(e).__name__}
+
+
+async def _do_sync(sport: str, include_upcoming: bool, db: AsyncSession):
     try:
         adapter = get_adapter(sport)
     except ValueError:
@@ -109,7 +117,6 @@ async def sync_rooms_from_live_matches(
         # Clean up match name — remove team codes in brackets
         clean_name = match_name
         if "[" in clean_name:
-            import re
             clean_name = re.sub(r'\s*\[.*?\]', '', clean_name).strip()
 
         room = Room(
