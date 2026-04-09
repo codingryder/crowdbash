@@ -477,11 +477,11 @@ async def enrich_match_stats(db: AsyncSession = Depends(get_db)):
             print(f"Gemini enrich error for {room.match_name}: {e}")
             failed += 1
 
-        # Rate limit: Gemini free tier is 15 RPM, plus Google search needs gaps
-        await asyncio.sleep(5)
+        # Rate limit: Gemini free tier is 15 RPM
+        await asyncio.sleep(4)
 
-        # Process up to 10 per call to stay within Gemini limits
-        if enriched + failed >= 10:
+        # Process max 3 per call to stay within Render's request timeout
+        if enriched + failed >= 3:
             break
 
     await db.commit()
