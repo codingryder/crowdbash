@@ -19,10 +19,7 @@ async def send_otp_email(email: str, otp: str) -> bool:
         print(f"[DEV] OTP for {email}: {otp}")
         return True
 
-    # Use Resend's default sender if custom domain not verified
-    from_email = settings.FROM_EMAIL
-    if "crowdbash" in from_email and settings.ENVIRONMENT != "production":
-        from_email = "Crowdbash <onboarding@resend.dev>"
+    from_email = "Crowdbash <noreply@codingryder.com>"
 
     try:
         async with httpx.AsyncClient() as client:
