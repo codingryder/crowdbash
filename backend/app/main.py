@@ -360,6 +360,40 @@ async def room_sync():
             print(f"Room sync outer error: {e}")
 
 
+async def auto_complete_past_matches():
+    """
+    Auto-complete matches whose date has passed.
+    Runs every 10 minutes. Marks 'upcoming' rooms as 'completed'
+    if their match_date is more than 4 hours in the past.
+    """
+    from sqlalchemy import select
+    from app.models.room import Room
+    from datetime import datetime, timezone, timedelta
+
+    while True:
+        await asyncio.sleep(600)  # every 10 minutes
+        try:
+            async with AsyncSessionLocal() as db:
+                cutoff = datetime.now(timezone.utc) - timedelta(hours=4)
+                result = await db.execute(
+                    select(Room).where(
+                        Room.status == "upcoming",
+                        Room.match_date != None,
+                        Room.match_date < cutoff,
+                    )
+                )
+                stale_rooms = result.scalars().all()
+                for room in stale_rooms:
+                    room.status = "completed"
+                    room.completed_at = datetime.now(timezone.utc)
+
+                if stale_rooms:
+                    await db.commit()
+                    print(f"Auto-completed {len(stale_rooms)} past matches")
+        except Exception as e:
+            print(f"Auto-complete error: {e}")
+
+
 async def keep_alive():
     """Ping self every 10 minutes to prevent Render free tier from sleeping."""
     import httpx
@@ -385,4 +419,5 @@ async def startup():
 
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
+    asyncio.create_task(auto_complete_past_matches())
     asyncio.create_task(keep_alive())
