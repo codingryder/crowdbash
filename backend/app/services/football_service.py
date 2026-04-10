@@ -43,7 +43,7 @@ class FootballAdapter(SportAdapter):
             print(f"Gemini football error: {e}")
 
         if score_data:
-            await redis_set_json(cache_key, score_data, ex=20)
+            await redis_set_json(cache_key, score_data, ex=45)
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:

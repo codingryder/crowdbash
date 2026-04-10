@@ -80,13 +80,10 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
 async def score_poller():
     """
     Multi-sport score poller. Polls live matches for all sports,
-    broadcasts updates via WebSocket, recalculates game points,
-    and generates AI commentary from score changes.
+    broadcasts updates via WebSocket and recalculates game points.
     """
     from sqlalchemy import select
     from app.models.room import Room
-    from app.services.commentary_service import detect_cricket_changes, generate_commentary
-    from app.core.redis import redis_get_json, redis_set_json
 
     while True:
         await asyncio.sleep(30)  # Poll every 30 seconds for faster live updates
@@ -159,32 +156,6 @@ async def score_poller():
                         }
                     })
 
-                    # Generate AI commentary from score changes (cricket)
-                    if room.sport == "cricket":
-                        try:
-                            cache_key = f"prev_score:{room.id}"
-                            prev_score = await redis_get_json(cache_key) or {}
-                            events = detect_cricket_changes(prev_score, match_data)
-
-                            if events and normalized:
-                                batting = normalized.get("current_batting", [])
-                                bowling = normalized.get("current_bowling", [])
-                                commentaries = await generate_commentary(
-                                    room.match_name, events, batting, bowling
-                                )
-                                for comm in commentaries:
-                                    await room_manager.broadcast(str(room.id), {
-                                        "type": "match_event",
-                                        "payload": comm,
-                                    })
-
-                            # Save current score for next comparison
-                            await redis_set_json(cache_key, {
-                                "score": match_data.get("score", []),
-                            }, ex=600)
-                        except Exception as e:
-                            print(f"Commentary error for {room.match_name}: {e}")
-
                     # Recalculate game points
                     await calculate_and_update_points(
                         db, str(room.id), room.match_id, match_data, room.sport
@@ -220,140 +191,38 @@ async def score_poller():
 
 async def room_sync():
     """
-    Periodically syncs live matches into rooms table.
-    Runs every 5 minutes. Creates rooms for allowed leagues only.
+    Simple room status management. No external API calls.
+    - Sets upcoming rooms to 'live' when match_date is within 30 min of now
+    - Relies on auto_complete_past_matches for marking finished
     """
-    import re
-    from app.api.routes.admin import _is_allowed_cricket
+    from sqlalchemy import select
+    from app.models.room import Room
+    from datetime import datetime, timezone, timedelta
 
     while True:
         await asyncio.sleep(300)  # every 5 minutes
         try:
             async with AsyncSessionLocal() as db:
-                from app.models.room import Room
-                from sqlalchemy import select
+                now = datetime.now(timezone.utc)
+                # Activate rooms whose match_date is within 30 min from now
+                upcoming = await db.execute(
+                    select(Room).where(
+                        Room.status == "upcoming",
+                        Room.match_date != None,
+                        Room.match_date <= now + timedelta(minutes=30),
+                        Room.match_date >= now - timedelta(hours=4),
+                    )
+                )
+                activated = 0
+                for room in upcoming.scalars().all():
+                    room.status = "live"
+                    activated += 1
 
-                for sport in ["cricket", "football"]:
-                    try:
-                        adapter = get_adapter(sport)
-                        matches = await adapter.get_live_matches()
-                        if not matches:
-                            continue
-
-                        for match in matches:
-                            if sport == "cricket":
-                                mid = match.get("id", "")
-                                t1 = match.get("t1", "")
-                                t2 = match.get("t2", "")
-                                mname = f"{t1} vs {t2}" if t1 and t2 else "Unknown"
-                                mname = re.sub(r'\s*\[.*?\]', '', mname).strip()
-                                mformat = match.get("matchType", "")
-                                venue = match.get("venue", "")
-                                league = match.get("series", "")
-                                ms = match.get("ms", "")
-                                if ms != "live":
-                                    continue
-                                if not _is_allowed_cricket(league, mformat):
-                                    continue
-                                status = "live"
-                                # Extract team names for matching
-                                team1_clean = re.sub(r'\s*\[.*?\]', '', t1).strip().lower()
-                                team2_clean = re.sub(r'\s*\[.*?\]', '', t2).strip().lower()
-                            elif sport == "football":
-                                mid = str(match.get("id", ""))
-                                home = match.get("homeTeam", {}).get("name", "")
-                                away = match.get("awayTeam", {}).get("name", "")
-                                mname = f"{home} vs {away}"
-                                comp = match.get("competition", {})
-                                mformat = comp.get("name", "")
-                                venue = match.get("venue", "")
-                                league = comp.get("name", "")
-                                status_raw = match.get("status", "")
-                                if status_raw not in ("IN_PLAY", "PAUSED"):
-                                    continue
-                                status = "live"
-                                team1_clean = home.lower()
-                                team2_clean = away.lower()
-                            else:
-                                continue
-
-                            if not mid:
-                                continue
-
-                            # Check if room already exists by API match_id
-                            existing_result = await db.execute(
-                                select(Room).where(Room.match_id == str(mid))
-                            )
-                            existing_room = existing_result.scalar_one_or_none()
-
-                            if existing_room:
-                                # Room exists — verify with ESPN before reactivating
-                                if existing_room.status != "live" and status == "live":
-                                    # Double-check with ESPN (the truth source)
-                                    espn_confirmed = False
-                                    try:
-                                        from app.services.espn_service import get_espn_match_status
-                                        espn_status = await get_espn_match_status(
-                                            existing_room.match_name, sport, existing_room.league or ""
-                                        )
-                                        if espn_status and espn_status.get("is_live"):
-                                            espn_confirmed = True
-                                    except Exception:
-                                        # ESPN unavailable — fall back to date check
-                                        from datetime import date as date_cls
-                                        match_date = existing_room.match_date
-                                        is_today = match_date and match_date.date() == date_cls.today() if match_date else False
-
-                                        if is_today:
-                                            espn_confirmed = True
-
-                                    if espn_confirmed:
-                                        existing_room.status = "live"
-                                        existing_room.completed_at = None
-                                        print(f"Room sync: reactivated '{existing_room.match_name}' to live (ESPN/date confirmed)")
-                                    else:
-                                        print(f"Room sync: skipped reactivation of '{existing_room.match_name}' (ESPN says not live)")
-                                continue
-
-                            # Check if an upcoming room exists for these teams by name
-                            all_upcoming = await db.execute(
-                                select(Room).where(
-                                    Room.sport == sport,
-                                    Room.status == "upcoming",
-                                )
-                            )
-                            matched_room = None
-                            for r in all_upcoming.scalars().all():
-                                rname = r.match_name.lower()
-                                if team1_clean and team2_clean and team1_clean in rname and team2_clean in rname:
-                                    matched_room = r
-                                    break
-
-                            if matched_room:
-                                matched_room.match_id = str(mid)
-                                matched_room.status = "live"
-                                matched_room.completed_at = None
-                                if venue:
-                                    matched_room.venue = venue
-                                print(f"Room sync: updated '{matched_room.match_name}' to live with API ID {mid}")
-                            else:
-                                room = Room(
-                                    match_id=str(mid),
-                                    match_name=mname,
-                                    match_format=mformat,
-                                    venue=venue,
-                                    sport=sport,
-                                    league=league,
-                                    status=status,
-                                    match_progress={},
-                                )
-                                db.add(room)
-
-                            await db.commit()
-                    except Exception as e:
-                        print(f"Room sync error ({sport}): {e}")
+                if activated:
+                    await db.commit()
+                    print(f"Room sync: activated {activated} rooms to live")
         except Exception as e:
-            print(f"Room sync outer error: {e}")
+            print(f"Room sync error: {e}")
 
 
 async def auto_complete_past_matches():

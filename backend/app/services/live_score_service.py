@@ -112,7 +112,7 @@ RULES:
     if data:
         data["source"] = "gemini"
         data["matchEnded"] = False
-        await redis_set_json(cache_key, data, ex=20)
+        await redis_set_json(cache_key, data, ex=45)
     return data
 
 
