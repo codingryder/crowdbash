@@ -125,14 +125,22 @@ async def score_poller():
                         from datetime import datetime as dt2, timezone as tz2
                         unlocked_game.squad_locked_at = dt2.now(tz2.utc)
 
-                    # Check if match has finished using ESPN (reliable) + CricketData
-                    # Never trust Gemini's matchEnded — it hallucinates results
-                    match_finished = adapter.is_match_finished(match_data)
-                    if not match_finished and hasattr(adapter, 'is_match_finished_reliable'):
-                        try:
-                            match_finished = await adapter.is_match_finished_reliable(room.match_name)
-                        except Exception:
-                            pass
+                    # Check if match has finished — ONLY trust ESPN for status
+                    match_finished = False
+                    try:
+                        from app.services.espn_service import get_espn_match_status
+                        espn_status = await get_espn_match_status(
+                            room.match_name, room.sport, room.league or ""
+                        )
+                        if espn_status and espn_status.get("is_finished"):
+                            match_finished = True
+                            print(f"[ESPN] Match finished: {room.match_name}")
+                    except Exception as e:
+                        print(f"ESPN status check error: {e}")
+
+                    # Fallback: CricketData.org 'ms' field (not Gemini)
+                    if not match_finished:
+                        match_finished = adapter.is_match_finished(match_data)
                     if match_finished:
                         room.status = "completed"
                         from datetime import datetime, timezone
@@ -291,32 +299,32 @@ async def room_sync():
                             existing_room = existing_result.scalar_one_or_none()
 
                             if existing_room:
-                                # Room exists — only reactivate if:
-                                # 1. API says it's live
-                                # 2. Room is not already live
-                                # 3. Match date is today (prevents stale API data from reactivating old matches)
+                                # Room exists — verify with ESPN before reactivating
                                 if existing_room.status != "live" and status == "live":
-                                    from datetime import date as date_cls
-                                    match_date = existing_room.match_date
-                                    is_today = match_date and match_date.date() == date_cls.today() if match_date else False
+                                    # Double-check with ESPN (the truth source)
+                                    espn_confirmed = False
+                                    try:
+                                        from app.services.espn_service import get_espn_match_status
+                                        espn_status = await get_espn_match_status(
+                                            existing_room.match_name, sport, existing_room.league or ""
+                                        )
+                                        if espn_status and espn_status.get("is_live"):
+                                            espn_confirmed = True
+                                    except Exception:
+                                        # ESPN unavailable — fall back to date check
+                                        from datetime import date as date_cls
+                                        match_date = existing_room.match_date
+                                        is_today = match_date and match_date.date() == date_cls.today() if match_date else False
 
-                                    # For football: also check the API match date
-                                    if sport == "football":
-                                        api_date_str = match.get("utcDate", "")
-                                        if api_date_str:
-                                            try:
-                                                from datetime import datetime as dt_parse
-                                                api_date = dt_parse.fromisoformat(api_date_str.replace("Z", "+00:00"))
-                                                is_today = api_date.date() == date_cls.today()
-                                            except Exception:
-                                                pass
+                                        if is_today:
+                                            espn_confirmed = True
 
-                                    if is_today:
+                                    if espn_confirmed:
                                         existing_room.status = "live"
                                         existing_room.completed_at = None
-                                        print(f"Room sync: reactivated '{existing_room.match_name}' to live (today's match)")
+                                        print(f"Room sync: reactivated '{existing_room.match_name}' to live (ESPN/date confirmed)")
                                     else:
-                                        print(f"Room sync: skipped reactivation of '{existing_room.match_name}' (not today's match)")
+                                        print(f"Room sync: skipped reactivation of '{existing_room.match_name}' (ESPN says not live)")
                                 continue
 
                             # Check if an upcoming room exists for these teams by name
