@@ -1,10 +1,10 @@
 """
-Gemini-powered live score fetcher.
-Uses Gemini Flash to get real-time cricket scores and full scorecard
-when the primary API (CricketData.org) fails or returns stale data.
+Gemini-powered data service — the ONLY data source during development.
+Handles: live scores, scorecards, squad data for both cricket and football.
 """
 from app.core.config import settings
 import json
+import asyncio
 
 _model = None
 
@@ -20,21 +20,42 @@ def _get_model():
     return _model
 
 
-async def fetch_live_score_via_gemini(match_name: str, sport: str = "cricket") -> dict | None:
-    """
-    Ask Gemini for the current live score AND full scorecard of a match.
-    Returns data in the same format as CricketData.org for compatibility.
-    """
+async def _ask_gemini(prompt: str) -> dict | None:
+    """Send prompt to Gemini and parse JSON response."""
     model = _get_model()
     if not model:
         return None
 
-    if sport != "cricket":
+    try:
+        response = await asyncio.to_thread(model.generate_content, prompt)
+        text = response.text.strip()
+        if text.startswith("```"):
+            text = text.split("```")[1]
+            if text.startswith("json"):
+                text = text[4:]
+        text = text.strip()
+        data = json.loads(text)
+        if data.get("not_available"):
+            return None
+        return data
+    except Exception as e:
+        print(f"Gemini error: {e}")
         return None
 
-    prompt = f"""What is the current LIVE score and scorecard of: {match_name}?
 
-Return ONLY valid JSON matching this exact structure:
+async def fetch_live_score_via_gemini(match_name: str, sport: str = "cricket") -> dict | None:
+    """Get live score + scorecard via Gemini."""
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"gemini:score:{sport}:{match_name}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    if sport == "cricket":
+        prompt = f"""What is the current LIVE score and scorecard of: {match_name}?
+
+Return ONLY valid JSON:
 {{
   "score": [
     {{"r": <total_runs>, "w": <wickets>, "o": <overs_float>, "inning": "<Team Name> Inning 1"}}
@@ -54,38 +75,81 @@ Return ONLY valid JSON matching this exact structure:
   "matchEnded": false
 }}
 
-CRITICAL RULES:
-- Include ALL batters who have batted (not just current two)
-- Include ALL bowlers who have bowled
-- Use "not out" for batters still at crease, actual dismissal text for others
-- If 2nd innings has started, include both innings in score[] and scorecard[]
-- Use real player names
-- ALWAYS set matchEnded to false — do NOT determine if match is over
-- For status, just describe the current state like "LSG need 150 runs in 90 balls" — do NOT say who won
-- If you don't have CURRENT live data, return {{"not_available": true}}
-- Do NOT guess or predict results — only report what has actually happened"""
+RULES:
+- Include ALL batters who have batted and ALL bowlers who have bowled
+- Use "not out" for batters at crease
+- ALWAYS set matchEnded to false
+- Do NOT guess results — only report what has happened
+- If no current data, return {{"not_available": true}}"""
 
-    try:
-        import asyncio
-        response = await asyncio.to_thread(model.generate_content, prompt)
-        text = response.text.strip()
+    elif sport == "football":
+        prompt = f"""What is the current LIVE score of: {match_name}?
 
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        text = text.strip()
+Return ONLY valid JSON:
+{{
+  "homeTeam": {{"name": "<home team>"}},
+  "awayTeam": {{"name": "<away team>"}},
+  "score": {{"fullTime": {{"home": <goals>, "away": <goals>}}}},
+  "status": "<LIVE or FINISHED or status text>",
+  "minute": <current minute or 0>,
+  "goals": [
+    {{"scorer": {{"name": "<player>"}}, "minute": <int>, "type": "REGULAR"}}
+  ],
+  "bookings": [
+    {{"player": {{"name": "<player>"}}, "card": "YELLOW", "minute": <int>}}
+  ],
+  "matchEnded": false
+}}
 
-        data = json.loads(text)
+RULES:
+- ALWAYS set matchEnded to false
+- Do NOT guess results
+- If no current data, return {{"not_available": true}}"""
+    else:
+        return None
 
-        if data.get("not_available"):
-            return None
-
-        # Mark as Gemini source + force matchEnded to false (never trust Gemini for this)
+    data = await _ask_gemini(prompt)
+    if data:
         data["source"] = "gemini"
         data["matchEnded"] = False
+        await redis_set_json(cache_key, data, ex=20)
+    return data
 
-        return data
-    except Exception as e:
-        print(f"Gemini live score error for {match_name}: {e}")
+
+async def fetch_squad_via_gemini(match_name: str, sport: str = "cricket") -> list | None:
+    """Get squad/lineup for a match via Gemini."""
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"gemini:squad:{sport}:{match_name}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    if sport == "cricket":
+        prompt = f"""List the full playing squad for both teams in: {match_name}
+
+Return ONLY valid JSON array:
+[
+  {{"player_id": "t1_1", "player_name": "<Full Name>", "team": "<Team Name>", "role": "batsman|bowler|all-rounder|wicket-keeper"}}
+]
+
+Include ALL players from both teams (15-25 per team). Use roles: batsman, bowler, all-rounder, wicket-keeper.
+If you don't know the squad, return []"""
+    elif sport == "football":
+        prompt = f"""List the squad for both teams in: {match_name}
+
+Return ONLY valid JSON array:
+[
+  {{"player_id": "t1_1", "player_name": "<Full Name>", "team": "<Team Name>", "role": "GK|DEF|MID|FWD"}}
+]
+
+Include starting XI + key substitutes for both teams (15-20 per team).
+If you don't know the squad, return []"""
+    else:
         return None
+
+    data = await _ask_gemini(prompt)
+    if data and isinstance(data, list) and len(data) > 0:
+        await redis_set_json(cache_key, data, ex=600)
+        return data
+    return None

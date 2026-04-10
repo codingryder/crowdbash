@@ -70,9 +70,11 @@ async def get_available_squads(
     if not squads:
         room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
         room = room_result.scalar_one_or_none()
-        if room and room.match_id:
+        if room:
             try:
                 adapter = get_adapter(room.sport)
+                if hasattr(adapter, 'set_match_context'):
+                    adapter.set_match_context(room.match_name)
                 api_players = await adapter.get_match_players(room.match_id)
                 for p in api_players:
                     sq = MatchSquad(

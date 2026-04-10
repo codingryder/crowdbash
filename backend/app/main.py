@@ -125,21 +125,9 @@ async def score_poller():
                         from datetime import datetime as dt2, timezone as tz2
                         unlocked_game.squad_locked_at = dt2.now(tz2.utc)
 
-                    # Check if match has finished — ONLY trust ESPN for status
+                    # Check if match has finished (Gemini source = never trust matchEnded)
                     match_finished = False
-                    try:
-                        from app.services.espn_service import get_espn_match_status
-                        espn_status = await get_espn_match_status(
-                            room.match_name, room.sport, room.league or ""
-                        )
-                        if espn_status and espn_status.get("is_finished"):
-                            match_finished = True
-                            print(f"[ESPN] Match finished: {room.match_name}")
-                    except Exception as e:
-                        print(f"ESPN status check error: {e}")
-
-                    # Fallback: CricketData.org 'ms' field (not Gemini)
-                    if not match_finished:
+                    if not match_data.get("source") == "gemini":
                         match_finished = adapter.is_match_finished(match_data)
                     if match_finished:
                         room.status = "completed"

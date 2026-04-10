@@ -3,6 +3,7 @@ import { TopNav } from './components/layout/TopNav';
 import { Footer } from './components/layout/Footer';
 import { AuthModal } from './components/auth/AuthModal';
 import { HomePage } from './pages/HomePage';
+import { GamesPage } from './pages/GamesPage';
 import { LeaguePage } from './pages/LeaguePage';
 import { CrowdbashRoomPage } from './pages/CrowdbashRoomPage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
@@ -19,6 +20,7 @@ function AppContent() {
       <div className="flex-1 flex flex-col overflow-hidden">
         <Routes>
           <Route path="/" element={<HomePage />} />
+          <Route path="/games" element={<GamesPage />} />
           <Route path="/league/:leagueName" element={<LeaguePage />} />
           <Route path="/room/:roomId" element={<CrowdbashRoomPage />} />
           <Route path="/leaderboard" element={<LeaderboardPage />} />
@@ -26,7 +28,6 @@ function AppContent() {
           <Route path="/profile" element={<ProfilePage />} />
         </Routes>
       </div>
-      {/* Footer on all pages except room pages (they have their own bottom bar) */}
       {!isRoomPage && <Footer />}
     </div>
   );
