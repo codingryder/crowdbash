@@ -104,6 +104,35 @@ async def score_poller():
                     if hasattr(adapter, 'set_match_context'):
                         adapter.set_match_context(room.match_name)
 
+                    # ── ESPN status check (truth source) ──
+                    try:
+                        from app.services.espn_service import get_espn_match_status
+                        espn_status = await get_espn_match_status(
+                            room.match_name, room.sport, room.league or ""
+                        )
+                        if espn_status and espn_status.get("is_finished"):
+                            print(f"ESPN: {room.match_name} is FINISHED")
+                            from datetime import datetime as _dt, timezone as _tz
+                            room.status = "completed"
+                            room.completed_at = _dt.now(_tz.utc)
+                            # Fetch final score for summary
+                            final_data = await adapter.get_match_score(room.match_id)
+                            if final_data:
+                                try:
+                                    room.match_progress = adapter.format_match_summary(final_data, room.match_name)
+                                except Exception:
+                                    room.match_progress = {"status": "completed"}
+                                await calculate_and_update_points(db, str(room.id), room.match_id, final_data, room.sport)
+                                await room_manager.broadcast(str(room.id), {
+                                    "type": "score_update",
+                                    "payload": {"sport": room.sport, "data": final_data}
+                                })
+                            else:
+                                room.match_progress = {"status": "completed"}
+                            continue
+                    except Exception as e:
+                        print(f"ESPN check error for {room.match_name}: {e}")
+
                     match_data = await adapter.get_match_score(room.match_id)
                     if not match_data:
                         continue
@@ -122,15 +151,12 @@ async def score_poller():
                         from datetime import datetime as dt2, timezone as tz2
                         unlocked_game.squad_locked_at = dt2.now(tz2.utc)
 
-                    # Check if match has finished (Gemini source = never trust matchEnded)
-                    match_finished = False
-                    if not match_data.get("source") == "gemini":
-                        match_finished = adapter.is_match_finished(match_data)
+                    # Check if match has finished via adapter (CricketData/Football-Data source)
+                    match_finished = adapter.is_match_finished(match_data)
                     if match_finished:
                         room.status = "completed"
                         from datetime import datetime, timezone
                         room.completed_at = datetime.now(timezone.utc)
-                        # Save full match summary into match_progress
                         try:
                             summary = adapter.format_match_summary(match_data, room.match_name)
                             room.match_progress = summary
@@ -214,13 +240,34 @@ async def room_sync():
                     )
                 )
                 activated = 0
+                completed_early = 0
                 for room in upcoming.scalars().all():
+                    # Verify with ESPN before activating
+                    try:
+                        from app.services.espn_service import get_espn_match_status
+                        espn = await get_espn_match_status(room.match_name, room.sport, room.league or "")
+                        if espn:
+                            if espn.get("is_finished"):
+                                room.status = "completed"
+                                room.completed_at = now
+                                completed_early += 1
+                                continue
+                            elif espn.get("is_live"):
+                                room.status = "live"
+                                activated += 1
+                                continue
+                    except Exception:
+                        pass
+                    # Default: time-based activation
                     room.status = "live"
                     activated += 1
 
-                if activated:
+                if activated or completed_early:
                     await db.commit()
-                    print(f"Room sync: activated {activated} rooms to live")
+                    if activated:
+                        print(f"Room sync: activated {activated} rooms to live")
+                    if completed_early:
+                        print(f"Room sync: completed {completed_early} rooms (ESPN says finished)")
         except Exception as e:
             print(f"Room sync error: {e}")
 

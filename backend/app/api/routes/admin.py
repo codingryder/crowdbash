@@ -1,12 +1,235 @@
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, Query, HTTPException
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select, delete
 from app.core.database import get_db
+from app.core.config import settings
 from app.models.room import Room
 from app.services.sport_service import get_adapter
+from pydantic import BaseModel as PydanticBaseModel
+from datetime import datetime, timezone, timedelta
 import re
+import jwt
+import uuid as _uuid_mod
 
 router = APIRouter()
+_bearer = HTTPBearer(auto_error=False)
+
+
+# ── Admin Auth ──
+
+class AdminLoginRequest(PydanticBaseModel):
+    username: str
+    password: str
+
+
+class AdminRoomCreate(PydanticBaseModel):
+    sport: str
+    match_name: str
+    match_format: str = ""
+    venue: str = ""
+    league: str = ""
+    season: str = ""
+    match_date: str | None = None
+    match_id: str | None = None
+
+
+class AdminStatusUpdate(PydanticBaseModel):
+    status: str
+
+
+def _create_admin_jwt() -> str:
+    payload = {
+        "sub": "admin",
+        "role": "admin",
+        "iat": datetime.now(timezone.utc),
+        "exp": datetime.now(timezone.utc) + timedelta(hours=24),
+    }
+    return jwt.encode(payload, settings.JWT_SECRET, algorithm="HS256")
+
+
+def get_admin_user(credentials: HTTPAuthorizationCredentials = Depends(_bearer)) -> str:
+    if not credentials:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    try:
+        payload = jwt.decode(credentials.credentials, settings.JWT_SECRET, algorithms=["HS256"])
+        if payload.get("role") != "admin":
+            raise HTTPException(status_code=403, detail="Not an admin")
+        return payload["sub"]
+    except jwt.ExpiredSignatureError:
+        raise HTTPException(status_code=401, detail="Token expired")
+    except jwt.InvalidTokenError:
+        raise HTTPException(status_code=401, detail="Invalid token")
+
+
+@router.post("/login")
+async def admin_login(body: AdminLoginRequest):
+    if body.username != settings.ADMIN_USERNAME or body.password != settings.ADMIN_PASSWORD:
+        raise HTTPException(status_code=401, detail="Invalid credentials")
+    token = _create_admin_jwt()
+    return {"token": token, "username": body.username}
+
+
+@router.post("/rooms")
+async def create_room(
+    body: AdminRoomCreate,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    match_id = body.match_id or str(_uuid_mod.uuid4())
+    match_date_parsed = None
+    if body.match_date:
+        try:
+            match_date_parsed = datetime.fromisoformat(body.match_date.replace("Z", "+00:00"))
+        except Exception:
+            pass
+
+    room = Room(
+        match_id=match_id,
+        match_name=body.match_name,
+        match_format=body.match_format,
+        venue=body.venue,
+        sport=body.sport,
+        league=body.league,
+        season=body.season,
+        status="upcoming",
+        match_date=match_date_parsed,
+    )
+    db.add(room)
+    await db.commit()
+    await db.refresh(room)
+    return {
+        "id": str(room.id),
+        "match_name": room.match_name,
+        "sport": room.sport,
+        "status": room.status,
+        "match_date": str(room.match_date) if room.match_date else None,
+    }
+
+
+@router.get("/rooms")
+async def list_all_rooms(
+    sport: str | None = None,
+    status: str | None = None,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    query = select(Room).order_by(Room.created_at.desc())
+    if sport:
+        query = query.where(Room.sport == sport)
+    if status:
+        query = query.where(Room.status == status)
+    result = await db.execute(query)
+    rooms = result.scalars().all()
+    return [
+        {
+            "id": str(r.id),
+            "match_id": r.match_id,
+            "match_name": r.match_name,
+            "sport": r.sport,
+            "league": r.league,
+            "match_format": r.match_format,
+            "venue": r.venue,
+            "status": r.status,
+            "match_date": str(r.match_date) if r.match_date else None,
+            "fan_count": r.fan_count,
+            "created_at": str(r.created_at) if r.created_at else None,
+        }
+        for r in rooms
+    ]
+
+
+@router.patch("/rooms/{room_id}/status")
+async def update_room_status(
+    room_id: str,
+    body: AdminStatusUpdate,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room.status = body.status
+    if body.status == "completed":
+        room.completed_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"id": str(room.id), "status": room.status}
+
+
+@router.delete("/rooms/{room_id}")
+async def delete_room(
+    room_id: str,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    await db.execute(delete(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    await db.commit()
+    return {"deleted": room_id}
+
+
+@router.post("/fetch-matches")
+async def fetch_upcoming_matches(
+    sport: str = Query("cricket"),
+    _admin: str = Depends(get_admin_user),
+):
+    """Fetch upcoming matches: real API first → Gemini fallback."""
+    matches = []
+
+    # Layer 1: Real API
+    if sport == "cricket":
+        try:
+            from app.services.cricketdata_service import get_current_matches
+            cd_matches = await get_current_matches()
+            if cd_matches:
+                matches = [
+                    {
+                        "match_name": m.get("name", f"{m.get('t1', '')} vs {m.get('t2', '')}"),
+                        "match_format": m.get("matchType", ""),
+                        "venue": m.get("venue", ""),
+                        "league": str(m.get("series", "")),
+                        "match_date": m.get("dateTimeGMT", ""),
+                        "season": "2026",
+                        "match_id": m.get("id", ""),
+                        "source": "cricketdata",
+                    }
+                    for m in cd_matches
+                ]
+        except Exception as e:
+            print(f"Admin fetch cricket API error: {e}")
+
+    elif sport == "football":
+        try:
+            from app.services.footballdata_service import get_upcoming_matches as fd_upcoming
+            fd_matches = await fd_upcoming(days=7)
+            if fd_matches:
+                matches = [
+                    {
+                        "match_name": f"{m.get('homeTeam', {}).get('name', '')} vs {m.get('awayTeam', {}).get('name', '')}",
+                        "match_format": m.get("competition", {}).get("name", "League"),
+                        "venue": m.get("venue", ""),
+                        "league": m.get("competition", {}).get("name", ""),
+                        "match_date": m.get("utcDate", ""),
+                        "season": "2025-26",
+                        "match_id": m.get("id", ""),
+                        "source": "footballdata",
+                    }
+                    for m in fd_matches
+                ]
+        except Exception as e:
+            print(f"Admin fetch football API error: {e}")
+
+    # Layer 2: Gemini fallback if no API data
+    if not matches:
+        from app.services.live_score_service import fetch_upcoming_matches_via_gemini
+        gemini_matches = await fetch_upcoming_matches_via_gemini(sport)
+        if gemini_matches:
+            matches = [
+                {**m, "source": "gemini", "match_id": ""}
+                for m in gemini_matches
+            ]
+
+    return {"sport": sport, "matches": matches}
 
 # ── Allowed cricket leagues / series keywords ──
 ALLOWED_CRICKET_LEAGUES = [

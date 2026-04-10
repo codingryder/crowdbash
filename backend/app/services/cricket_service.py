@@ -4,7 +4,7 @@ from typing import List, Dict, Any
 
 
 class CricketAdapter(SportAdapter):
-    """Cricket adapter using Gemini only for all data."""
+    """Cricket adapter: CricketData.org primary → Gemini fallback."""
 
     _current_match_name: str = ""
 
@@ -12,42 +12,76 @@ class CricketAdapter(SportAdapter):
         self._current_match_name = match_name
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
-        """Get live matches via Gemini."""
+        """Get live matches: CricketData.org → fallback empty."""
         cached = await redis_get_json("cricket:live_matches")
         if cached:
             return cached
-        # Gemini doesn't list matches — return empty, rely on DB rooms
+
+        # Try CricketData.org first
+        try:
+            from app.services.cricketdata_service import get_current_matches
+            matches = await get_current_matches()
+            if matches:
+                await redis_set_json("cricket:live_matches", matches, ex=300)
+                return matches
+        except Exception as e:
+            print(f"CricketData live_matches error: {e}")
+
         return []
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
-        """Get match score via Gemini only."""
+        """Get match score: CricketData.org → Gemini fallback."""
         cache_key = f"cricket:score:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached and cached.get("score"):
             return cached
 
         score_data = {}
+
+        # Layer 1: Try CricketData.org
         try:
-            from app.services.live_score_service import fetch_live_score_via_gemini
-            import asyncio
-            if self._current_match_name:
-                gemini_data = await fetch_live_score_via_gemini(self._current_match_name, "cricket")
-                if gemini_data and (gemini_data.get("score") or gemini_data.get("scorecard")):
-                    score_data = gemini_data
+            from app.services.cricketdata_service import get_match_scorecard
+            cd_data = await get_match_scorecard(match_id)
+            if cd_data and (cd_data.get("score") or cd_data.get("scorecard")):
+                score_data = cd_data
+                print(f"Cricket score from CricketData: {match_id}")
         except Exception as e:
-            print(f"Gemini cricket error: {e}")
+            print(f"CricketData scorecard error: {e}")
+
+        # Layer 2: Gemini fallback
+        if not score_data:
+            try:
+                from app.services.live_score_service import fetch_live_score_via_gemini
+                if self._current_match_name:
+                    gemini_data = await fetch_live_score_via_gemini(self._current_match_name, "cricket")
+                    if gemini_data and (gemini_data.get("score") or gemini_data.get("scorecard")):
+                        score_data = gemini_data
+                        print(f"Cricket score from Gemini: {self._current_match_name}")
+            except Exception as e:
+                print(f"Gemini cricket error: {e}")
 
         if score_data:
             await redis_set_json(cache_key, score_data, ex=45)
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
-        """Get squad via Gemini."""
+        """Get squad: CricketData.org → Gemini fallback."""
         cache_key = f"cricket:players:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached:
             return cached
 
+        # Layer 1: Try CricketData.org
+        try:
+            from app.services.cricketdata_service import get_players_list
+            players = await get_players_list(match_id)
+            if players:
+                await redis_set_json(cache_key, players, ex=600)
+                return players
+        except Exception as e:
+            print(f"CricketData players error: {e}")
+
+        # Layer 2: Gemini fallback
         try:
             from app.services.live_score_service import fetch_squad_via_gemini
             if self._current_match_name:
@@ -221,8 +255,12 @@ class CricketAdapter(SportAdapter):
         }
 
     def is_match_finished(self, match_data: dict) -> bool:
+        # Never trust Gemini's matchEnded — it always lies
         if match_data.get("source") == "gemini":
             return False
+        # CricketData.org returns a real matchEnded flag
+        if match_data.get("matchEnded") is True:
+            return True
         ms = match_data.get("ms", "")
         if ms == "result":
             return True

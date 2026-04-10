@@ -153,3 +153,45 @@ If you don't know the squad, return []"""
         await redis_set_json(cache_key, data, ex=600)
         return data
     return None
+
+
+async def fetch_upcoming_matches_via_gemini(sport: str = "cricket") -> list | None:
+    """Ask Gemini for upcoming matches in the next 7 days."""
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"gemini:upcoming:{sport}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    from datetime import datetime, timezone
+    today = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+
+    if sport == "cricket":
+        prompt = f"""Today is {today}. List all major upcoming cricket matches in the next 7 days.
+Include: IPL, international ODIs/T20Is/Tests between major teams, PSL, BBL, CPL, The Hundred, SA20.
+Do NOT include: women's matches, U19, associate nations, county cricket, warm-ups.
+
+Return ONLY valid JSON array:
+[
+  {{"match_name": "Team A vs Team B", "match_format": "T20", "venue": "Stadium, City", "league": "IPL", "match_date": "2026-04-12T14:00:00Z", "season": "2026"}}
+]
+If no matches found, return []"""
+    elif sport == "football":
+        prompt = f"""Today is {today}. List all major upcoming football matches in the next 7 days.
+Include: Premier League, La Liga, Serie A, Bundesliga, Ligue 1, Champions League, Europa League, international friendlies between top nations.
+Do NOT include: lower divisions, youth matches, women's matches.
+
+Return ONLY valid JSON array:
+[
+  {{"match_name": "Team A vs Team B", "match_format": "League", "venue": "Stadium, City", "league": "Premier League", "match_date": "2026-04-12T15:00:00Z", "season": "2025-26"}}
+]
+If no matches found, return []"""
+    else:
+        return None
+
+    data = await _ask_gemini(prompt)
+    if data and isinstance(data, list):
+        await redis_set_json(cache_key, data, ex=1800)  # Cache 30 min
+        return data
+    return None

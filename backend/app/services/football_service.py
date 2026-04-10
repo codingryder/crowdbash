@@ -13,7 +13,7 @@ POINTS_MINUTES_PLAYED = 1
 
 
 class FootballAdapter(SportAdapter):
-    """Football adapter using Gemini only for all data."""
+    """Football adapter: Football-Data.org primary → Gemini fallback."""
 
     _current_match_name: str = ""
 
@@ -24,34 +24,74 @@ class FootballAdapter(SportAdapter):
         cached = await redis_get_json("football:live_matches")
         if cached:
             return cached
+
+        # Try Football-Data.org first
+        try:
+            from app.services.footballdata_service import get_matches
+            matches = await get_matches(status="IN_PLAY,PAUSED")
+            if matches:
+                await redis_set_json("football:live_matches", matches, ex=60)
+                return matches
+        except Exception as e:
+            print(f"Football-Data.org live_matches error: {e}")
+
         return []
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
+        """Get match score: Football-Data.org → Gemini fallback."""
         cache_key = f"football:score:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached:
             return cached
 
         score_data = {}
+
+        # Layer 1: Try Football-Data.org
         try:
-            from app.services.live_score_service import fetch_live_score_via_gemini
-            if self._current_match_name:
-                gemini_data = await fetch_live_score_via_gemini(self._current_match_name, "football")
-                if gemini_data:
-                    score_data = gemini_data
+            from app.services.footballdata_service import get_match_detail
+            fd_data = await get_match_detail(match_id)
+            if fd_data and fd_data.get("homeTeam"):
+                score_data = fd_data
+                print(f"Football score from Football-Data.org: {match_id}")
         except Exception as e:
-            print(f"Gemini football error: {e}")
+            print(f"Football-Data.org match detail error: {e}")
+
+        # Layer 2: Gemini fallback
+        if not score_data:
+            try:
+                from app.services.live_score_service import fetch_live_score_via_gemini
+                if self._current_match_name:
+                    gemini_data = await fetch_live_score_via_gemini(self._current_match_name, "football")
+                    if gemini_data:
+                        score_data = gemini_data
+                        print(f"Football score from Gemini: {self._current_match_name}")
+            except Exception as e:
+                print(f"Gemini football error: {e}")
 
         if score_data:
             await redis_set_json(cache_key, score_data, ex=45)
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
+        """Get squad: Football-Data.org lineups → Gemini fallback."""
         cache_key = f"football:players:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached:
             return cached
 
+        # Layer 1: Try Football-Data.org lineups
+        try:
+            from app.services.footballdata_service import get_match_detail, extract_lineups_as_players
+            detail = await get_match_detail(match_id)
+            if detail:
+                players = extract_lineups_as_players(detail)
+                if players:
+                    await redis_set_json(cache_key, players, ex=600)
+                    return players
+        except Exception as e:
+            print(f"Football-Data.org lineups error: {e}")
+
+        # Layer 2: Gemini fallback
         try:
             from app.services.live_score_service import fetch_squad_via_gemini
             if self._current_match_name:
@@ -168,8 +208,12 @@ class FootballAdapter(SportAdapter):
         }
 
     def is_match_finished(self, match_data: dict) -> bool:
+        # Never trust Gemini — it always says matchEnded=false
         if match_data.get("source") == "gemini":
             return False
+        # Football-Data.org returns real matchEnded flag
+        if match_data.get("matchEnded") is True:
+            return True
         status = match_data.get("status", "")
         return status in ("FINISHED", "AWARDED", "CANCELLED")
 

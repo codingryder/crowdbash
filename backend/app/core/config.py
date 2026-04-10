@@ -20,6 +20,9 @@ class Settings(BaseSettings):
     # Payments
     RAZORPAY_KEY_ID: str = ""
     RAZORPAY_KEY_SECRET: str = ""
+    # Admin
+    ADMIN_USERNAME: str = "crowdbash_admin"
+    ADMIN_PASSWORD: str = "Bash@2025!"
     # App
     ENVIRONMENT: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"

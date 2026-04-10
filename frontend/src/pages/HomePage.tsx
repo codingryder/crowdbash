@@ -63,9 +63,9 @@ export function HomePage() {
             <Link to="/games" className="no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 11, padding: '15px 36px', fontSize: 16, fontWeight: 800 }}>
               Browse live games
             </Link>
-            <Link to="/games" className="no-underline transition-all" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'transparent', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 11, padding: '15px 28px', fontSize: 15, fontWeight: 600 }}>
-              Create a room
-            </Link>
+            <a href="#how-it-works" className="no-underline transition-all" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'transparent', color: 'var(--text2)', border: '1px solid var(--border2)', borderRadius: 11, padding: '15px 28px', fontSize: 15, fontWeight: 600 }}>
+              How it works ↓
+            </a>
           </div>
 
           <div className="flex items-center justify-center gap-3 mt-14 pt-10 animate-fadeup" style={{ borderTop: '1px solid var(--border)', animationDelay: '.45s' }}>
@@ -95,7 +95,7 @@ export function HomePage() {
       </section>
 
       {/* ═══ HOW IT WORKS ═══ */}
-      <div style={{ borderTop: '1px solid var(--border)' }}>
+      <div id="how-it-works" style={{ borderTop: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '96px 36px' }}>
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', color: 'var(--green)', marginBottom: 14 }}>HOW IT WORKS</div>
           <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(30px,4.5vw,50px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.08, marginBottom: 14 }}>Four steps.<br />Infinite strategy.</h2>
