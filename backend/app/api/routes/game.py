@@ -15,7 +15,7 @@ from datetime import datetime, timezone
 
 router = APIRouter()
 
-TOTAL_BUDGET = 20
+TOTAL_BUDGET = 33
 MAX_SQUAD_SIZE = 11
 
 

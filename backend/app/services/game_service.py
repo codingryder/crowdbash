@@ -6,7 +6,7 @@ from app.services.sport_service import get_adapter
 import uuid
 from datetime import datetime
 
-TOTAL_WEIGHTAGE_BUDGET = 20
+TOTAL_WEIGHTAGE_BUDGET = 33
 EDIT_WINDOW_DURATION_SECONDS = 120  # 2 minutes
 QUIZ_CORRECT_POINTS = 50
 

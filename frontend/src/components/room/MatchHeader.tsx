@@ -1,109 +1,85 @@
 import { useRoomStore } from '../../store/roomStore';
 import type { Room, CricketScoreData, FootballScoreData } from '../../types';
 
-interface MatchHeaderProps {
+interface Props {
   room: Room;
 }
 
-export function MatchHeader({ room }: MatchHeaderProps) {
+export function MatchHeader({ room }: Props) {
   const score = useRoomStore((s) => s.score);
-
-  if (room.sport === 'football') {
-    return <FootballMatchHeader room={room} score={score as FootballScoreData | null} />;
-  }
-  return <CricketMatchHeader room={room} score={score as CricketScoreData | null} />;
+  if (room.sport === 'football') return <FootballHeader room={room} score={score as FootballScoreData | null} />;
+  return <CricketHeader room={room} score={score as CricketScoreData | null} />;
 }
 
-function CricketMatchHeader({ room, score }: { room: Room; score: CricketScoreData | null }) {
-  // Parse team names from room.match_name "Team A vs Team B"
+function CricketHeader({ room, score }: { room: Room; score: CricketScoreData | null }) {
   const parts = room.match_name.split(' vs ');
-  const team1Name = score?.team1?.name || parts[0]?.trim() || 'TBD';
-  const team2Name = score?.team2?.name || parts[1]?.trim() || 'TBD';
-  const team1Score = score?.team1?.score || '—';
-  const team1Overs = score?.team1?.overs ? `${score.team1.overs} ov` : '—';
-  const team2Score = score?.team2?.score || '—';
-  const team2Overs = score?.team2?.overs ? `${score.team2.overs} ov` : '—';
+  const t1 = score?.team1?.name || parts[0]?.trim() || 'TBD';
+  const t2 = score?.team2?.name || parts[1]?.trim() || 'TBD';
+  const s1 = score?.team1?.score || '—';
+  const o1 = score?.team1?.overs ? `${score.team1.overs} ov` : '—';
+  const s2 = score?.team2?.score || '—';
+  const o2 = score?.team2?.overs ? `${score.team2.overs} ov` : '—';
   const crr = score?.current_rate || 0;
-  const over = room.current_over || 0;
 
   return (
-    <div style={{ padding: '16px 16px 12px', borderBottom: '0.5px solid var(--b1)' }}>
-      <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>
-        {room.league || room.match_format || 'Cricket'} {over > 0 ? `· Over ${over}` : ''}
+    <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid var(--b1)' }}>
+      <div className="font-cabinet text-[10px] font-bold tracking-[1.5px] mb-3" style={{ color: 'var(--mu)' }}>
+        {room.league || room.match_format || 'Cricket'}
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between rounded-card px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--b1)' }}>
         <div className="text-center">
-          <div className="font-syne text-[11px] font-bold" style={{ color: 'var(--mu)' }}>{team1Name}</div>
-          <div className="font-syne text-xl font-extrabold leading-none mt-0.5" style={{ color: 'var(--tx)' }}>{team1Score}</div>
-          <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>{team1Overs}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{t1.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[28px] font-black" style={{ letterSpacing: '-1px' }}>{s1}</div>
+          <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>{o1}</div>
         </div>
-        <div className="text-base" style={{ color: 'var(--dm)' }}>/</div>
         <div className="text-center">
-          <div className="font-syne text-[11px] font-bold" style={{ color: 'var(--mu)' }}>{team2Name}</div>
-          <div className="font-syne text-xl font-extrabold leading-none mt-0.5" style={{ color: 'var(--tx)' }}>{team2Score}</div>
-          <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>{team2Overs}</div>
+          <div className="font-cabinet text-[10px] font-bold" style={{ color: 'var(--faint)' }}>vs</div>
+          {crr > 0 && <div className="text-[12px] font-semibold mt-1" style={{ color: 'var(--amber)' }}>CRR {crr.toFixed(2)}</div>}
         </div>
-      </div>
-      <div className="flex justify-between mt-2.5">
-        {[
-          { label: 'CRR', value: crr > 0 ? crr.toFixed(2) : '—' },
-          { label: 'Status', value: room.status === 'live' ? 'Live' : room.status },
-          { label: 'Format', value: room.match_format || '—' },
-        ].map((item) => (
-          <div key={item.label} className="text-center">
-            <div className="text-[9px] uppercase tracking-[0.5px]" style={{ color: 'var(--mu)' }}>{item.label}</div>
-            <div className="text-xs font-medium mt-0.5" style={{ color: 'var(--gold)' }}>{item.value}</div>
-          </div>
-        ))}
+        <div className="text-center">
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{t2.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[28px] font-black" style={{ color: s2 === '—' ? 'var(--mu)' : 'var(--tx)' }}>{s2}</div>
+          <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>{o2}</div>
+        </div>
       </div>
     </div>
   );
 }
 
-function FootballMatchHeader({ room, score }: { room: Room; score: FootballScoreData | null }) {
+function FootballHeader({ room, score }: { room: Room; score: FootballScoreData | null }) {
   const parts = room.match_name.split(' vs ');
-  const homeName = score?.home?.name || parts[0]?.trim() || 'Home';
-  const awayName = score?.away?.name || parts[1]?.trim() || 'Away';
-  const homeGoals = score?.home?.goals ?? '—';
-  const awayGoals = score?.away?.goals ?? '—';
+  const home = score?.home?.name || parts[0]?.trim() || 'Home';
+  const away = score?.away?.name || parts[1]?.trim() || 'Away';
+  const hg = score?.home?.goals ?? '—';
+  const ag = score?.away?.goals ?? '—';
   const mp = room.match_progress || {};
   const minute = score?.minute || (mp.minute as number) || 0;
   const half = score?.half || (mp.half as number) || 1;
 
   return (
-    <div style={{ padding: '16px 16px 12px', borderBottom: '0.5px solid var(--b1)' }}>
-      <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>
-        {room.league || 'Football'} {minute > 0 ? `· ${minute}'` : ''}
+    <div className="px-4 pt-4 pb-3" style={{ borderBottom: '1px solid var(--b1)' }}>
+      <div className="font-cabinet text-[10px] font-bold tracking-[1.5px] mb-3" style={{ color: 'var(--mu)' }}>
+        {room.league || 'Football'}
       </div>
-      <div className="flex items-center justify-between">
+      <div className="flex items-center justify-between rounded-card px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--b1)' }}>
         <div className="text-center flex-1">
-          <div className="font-syne text-[11px] font-bold" style={{ color: 'var(--mu)' }}>{homeName}</div>
-          <div className="font-syne text-2xl font-extrabold leading-none mt-0.5" style={{ color: 'var(--tx)' }}>{homeGoals}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{home.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[28px] font-black">{hg}</div>
         </div>
-        <div className="px-3 text-center">
-          <div className="font-syne text-sm font-bold" style={{ color: 'var(--gold)' }}>
-            {minute > 0 ? `${minute}'` : 'vs'}
-          </div>
-          {minute > 0 && (
-            <div className="text-[9px]" style={{ color: 'var(--mu)' }}>{half === 1 ? '1H' : '2H'}</div>
+        <div className="text-center px-3">
+          {minute > 0 ? (
+            <>
+              <div className="font-cabinet text-[14px] font-bold" style={{ color: 'var(--amber)' }}>{minute}'</div>
+              <div className="text-[9px]" style={{ color: 'var(--mu)' }}>{half === 1 ? '1H' : '2H'}</div>
+            </>
+          ) : (
+            <div className="font-cabinet text-[10px] font-bold" style={{ color: 'var(--faint)' }}>vs</div>
           )}
         </div>
         <div className="text-center flex-1">
-          <div className="font-syne text-[11px] font-bold" style={{ color: 'var(--mu)' }}>{awayName}</div>
-          <div className="font-syne text-2xl font-extrabold leading-none mt-0.5" style={{ color: 'var(--tx)' }}>{awayGoals}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{away.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[28px] font-black">{ag}</div>
         </div>
-      </div>
-      <div className="flex justify-between mt-2.5">
-        {[
-          { label: 'Status', value: room.status === 'live' ? 'Live' : room.status },
-          { label: 'Half', value: minute > 0 ? (half === 1 ? '1st' : '2nd') : '—' },
-          { label: 'League', value: room.league || '—' },
-        ].map((item) => (
-          <div key={item.label} className="text-center">
-            <div className="text-[9px] uppercase tracking-[0.5px]" style={{ color: 'var(--mu)' }}>{item.label}</div>
-            <div className="text-xs font-medium mt-0.5" style={{ color: 'var(--gold)' }}>{item.value}</div>
-          </div>
-        ))}
       </div>
     </div>
   );
