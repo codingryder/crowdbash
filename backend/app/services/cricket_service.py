@@ -92,13 +92,26 @@ class CricketAdapter(SportAdapter):
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
-        """Get squad: CricketData.org → Gemini fallback."""
+        """Get squad: ESPN → CricketData.org → Gemini fallback."""
         cache_key = f"cricket:players:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached:
             return cached
 
-        # Layer 1: Try CricketData.org
+        # Layer 1: ESPN (handles espn_ prefixed IDs and has full squad data)
+        if match_id.startswith("espn_"):
+            try:
+                from app.services.espn_service import get_espn_match_players
+                espn_id = match_id.replace("espn_", "")
+                players = await get_espn_match_players(espn_id)
+                if players:
+                    print(f"Cricket players from ESPN: {len(players)} players for {match_id}")
+                    await redis_set_json(cache_key, players, ex=3600)
+                    return players
+            except Exception as e:
+                print(f"ESPN players error: {e}")
+
+        # Layer 2: Try CricketData.org
         try:
             from app.services.cricketdata_service import get_players_list
             players = await get_players_list(match_id)
@@ -108,7 +121,7 @@ class CricketAdapter(SportAdapter):
         except Exception as e:
             print(f"CricketData players error: {e}")
 
-        # Layer 2: Gemini fallback
+        # Layer 3: Gemini fallback
         try:
             from app.services.live_score_service import fetch_squad_via_gemini
             if self._current_match_name:

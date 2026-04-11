@@ -334,6 +334,85 @@ def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
     }
 
 
+# ── Squad/Player fetching from ESPN ──
+
+ESPN_SUMMARY_URL = "https://site.web.api.espn.com/apis/site/v2/sports/cricket"
+
+
+async def get_espn_match_players(event_id: str, series_id: str = "8048") -> list | None:
+    """
+    Get full squad for both teams from ESPN summary endpoint.
+    Returns normalized player list compatible with MatchSquad model.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"espn:squad:{event_id}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f"{ESPN_SUMMARY_URL}/{series_id}/summary",
+                params={"event": event_id},
+                headers=HEADERS, timeout=15,
+            )
+            if res.status_code != 200:
+                print(f"ESPN summary error: {res.status_code}")
+                return None
+
+            data = res.json()
+            squads = data.get("squads", [])
+            if not squads:
+                return None
+
+            players = []
+            for squad in squads:
+                team_name = squad.get("team", {}).get("displayName", "Unknown")
+                athletes = squad.get("athletes", [])
+                for athlete in athletes:
+                    position = athlete.get("position", {})
+                    pos_abbr = position.get("abbreviation", "")
+                    pos_name = position.get("name", "")
+
+                    # Map ESPN position to our role format
+                    role = _map_espn_position(pos_abbr, pos_name)
+
+                    players.append({
+                        "player_id": str(athlete.get("id", "")),
+                        "player_name": athlete.get("displayName", athlete.get("name", "")),
+                        "team": team_name,
+                        "role": role,
+                    })
+
+            if players:
+                await redis_set_json(cache_key, players, ex=3600)  # Cache 1 hour
+                return players
+
+    except Exception as e:
+        print(f"ESPN squad fetch error: {e}")
+
+    return None
+
+
+def _map_espn_position(abbr: str, name: str) -> str:
+    """Map ESPN cricket position to our role format."""
+    abbr = abbr.upper()
+    name = name.lower()
+
+    if "keeper" in name or abbr in ("WBT", "WK"):
+        return "wicket-keeper"
+    if "all" in name or "allrounder" in name or abbr in ("AR", "BAR", "ALAR"):
+        return "all-rounder"
+    if "bowl" in name or abbr in ("RFB", "RMB", "RSB", "LFB", "LMB", "LSB", "SLA", "SLW", "LB", "OB", "LFM", "RFM", "BOW"):
+        return "bowler"
+    if "bat" in name or abbr in ("TBT", "MBT", "LBT", "OPN", "BAT"):
+        return "batsman"
+
+    return "batsman"  # default
+
+
 # Legacy function for backward compatibility
 async def fetch_espn_match_by_name(match_name: str, series_id: str = "8048") -> Optional[dict]:
     """Find a specific cricket match by team names."""
