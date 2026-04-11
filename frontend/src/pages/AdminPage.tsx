@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom';
 import { useAdminStore } from '../store/adminStore';
 import api from '../lib/api';
 
@@ -209,7 +210,9 @@ export function AdminPage() {
                   <tbody>
                     {rooms.map(r => (
                       <tr key={r.id} style={{ borderBottom: '1px solid var(--border)' }}>
-                        <td style={{ padding: '12px', fontWeight: 600, maxWidth: 200 }}>{r.match_name}</td>
+                        <td style={{ padding: '12px', fontWeight: 600, maxWidth: 200 }}>
+                          <Link to={`/room/${r.id}`} className="no-underline" style={{ color: 'var(--text)' }}>{r.match_name}</Link>
+                        </td>
                         <td style={{ padding: '12px' }}>
                           <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: r.sport === 'cricket' ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)', color: r.sport === 'cricket' ? 'var(--amber)' : 'var(--blue)' }}>
                             {r.sport === 'cricket' ? '🏏' : '⚽'} {r.sport}
@@ -221,7 +224,10 @@ export function AdminPage() {
                         <td style={{ padding: '12px' }}><StatusBadge status={r.status} /></td>
                         <td style={{ padding: '12px', color: 'var(--text2)' }}>{r.fan_count}</td>
                         <td style={{ padding: '12px' }}>
-                          <div style={{ display: 'flex', gap: 4 }}>
+                          <div style={{ display: 'flex', gap: 4, flexWrap: 'wrap' }}>
+                            <Link to={`/room/${r.id}`} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(59,130,246,0.1)', color: 'var(--blue)', border: '1px solid rgba(59,130,246,0.3)', cursor: 'pointer', textDecoration: 'none' }}>
+                              View
+                            </Link>
                             {r.status === 'open' && (
                               <button onClick={() => updateStatus(r.id, 'locked')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer' }}>
                                 Lock

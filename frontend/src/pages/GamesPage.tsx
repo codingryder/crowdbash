@@ -120,7 +120,7 @@ export function GamesPage() {
   const allRooms = [...liveRooms, ...upcomingRooms];
 
   const totalLiveMatches = filteredLiveMatches.length;
-  const totalLiveRooms = liveRooms.length;
+  const totalLiveRooms = allRooms.length;
 
   return (
     <div style={{ paddingTop: 60, minHeight: '100vh' }}>
