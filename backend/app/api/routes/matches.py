@@ -196,10 +196,15 @@ If no matches, return []"""
 
 
 @router.get("/scorecard/{sport}/{match_id}")
-async def get_match_scorecard(sport: str, match_id: str):
+async def get_match_scorecard(
+    sport: str,
+    match_id: str,
+    match_name: str = Query("", description="Match name for Gemini fallback"),
+):
     """
     Get scorecard for a match by sport and match_id directly.
     Used by the Live Matches list (not tied to a room).
+    Handles ESPN IDs (espn_*), CricketData IDs, and Football-Data IDs.
     """
     try:
         adapter = get_adapter(sport)
@@ -207,12 +212,132 @@ async def get_match_scorecard(sport: str, match_id: str):
         raise HTTPException(status_code=400, detail=f"Unknown sport: {sport}")
 
     try:
+        # ESPN-sourced matches: fetch scorecard from ESPN
+        if match_id.startswith("espn_"):
+            espn_event_id = match_id.replace("espn_", "")
+            scorecard = await _get_espn_scorecard(sport, espn_event_id, match_name)
+            if scorecard:
+                return {"scorecard": scorecard}
+            return {"scorecard": None}
+
+        # Standard match IDs: use sport adapter
         if hasattr(adapter, "set_match_context"):
-            adapter.set_match_context("")
+            adapter.set_match_context(match_name)
         match_data = await adapter.get_match_score(match_id)
         if not match_data:
+            # For football, return basic score from the match listing data
+            if sport == "football" and match_name:
+                parts = match_name.split(" vs ")
+                return {"scorecard": {
+                    "sport": "football",
+                    "team1": {"name": parts[0].strip() if parts else "", "score": "—"},
+                    "team2": {"name": parts[1].strip() if len(parts) > 1 else "", "score": "—"},
+                    "status": "Score data unavailable",
+                    "innings": [],
+                }}
             return {"scorecard": None}
-        normalized = adapter.normalize_score(match_data, "")
+        normalized = adapter.normalize_score(match_data, match_name)
+        # Ensure football data has team1/team2 keys for modal compatibility
+        if sport == "football" and "home" in normalized:
+            normalized["team1"] = {"name": normalized["home"]["name"], "score": str(normalized["home"].get("goals", "—"))}
+            normalized["team2"] = {"name": normalized["away"]["name"], "score": str(normalized["away"].get("goals", "—"))}
         return {"scorecard": normalized}
     except Exception as e:
         return {"scorecard": None, "error": str(e)}
+
+
+async def _get_espn_scorecard(sport: str, event_id: str, match_name: str) -> dict | None:
+    """Fetch scorecard data from ESPN for a specific event."""
+    import httpx
+
+    if sport != "cricket":
+        return None
+
+    # Try fetching from ESPN IPL scoreboard and find the event
+    try:
+        from app.services.espn_service import ESPN_CRICKET_BASE, HEADERS, CRICKET_LIVE_SERIES
+        from app.core.redis import redis_get_json, redis_set_json
+
+        cache_key = f"espn:scorecard:{event_id}"
+        cached = await redis_get_json(cache_key)
+        if cached:
+            return cached
+
+        # Check each series for this event
+        for series_id in CRICKET_LIVE_SERIES:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
+                    headers=HEADERS, timeout=10,
+                )
+                if res.status_code != 200:
+                    continue
+
+                events = res.json().get("events", [])
+                for event in events:
+                    if str(event.get("id", "")) == event_id:
+                        scorecard = _build_espn_scorecard(event)
+                        if scorecard:
+                            await redis_set_json(cache_key, scorecard, ex=60)
+                        return scorecard
+    except Exception as e:
+        print(f"ESPN scorecard error: {e}")
+
+    return None
+
+
+def _build_espn_scorecard(event: dict) -> dict | None:
+    """Build a normalized scorecard from ESPN event data."""
+    competitions = event.get("competitions", [])
+    if not competitions:
+        return None
+
+    comp = competitions[0]
+    competitors = comp.get("competitors", [])
+    if len(competitors) < 2:
+        return None
+
+    # Extract team data
+    teams = []
+    innings_data = []
+    for team_data in competitors:
+        team_name = team_data.get("team", {}).get("displayName", "Unknown")
+        linescores = team_data.get("linescores", [])
+
+        team_score = ""
+        team_overs = ""
+        for ls in linescores:
+            runs = ls.get("runs", ls.get("value", 0))
+            wickets = ls.get("wickets", 0)
+            overs = ls.get("overs", 0)
+            team_score = str(runs) if not team_score else team_score
+            team_overs = str(overs) if not team_overs else team_overs
+
+            # Build innings entry (ESPN doesn't have ball-by-ball, just summary)
+            innings_data.append({
+                "name": f"{team_name} Innings {ls.get('period', 1)}",
+                "batting": [],
+                "bowling": [],
+            })
+
+        teams.append({
+            "name": team_name,
+            "score": team_score,
+            "overs": team_overs,
+        })
+
+    status_obj = event.get("status", {})
+    status_text = status_obj.get("summary", status_obj.get("type", {}).get("description", ""))
+
+    return {
+        "sport": "cricket",
+        "match_name": event.get("name", ""),
+        "team1": teams[0] if len(teams) > 0 else {"name": "", "score": "", "overs": ""},
+        "team2": teams[1] if len(teams) > 1 else {"name": "", "score": "", "overs": ""},
+        "status": status_text,
+        "current_rate": 0,
+        "batting_team": "",
+        "current_batting": [],
+        "current_bowling": [],
+        "innings": innings_data if innings_data else [],
+    }
