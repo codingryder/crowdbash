@@ -8,12 +8,21 @@ Endpoints used:
   - /v1/match_scorecard — full scorecard for a match
 """
 import httpx
+import re
 from app.core.config import settings
 from app.core.redis import redis_get_json, redis_set_json, redis_incr, redis_get
 from typing import List, Dict, Any, Optional
 
 BASE_URL = "https://api.cricketdata.org/v1"
 DAILY_LIMIT = 90  # Buffer of 10 under the 100/day Plan S limit
+
+# UUID pattern — admin-created rooms have UUID match_ids, not CricketData IDs
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
+
+
+def _is_uuid(match_id: str) -> bool:
+    """Check if a match_id is a UUID (admin-created, not a real API ID)."""
+    return bool(_UUID_RE.match(match_id))
 
 
 async def _check_rate_limit() -> bool:
@@ -26,14 +35,11 @@ async def _check_rate_limit() -> bool:
 
 async def _increment_counter():
     """Increment daily request counter with 24h TTL."""
-    await redis_incr("cricketdata:daily_requests")
-    # Set TTL only if it's a new key (first request of the day)
-    # redis_incr doesn't set TTL, so we re-set with expiry via a helper
-    # For simplicity, just set it every time — Upstash handles idempotent TTL
     from app.core.redis import redis_set
-    count = await redis_get("cricketdata:daily_requests")
-    if count:
-        await redis_set("cricketdata:daily_requests", count, ex=86400)
+    count = await redis_incr("cricketdata:daily_requests")
+    # Set TTL on first request of the day
+    if count == 1:
+        await redis_set("cricketdata:daily_requests", "1", ex=86400)
 
 
 async def get_current_matches() -> Optional[List[Dict[str, Any]]]:
@@ -110,6 +116,8 @@ async def get_match_scorecard(match_id: str) -> Optional[Dict[str, Any]]:
     Get full scorecard for a match. Returns data in the shape
     that CricketAdapter.calculate_player_points() expects.
 
+    Skips API call for UUID match_ids (admin-created rooms).
+
     Returns: {
         score: [{r, w, o, inning}],
         scorecard: [{inning, batting: [...], bowling: [...]}],
@@ -118,6 +126,10 @@ async def get_match_scorecard(match_id: str) -> Optional[Dict[str, Any]]:
         source: "cricketdata"
     }
     """
+    # Skip for UUID match_ids — they're admin-created, not CricketData IDs
+    if _is_uuid(match_id):
+        return None
+
     if not settings.CRICKETDATA_API_KEY:
         return None
 
@@ -278,6 +290,10 @@ async def get_players_list(match_id: str) -> Optional[List[Dict[str, Any]]]:
     Extracts players from the scorecard data (batting + bowling entries).
     If no scorecard available, tries to get from match info.
     """
+    # Skip for UUID match_ids
+    if _is_uuid(match_id):
+        return None
+
     cache_key = f"cricketdata:players:{match_id}"
     cached = await redis_get_json(cache_key)
     if cached:

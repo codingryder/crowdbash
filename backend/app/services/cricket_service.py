@@ -50,6 +50,9 @@ class CricketAdapter(SportAdapter):
 
         # Layer 2: Gemini fallback
         if not score_data:
+            print(f"CricketData returned None for {match_id}, trying Gemini for '{self._current_match_name}'")
+            if not self._current_match_name:
+                print("WARNING: No match_name set — Gemini fallback will be skipped!")
             try:
                 from app.services.live_score_service import fetch_live_score_via_gemini
                 if self._current_match_name:
@@ -57,6 +60,8 @@ class CricketAdapter(SportAdapter):
                     if gemini_data and (gemini_data.get("score") or gemini_data.get("scorecard")):
                         score_data = gemini_data
                         print(f"Cricket score from Gemini: {self._current_match_name}")
+                    else:
+                        print(f"Gemini returned no score data for '{self._current_match_name}'")
             except Exception as e:
                 print(f"Gemini cricket error: {e}")
 

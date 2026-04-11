@@ -8,10 +8,13 @@ Endpoints used:
   - /v4/matches/{id} — single match detail with lineups, goals, bookings
 """
 import httpx
+import re
 from app.core.config import settings
 from app.core.redis import redis_get_json, redis_set_json
 from typing import List, Dict, Any, Optional
 from datetime import date, timedelta
+
+_UUID_RE = re.compile(r'^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$', re.I)
 
 BASE_URL = "https://api.football-data.org/v4"
 
@@ -103,6 +106,10 @@ async def get_match_detail(match_id: str) -> Optional[Dict[str, Any]]:
     Get full match detail including lineups, goals, bookings.
     Returns normalized data in the shape FootballAdapter expects.
     """
+    # Skip for UUID match_ids — admin-created rooms
+    if _UUID_RE.match(match_id):
+        return None
+
     if not settings.FOOTBALL_API_KEY:
         return None
 

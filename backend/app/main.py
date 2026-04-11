@@ -134,8 +134,8 @@ async def score_poller():
                         print(f"ESPN check error for {room.match_name}: {e}")
 
                     match_data = await adapter.get_match_score(room.match_id)
-                    if not match_data:
-                        continue
+                    if not match_data or not match_data.get("score"):
+                        continue  # Skip if no actual score data
 
                     # Auto-lock all unlocked squads when match is live
                     from app.models.game import Game as GameModel

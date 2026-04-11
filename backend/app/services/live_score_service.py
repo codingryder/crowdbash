@@ -28,6 +28,9 @@ async def _ask_gemini(prompt: str) -> dict | None:
 
     try:
         response = await asyncio.to_thread(model.generate_content, prompt)
+        if not response or not response.text:
+            print("Gemini returned empty response")
+            return None
         text = response.text.strip()
         if text.startswith("```"):
             text = text.split("```")[1]
@@ -36,10 +39,14 @@ async def _ask_gemini(prompt: str) -> dict | None:
         text = text.strip()
         data = json.loads(text)
         if data.get("not_available"):
+            print("Gemini says data not available")
             return None
         return data
+    except json.JSONDecodeError as e:
+        print(f"Gemini JSON parse error: {e} — raw: {text[:200] if 'text' in dir() else 'N/A'}")
+        return None
     except Exception as e:
-        print(f"Gemini error: {e}")
+        print(f"Gemini error ({type(e).__name__}): {e}")
         return None
 
 
