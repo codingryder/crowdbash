@@ -137,6 +137,50 @@ async def get_live_matches():
     }
 
 
+@router.get("/debug/cricket")
+async def debug_cricket():
+    """Debug endpoint to check why cricket data is missing."""
+    from app.core.config import settings
+    from app.core.redis import redis_get_json, redis_get
+
+    result = {
+        "cricketdata_api_key_set": bool(settings.CRICKETDATA_API_KEY),
+        "gemini_api_key_set": bool(settings.GEMINI_API_KEY),
+    }
+
+    # Check rate limit
+    count = await redis_get("cricketdata:daily_requests")
+    result["cricketdata_daily_requests"] = int(count) if count else 0
+    result["cricketdata_daily_limit"] = 90
+
+    # Check caches
+    cached_matches = await redis_get_json("cricket:live_matches")
+    result["cricket_live_matches_cached"] = cached_matches is not None
+    result["cricket_live_matches_count"] = len(cached_matches) if cached_matches else 0
+
+    cached_cd = await redis_get_json("cricketdata:current_matches")
+    result["cricketdata_current_matches_cached"] = cached_cd is not None
+    result["cricketdata_current_matches_count"] = len(cached_cd) if cached_cd else 0
+
+    cached_gemini = await redis_get_json("gemini:live_matches:cricket")
+    result["gemini_live_matches_cached"] = cached_gemini is not None
+    result["gemini_live_matches_count"] = len(cached_gemini) if cached_gemini else 0
+
+    # Try Gemini directly
+    try:
+        from app.services.live_score_service import fetch_live_matches_via_gemini
+        gemini_data = await fetch_live_matches_via_gemini("cricket")
+        result["gemini_fallback_result"] = len(gemini_data) if gemini_data else 0
+        result["gemini_fallback_error"] = None
+        if gemini_data:
+            result["gemini_sample"] = gemini_data[0] if gemini_data else None
+    except Exception as e:
+        result["gemini_fallback_result"] = 0
+        result["gemini_fallback_error"] = str(e)
+
+    return result
+
+
 @router.get("/scorecard/{sport}/{match_id}")
 async def get_match_scorecard(sport: str, match_id: str):
     """
