@@ -2,7 +2,7 @@
 Public endpoints for live match data — separate from rooms.
 These return raw match data from sport APIs, not admin-created rooms.
 """
-from fastapi import APIRouter, HTTPException
+from fastapi import APIRouter, HTTPException, Query
 from app.services.sport_service import get_adapter
 
 router = APIRouter()
