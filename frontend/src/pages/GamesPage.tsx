@@ -1,5 +1,5 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
 import { formatMatchDate } from '../types';
@@ -22,6 +22,8 @@ interface LiveMatch {
 type Tab = 'matches' | 'rooms';
 
 export function GamesPage() {
+  const [searchParams] = useSearchParams();
+  const sport = searchParams.get('sport') || 'cricket';
   const [tab, setTab] = useState<Tab>('matches');
 
   // Live Matches state
@@ -63,15 +65,20 @@ export function GamesPage() {
     fetchRooms();
   }, []);
 
-  const liveRooms = rooms.filter(r => r.status === 'live');
-  const upcomingRooms = rooms.filter(r => r.status === 'upcoming').sort((a, b) => {
+  // Filter by selected sport from navbar tabs
+  const filteredLiveMatches = liveMatches.filter(m => m.sport === sport);
+  const filteredUpcomingMatches = upcomingMatches.filter(m => m.sport === sport);
+  const filteredRooms = rooms.filter(r => r.sport === sport);
+
+  const liveRooms = filteredRooms.filter(r => r.status === 'live');
+  const upcomingRooms = filteredRooms.filter(r => r.status === 'upcoming').sort((a, b) => {
     const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
     const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
     return da - db;
   });
   const allRooms = [...liveRooms, ...upcomingRooms];
 
-  const totalLiveMatches = liveMatches.length;
+  const totalLiveMatches = filteredLiveMatches.length;
   const totalLiveRooms = liveRooms.length;
 
   return (
@@ -82,7 +89,9 @@ export function GamesPage() {
           <div className="flex items-end justify-between mb-5">
             <div>
               <h1 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 38, fontWeight: 900, letterSpacing: '-1.5px', marginBottom: 4 }}>Games</h1>
-              <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Live scores & fantasy rooms</div>
+              <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
+                {sport === 'cricket' ? '🏏 Cricket' : '⚽ Football'} — Live scores & fantasy rooms
+              </div>
             </div>
             <div className="flex items-center gap-2.5">
               {totalLiveMatches > 0 && (
@@ -151,29 +160,29 @@ export function GamesPage() {
               </div>
             )}
 
-            {!matchesLoading && liveMatches.length > 0 && (
+            {!matchesLoading && filteredLiveMatches.length > 0 && (
               <>
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>LIVE NOW</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
-                  {liveMatches.map(m => (
+                  {filteredLiveMatches.map(m => (
                     <MatchCard key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
                   ))}
                 </div>
               </>
             )}
 
-            {!matchesLoading && upcomingMatches.length > 0 && (
+            {!matchesLoading && filteredUpcomingMatches.length > 0 && (
               <>
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>UPCOMING</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
-                  {upcomingMatches.map(m => (
+                  {filteredUpcomingMatches.map(m => (
                     <MatchCard key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
                   ))}
                 </div>
               </>
             )}
 
-            {!matchesLoading && liveMatches.length === 0 && upcomingMatches.length === 0 && (
+            {!matchesLoading && filteredLiveMatches.length === 0 && filteredUpcomingMatches.length === 0 && (
               <div className="text-center py-20">
                 <div className="text-3xl mb-4">📡</div>
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>No live matches right now</div>

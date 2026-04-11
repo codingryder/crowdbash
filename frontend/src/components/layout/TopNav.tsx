@@ -1,8 +1,13 @@
-import { Link } from 'react-router-dom';
+import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 export function TopNav() {
   const { user, openAuthModal, logout } = useAuth();
+  const [searchParams] = useSearchParams();
+  const location = useLocation();
+
+  const currentSport = searchParams.get('sport') || 'cricket';
+  const isGamesPage = location.pathname === '/games';
 
   return (
     <nav
@@ -24,14 +29,30 @@ export function TopNav() {
         Crowdbash
       </Link>
 
-      {/* Sport tabs */}
+      {/* Sport tabs — link to /games with sport param */}
       <div className="hidden md:flex items-center gap-0.5 rounded-full" style={{ background: 'var(--surface)', padding: 3 }}>
-        <div className="flex items-center gap-1.5 rounded-full text-[12px] font-semibold" style={{ padding: '5px 16px', background: 'var(--surface3)', color: 'var(--text)' }}>
+        <Link
+          to="/games?sport=cricket"
+          className="flex items-center gap-1.5 rounded-full text-[12px] font-semibold no-underline cursor-pointer"
+          style={{
+            padding: '5px 16px',
+            background: (isGamesPage && currentSport === 'cricket') ? 'var(--surface3)' : 'transparent',
+            color: (isGamesPage && currentSport === 'cricket') ? 'var(--text)' : 'var(--muted)',
+          }}
+        >
           <span className="text-[13px]">🏏</span> Cricket
-        </div>
-        <div className="flex items-center gap-1.5 rounded-full text-[12px] font-semibold" style={{ padding: '5px 16px', color: 'var(--muted)' }}>
+        </Link>
+        <Link
+          to="/games?sport=football"
+          className="flex items-center gap-1.5 rounded-full text-[12px] font-semibold no-underline cursor-pointer"
+          style={{
+            padding: '5px 16px',
+            background: (isGamesPage && currentSport === 'football') ? 'var(--surface3)' : 'transparent',
+            color: (isGamesPage && currentSport === 'football') ? 'var(--text)' : 'var(--muted)',
+          }}
+        >
           <span className="text-[13px]">⚽</span> Football
-        </div>
+        </Link>
       </div>
 
       {/* Right */}
