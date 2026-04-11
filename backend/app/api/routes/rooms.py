@@ -68,6 +68,7 @@ async def list_rooms(
     sport: Optional[str] = Query(None, description="Filter by sport"),
     league: Optional[str] = Query(None, description="Filter by league name"),
     status: Optional[str] = Query(None, description="Filter by status"),
+    admin_created: Optional[bool] = Query(None, description="Filter by admin-created rooms only"),
     db: AsyncSession = Depends(get_db),
 ):
     """List rooms sorted by match_date (latest first)."""
@@ -78,6 +79,8 @@ async def list_rooms(
         query = query.where(Room.league == league)
     if status:
         query = query.where(Room.status == status)
+    if admin_created is not None:
+        query = query.where(Room.admin_created == admin_created)
     result = await db.execute(query)
     rooms = result.scalars().all()
     return [_room_to_dict(r) for r in rooms]

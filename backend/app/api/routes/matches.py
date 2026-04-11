@@ -4,7 +4,6 @@ These return raw match data from sport APIs, not admin-created rooms.
 """
 from fastapi import APIRouter, HTTPException
 from app.services.sport_service import get_adapter
-from app.api.routes.admin import _is_allowed_cricket
 
 router = APIRouter()
 
@@ -13,7 +12,8 @@ router = APIRouter()
 async def get_live_matches():
     """
     Get all live + upcoming matches from sport APIs.
-    Filtered to major leagues only. Returns matches grouped by status.
+    CricketData already returns curated current matches.
+    Football-Data returns matches from major leagues only.
     """
     all_live = []
     all_upcoming = []
@@ -27,45 +27,57 @@ async def get_live_matches():
 
             for m in matches:
                 if sport == "cricket":
-                    series = m.get("series", "")
-                    match_format = m.get("matchType", "")
-                    if not _is_allowed_cricket(series, match_format):
+                    ms = m.get("ms", "")
+                    # Skip finished matches
+                    if ms == "result":
                         continue
 
-                    ms = m.get("ms", "")
                     score_list = m.get("score", [])
 
                     # Build score strings from score array
                     team1_score = ""
                     team2_score = ""
+                    t1_name = m.get("t1", "")
+                    t2_name = m.get("t2", "")
+
                     if score_list:
                         for s in score_list:
                             inning = s.get("inning", "")
                             score_str = f"{s.get('r', 0)}/{s.get('w', 0)} ({s.get('o', 0)} ov)"
-                            if "1" in inning:
+                            # Match inning to team by checking team name in inning string
+                            if t1_name and t1_name.lower() in inning.lower():
+                                team1_score = score_str
+                            elif t2_name and t2_name.lower() in inning.lower():
+                                team2_score = score_str
+                            else:
+                                # Fallback: first inning = team1, second = team2
                                 if not team1_score:
                                     team1_score = score_str
-                                else:
+                                elif not team2_score:
                                     team2_score = score_str
-                            elif "2" in inning:
-                                if not team2_score:
-                                    team2_score = score_str
+
+                    # Use match name to extract league/series context
+                    match_name = m.get("name", f"{t1_name} vs {t2_name}")
+                    match_format = m.get("matchType", "")
+                    # series_id is often a numeric ID, not useful for display
+                    # Use matchType as the format label instead
+                    league_label = match_format.upper() if match_format else ""
 
                     entry = {
                         "match_id": m.get("id", ""),
-                        "match_name": m.get("name", f"{m.get('t1', '')} vs {m.get('t2', '')}"),
+                        "match_name": match_name,
                         "sport": "cricket",
-                        "league": series,
+                        "league": league_label,
                         "match_format": match_format,
                         "venue": m.get("venue", ""),
                         "match_date": m.get("dateTimeGMT", ""),
                         "status": ms,
                         "team1": {
-                            "name": m.get("t1", ""),
+                            "name": t1_name,
                             "score": team1_score,
                         },
                         "team2": {
-                            "name": m.get("t2", ""),
+                            "name": t2_name,
                             "score": team2_score,
                         },
                         "match_status_text": m.get("status", ""),

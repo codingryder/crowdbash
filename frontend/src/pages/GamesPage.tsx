@@ -54,7 +54,7 @@ export function GamesPage() {
   useEffect(() => {
     async function fetchRooms(retry = 0) {
       try {
-        const { data } = await api.get('/api/rooms/');
+        const { data } = await api.get('/api/rooms/', { params: { admin_created: true } });
         if (Array.isArray(data)) setRooms(data);
       } catch {
         if (retry < 2) { await new Promise(r => setTimeout(r, 3000)); return fetchRooms(retry + 1); }

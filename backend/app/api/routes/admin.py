@@ -94,6 +94,7 @@ async def create_room(
         season=body.season,
         status="upcoming",
         match_date=match_date_parsed,
+        admin_created=True,
     )
     db.add(room)
     await db.commit()
