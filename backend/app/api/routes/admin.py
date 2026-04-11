@@ -115,7 +115,8 @@ async def list_all_rooms(
     _admin: str = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    query = select(Room).order_by(Room.created_at.desc())
+    """List only admin-created rooms."""
+    query = select(Room).where(Room.admin_created == True).order_by(Room.created_at.desc())
     if sport:
         query = query.where(Room.sport == sport)
     if status:
