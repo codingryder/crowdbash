@@ -50,9 +50,9 @@ export function RoomsList() {
   }
 
   // Separate live, upcoming, completed
-  const liveRooms = rooms.filter((r) => r.status === 'live');
-  const upcomingRooms = rooms.filter((r) => r.status === 'upcoming');
-  const completedRooms = rooms.filter((r) => r.status === 'completed');
+  const liveRooms = rooms.filter((r) => r.status === 'locked');
+  const upcomingRooms = rooms.filter((r) => r.status === 'open');
+  const completedRooms = rooms.filter((r) => r.status === 'closed');
 
   return (
     <div className="space-y-8">

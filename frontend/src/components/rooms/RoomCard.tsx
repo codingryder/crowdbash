@@ -15,7 +15,7 @@ export function RoomCard({ room }: RoomCardProps) {
     >
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2">
-          {room.status === 'live' && <LivePill />}
+          {room.status === 'locked' && <LivePill />}
           <Badge variant="blue">{room.match_format}</Badge>
         </div>
         <span className="text-xs text-white/40">{room.fan_count} fans</span>
@@ -26,7 +26,7 @@ export function RoomCard({ room }: RoomCardProps) {
       </h3>
       <p className="text-xs text-white/40">{room.venue}</p>
 
-      {room.status === 'live' && room.current_over > 0 && (
+      {room.status === 'locked' && room.current_over > 0 && (
         <div className="mt-3 pt-3 border-t border-white/[0.07]">
           <p className="text-xs text-white/50">
             Over: <span className="text-white/70">{room.current_over}</span>
@@ -36,7 +36,7 @@ export function RoomCard({ room }: RoomCardProps) {
 
       <div className="mt-3">
         <span className="inline-flex items-center px-3 py-1.5 bg-gold/10 text-gold text-xs font-semibold rounded-lg border border-gold/20 group-hover:bg-gold/20 transition">
-          {room.status === 'live' ? 'Join Room' : room.status === 'upcoming' ? 'View Details' : 'View Results'}
+          {room.status === 'locked' ? 'Join Room' : room.status === 'open' ? 'View Details' : 'View Results'}
         </span>
       </div>
     </Link>

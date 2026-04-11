@@ -68,7 +68,7 @@ export function MobileRoomView({ room, fanCount, lastUpdated: _lastUpdated, onRe
             </div>
 
             {/* Scorecard button */}
-            {(room.status === 'live' || room.status === 'completed') && (
+            {(room.status === 'locked' || room.status === 'closed') && (
               <div className="text-[11px] text-center py-2" style={{ color: 'var(--gold)' }}>
                 Tap "Chat & Team" for live chat, or "Game" for your fantasy XI
               </div>

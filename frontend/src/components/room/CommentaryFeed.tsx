@@ -83,11 +83,11 @@ export function CommentaryFeed({ room }: CommentaryFeedProps) {
       <div className="text-xs mb-1" style={{ color: 'var(--mu)' }}>
         {room.league || room.match_format}
       </div>
-      {room.status === 'live' ? (
+      {room.status === 'locked' ? (
         <div className="text-xs mt-4" style={{ color: 'var(--gold)' }}>
           Waiting for live commentary...
         </div>
-      ) : room.status === 'upcoming' ? (
+      ) : room.status === 'open' ? (
         <div className="text-xs mt-4" style={{ color: 'var(--mu)' }}>
           Commentary will appear when the match goes live.
         </div>

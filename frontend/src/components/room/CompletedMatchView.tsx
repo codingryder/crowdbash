@@ -46,7 +46,7 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
   useEffect(() => {
     // First try match_progress from room data
     const progress = room.match_progress || {};
-    if (progress.status === 'completed') {
+    if (progress.status === 'closed') {
       setDetails(progress as unknown as MatchDetails);
       setLoading(false);
       return;
@@ -57,7 +57,7 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
       try {
         const { data } = await api.get(`/api/rooms/${room.id}`);
         const mp = data.match_progress || {};
-        if (mp.status === 'completed') {
+        if (mp.status === 'closed') {
           setDetails(mp as MatchDetails);
         }
       } catch {

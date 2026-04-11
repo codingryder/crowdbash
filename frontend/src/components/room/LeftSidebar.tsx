@@ -64,14 +64,14 @@ export function LeftSidebar({ room, lastUpdated, onRefresh }: LeftSidebarProps) 
           <div className="flex justify-between py-2" style={{ borderBottom: '0.5px solid var(--b1)' }}>
             <span className="text-[11px]" style={{ color: 'var(--mu)' }}>Status</span>
             <span className="text-[11px] font-medium capitalize"
-              style={{ color: room.status === 'live' ? 'var(--green)' : room.status === 'completed' ? 'var(--mu)' : 'var(--gold)' }}>
+              style={{ color: room.status === 'locked' ? 'var(--green)' : room.status === 'closed' ? 'var(--mu)' : 'var(--gold)' }}>
               {room.status}
             </span>
           </div>
         </div>
 
         {/* Live match summary — current batters & bowlers */}
-        {room.status === 'live' && (currentBatting.length > 0 || currentBowling.length > 0) && (
+        {room.status === 'locked' && (currentBatting.length > 0 || currentBowling.length > 0) && (
           <div className="mb-4">
             <div className="text-[9px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>
               At the Crease
@@ -116,7 +116,7 @@ export function LeftSidebar({ room, lastUpdated, onRefresh }: LeftSidebarProps) 
         )}
 
         {/* Action buttons */}
-        {(room.status === 'live' || room.status === 'completed') && (
+        {(room.status === 'locked' || room.status === 'closed') && (
           <div className="space-y-2 mb-4">
             <button
               onClick={() => setShowScorecard(true)}
@@ -126,7 +126,7 @@ export function LeftSidebar({ room, lastUpdated, onRefresh }: LeftSidebarProps) 
               📋 View Scorecard
             </button>
 
-            {room.status === 'live' && onRefresh && (
+            {room.status === 'locked' && onRefresh && (
               <button
                 onClick={onRefresh}
                 className="w-full py-2 rounded-lg text-[11px] cursor-pointer border-none flex items-center justify-center gap-1.5"
@@ -136,7 +136,7 @@ export function LeftSidebar({ room, lastUpdated, onRefresh }: LeftSidebarProps) 
               </button>
             )}
 
-            {lastUpdated && room.status === 'live' && (
+            {lastUpdated && room.status === 'locked' && (
               <div className="text-[10px] text-center" style={{ color: 'var(--dm)' }}>
                 Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' })}
                 <span className="ml-1" style={{ color: 'var(--green)' }}>· Auto-refreshing</span>
@@ -146,7 +146,7 @@ export function LeftSidebar({ room, lastUpdated, onRefresh }: LeftSidebarProps) 
         )}
 
         {/* Upcoming info */}
-        {room.status === 'upcoming' && (
+        {room.status === 'open' && (
           <div className="rounded-xl p-3.5 text-center" style={{ background: 'var(--s2)', border: '0.5px solid var(--b1)' }}>
             <div className="text-2xl mb-2">{room.sport === 'football' ? '⚽' : '🏏'}</div>
             <div className="text-[12px] font-medium mb-1" style={{ color: 'var(--tx)' }}>Match hasn&apos;t started yet</div>

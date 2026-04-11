@@ -20,12 +20,12 @@ export function HomePage() {
     fetchData();
   }, []);
 
-  const upcoming = rooms.filter(r => r.status === 'upcoming').sort((a, b) => {
+  const upcoming = rooms.filter(r => r.status === 'open').sort((a, b) => {
     const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
     const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
     return da - db;
   });
-  const live = rooms.filter(r => r.status === 'live');
+  const live = rooms.filter(r => r.status === 'locked');
   const cricketUp = upcoming.filter(r => r.sport === 'cricket').slice(0, 3);
   const footballUp = upcoming.filter(r => r.sport === 'football').slice(0, 3);
 
@@ -207,7 +207,7 @@ function GameCard({ room }: { room: Room }) {
   const t2 = parts[1]?.trim() || 'TBD';
   const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
   const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const isLive = room.status === 'live';
+  const isLive = room.status === 'locked';
   const isCricket = room.sport === 'cricket';
 
   return (

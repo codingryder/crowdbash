@@ -72,7 +72,7 @@ export function LeaderboardPage() {
           {room ? (
             <>
               {room.match_name} &middot; {room.league || room.sport}
-              {room.status === 'live' && <span style={{ color: 'var(--red)', marginLeft: 8 }}>● LIVE</span>}
+              {room.status === 'locked' && <span style={{ color: 'var(--red)', marginLeft: 8 }}>● LIVE</span>}
             </>
           ) : roomId ? 'Loading...' : 'Select a room to view leaderboard'}
         </div>

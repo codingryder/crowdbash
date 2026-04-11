@@ -28,11 +28,11 @@ export function LeaguePage() {
     if (decodedLeague) fetchRooms();
   }, [decodedLeague]);
 
-  const liveRooms = rooms.filter((r) => r.status === 'live');
+  const liveRooms = rooms.filter((r) => r.status === 'locked');
 
   // Upcoming: soonest match first (ascending by date)
   const upcomingRooms = rooms
-    .filter((r) => r.status === 'upcoming')
+    .filter((r) => r.status === 'open')
     .sort((a, b) => {
       const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
       const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
@@ -41,7 +41,7 @@ export function LeaguePage() {
 
   // Completed: most recent first (descending by date)
   const completedRooms = rooms
-    .filter((r) => r.status === 'completed')
+    .filter((r) => r.status === 'closed')
     .sort((a, b) => {
       const da = a.match_date ? new Date(a.match_date).getTime() : 0;
       const db = b.match_date ? new Date(b.match_date).getTime() : 0;
@@ -149,7 +149,7 @@ export function LeaguePage() {
 }
 
 function MatchCard({ room }: { room: Room }) {
-  const isLive = room.status === 'live';
+  const isLive = room.status === 'locked';
 
   // Format progress
   let progressText = '';
