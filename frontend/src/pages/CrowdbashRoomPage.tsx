@@ -18,7 +18,7 @@ export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { room, loading } = useRoom(roomId);
   const { sendChat } = useWebSocket(roomId);
-  const { selectSquad, lockSquad, saveWeightages } = useGame(roomId);
+  const { joinGame, selectSquad, lockSquad, saveWeightages } = useGame(roomId);
   const { user, openAuthModal } = useAuth();
   const fanCount = useRoomStore((s) => s.fanCount);
   const score = useRoomStore((s) => s.score);
@@ -192,7 +192,9 @@ export function CrowdbashRoomPage() {
                     Build XI →
                   </button>
                 ) : (
-                  <span className="text-[11px]" style={{ color: 'var(--muted)' }}>Join game to play</span>
+                  <button onClick={joinGame} className="text-[11px] font-semibold rounded-full px-3 py-1.5 border-none cursor-pointer" style={{ background: 'var(--green)', color: '#071a0e' }}>
+                    Join Game
+                  </button>
                 )}
                 {lastUpdated && (
                   <span className="text-[9px]" style={{ color: 'var(--muted)' }}>
