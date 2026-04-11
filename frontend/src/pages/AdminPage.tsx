@@ -1,9 +1,24 @@
 import { useState, useEffect } from 'react';
-import { useAdminStore, type UpcomingMatch } from '../store/adminStore';
+import { useAdminStore } from '../store/adminStore';
+import api from '../lib/api';
+
+interface AvailableMatch {
+  match_id: string;
+  match_name: string;
+  sport: 'cricket' | 'football';
+  league: string;
+  match_format: string;
+  venue: string;
+  match_date: string;
+  status: string;
+  team1: { name: string; score: string };
+  team2: { name: string; score: string };
+  match_status_text: string;
+}
 
 export function AdminPage() {
-  const { isLoggedIn, login, logout, rooms, loading, fetchRooms, createRoom, updateStatus, deleteRoom, fetchMatches, matchSuggestions, fetchingMatches } = useAdminStore();
-  const [tab, setTab] = useState<'rooms' | 'create' | 'fetch'>('rooms');
+  const { isLoggedIn, login, logout, rooms, loading, fetchRooms, createRoom, updateStatus, deleteRoom } = useAdminStore();
+  const [tab, setTab] = useState<'rooms' | 'create'>('rooms');
 
   // Login form state
   const [username, setUsername] = useState('');
@@ -15,23 +30,37 @@ export function AdminPage() {
   const [filterSport, setFilterSport] = useState('');
   const [filterStatus, setFilterStatus] = useState('');
 
-  // Create form
-  const [form, setForm] = useState({
-    sport: 'cricket',
-    match_name: '',
-    match_format: '',
-    venue: '',
-    league: '',
-    season: '',
-    match_date: '',
-    match_id: '',
-  });
+  // Create room — match selector
+  const [availableMatches, setAvailableMatches] = useState<AvailableMatch[]>([]);
+  const [matchesLoading, setMatchesLoading] = useState(false);
+  const [selectedMatch, setSelectedMatch] = useState<AvailableMatch | null>(null);
   const [creating, setCreating] = useState(false);
   const [createMsg, setCreateMsg] = useState('');
+  const [sportFilter, setSportFilter] = useState<'all' | 'cricket' | 'football'>('all');
 
   useEffect(() => {
     if (isLoggedIn) fetchRooms(filterSport || undefined, filterStatus || undefined);
   }, [isLoggedIn, filterSport, filterStatus, fetchRooms]);
+
+  // Fetch available matches when Create Room tab is opened
+  useEffect(() => {
+    if (tab === 'create' && availableMatches.length === 0) {
+      fetchAvailableMatches();
+    }
+  }, [tab]);
+
+  const fetchAvailableMatches = async () => {
+    setMatchesLoading(true);
+    try {
+      const { data } = await api.get('/api/matches/live');
+      const all = [...(data.live || []), ...(data.upcoming || [])];
+      setAvailableMatches(all);
+    } catch {
+      // ignore
+    } finally {
+      setMatchesLoading(false);
+    }
+  };
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -42,38 +71,36 @@ export function AdminPage() {
     setLoginLoading(false);
   };
 
-  const handleCreate = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!form.match_name.trim()) return;
+  const handleCreateRoom = async () => {
+    if (!selectedMatch) return;
     setCreating(true);
     setCreateMsg('');
     const result = await createRoom({
-      ...form,
-      match_date: form.match_date || undefined,
-      match_id: form.match_id || undefined,
+      sport: selectedMatch.sport,
+      match_name: selectedMatch.match_name,
+      match_format: selectedMatch.match_format,
+      venue: selectedMatch.venue,
+      league: selectedMatch.league,
+      season: '2026',
+      match_date: selectedMatch.match_date || undefined,
+      match_id: selectedMatch.match_id || undefined,
     });
     if (result) {
       setCreateMsg(`Room created: ${result.match_name}`);
-      setForm({ sport: 'cricket', match_name: '', match_format: '', venue: '', league: '', season: '', match_date: '', match_id: '' });
+      setSelectedMatch(null);
+      setTab('rooms');
     } else {
       setCreateMsg('Failed to create room');
     }
     setCreating(false);
   };
 
-  const fillFromSuggestion = (m: UpcomingMatch) => {
-    setForm({
-      sport: tab === 'fetch' ? form.sport : 'cricket',
-      match_name: m.match_name,
-      match_format: m.match_format,
-      venue: m.venue,
-      league: m.league,
-      season: m.season,
-      match_date: m.match_date ? m.match_date.replace('Z', '').slice(0, 16) : '',
-      match_id: m.match_id || '',
-    });
-    setTab('create');
-  };
+  const filteredAvailable = sportFilter === 'all'
+    ? availableMatches
+    : availableMatches.filter(m => m.sport === sportFilter);
+
+  const liveAvailable = filteredAvailable.filter(m => m.status === 'live');
+  const upcomingAvailable = filteredAvailable.filter(m => m.status === 'upcoming' || m.status === 'pre');
 
   // ─── NOT LOGGED IN ───
   if (!isLoggedIn) {
@@ -82,15 +109,11 @@ export function AdminPage() {
         <form onSubmit={handleLogin} style={{ width: 380, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 36 }}>
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 24, fontWeight: 900, marginBottom: 6 }}>Admin Panel</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 28 }}>Login to manage rooms and matches</div>
-
           {loginError && <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--red)', marginBottom: 16 }}>{loginError}</div>}
-
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 }}>Username</label>
           <input value={username} onChange={e => setUsername(e.target.value)} style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 14, color: 'var(--text)', marginBottom: 16, outline: 'none', boxSizing: 'border-box' }} />
-
           <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 }}>Password</label>
           <input type="password" value={password} onChange={e => setPassword(e.target.value)} style={{ width: '100%', background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '10px 14px', fontSize: 14, color: 'var(--text)', marginBottom: 24, outline: 'none', boxSizing: 'border-box' }} />
-
           <button type="submit" disabled={loginLoading} className="btn btn-primary" style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 700 }}>
             {loginLoading ? 'Logging in...' : 'Login'}
           </button>
@@ -107,7 +130,7 @@ export function AdminPage() {
         <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 28 }}>
           <div>
             <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900 }}>Admin Panel</div>
-            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Manage rooms, create matches, control status</div>
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Manage game rooms</div>
           </div>
           <button onClick={logout} style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 'var(--radius-sm)', padding: '8px 18px', fontSize: 13, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
             Logout
@@ -116,17 +139,24 @@ export function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 24 }}>
-          {(['rooms', 'create', 'fetch'] as const).map(t => (
+          {(['rooms', 'create'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif",
               background: tab === t ? 'var(--surface3)' : 'transparent',
               color: tab === t ? 'var(--text)' : 'var(--muted)',
-              border: 'none', borderRadius: 7, cursor: 'pointer', textTransform: 'capitalize',
+              border: 'none', borderRadius: 7, cursor: 'pointer',
             }}>
-              {t === 'rooms' ? 'All Rooms' : t === 'create' ? 'Create Room' : 'Fetch Matches'}
+              {t === 'rooms' ? 'All Rooms' : 'Create Room'}
             </button>
           ))}
         </div>
+
+        {/* Success/error msg */}
+        {createMsg && (
+          <div style={{ background: createMsg.includes('Failed') ? 'rgba(240,82,82,0.1)' : 'rgba(45,214,122,0.1)', border: '1px solid ' + (createMsg.includes('Failed') ? 'rgba(240,82,82,0.3)' : 'rgba(45,214,122,0.3)'), borderRadius: 8, padding: '10px 14px', fontSize: 13, color: createMsg.includes('Failed') ? 'var(--red)' : 'var(--green)', marginBottom: 16 }}>
+            {createMsg}
+          </div>
+        )}
 
         {/* ═══ TAB: ALL ROOMS ═══ */}
         {tab === 'rooms' && (
@@ -158,7 +188,14 @@ export function AdminPage() {
             {loading ? (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading rooms...</div>
             ) : rooms.length === 0 ? (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>No rooms found</div>
+              <div style={{ padding: 40, textAlign: 'center' }}>
+                <div className="text-3xl mb-3">📋</div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>No rooms created yet</div>
+                <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 16 }}>Go to the "Create Room" tab to create your first game room</div>
+                <button onClick={() => setTab('create')} className="btn btn-primary" style={{ padding: '8px 20px', fontSize: 13 }}>
+                  Create Room
+                </button>
+              </div>
             ) : (
               <div style={{ overflowX: 'auto' }}>
                 <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
@@ -181,9 +218,7 @@ export function AdminPage() {
                         <td style={{ padding: '12px', color: 'var(--text2)' }}>{r.league || '—'}</td>
                         <td style={{ padding: '12px', color: 'var(--muted)' }}>{r.match_format || '—'}</td>
                         <td style={{ padding: '12px', color: 'var(--muted)', fontSize: 12 }}>{r.match_date ? new Date(r.match_date).toLocaleString() : '—'}</td>
-                        <td style={{ padding: '12px' }}>
-                          <StatusBadge status={r.status} />
-                        </td>
+                        <td style={{ padding: '12px' }}><StatusBadge status={r.status} /></td>
                         <td style={{ padding: '12px', color: 'var(--text2)' }}>{r.fan_count}</td>
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', gap: 4 }}>
@@ -211,119 +246,109 @@ export function AdminPage() {
                     ))}
                   </tbody>
                 </table>
+                <div style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>
+                  {rooms.length} room{rooms.length !== 1 ? 's' : ''} total
+                </div>
               </div>
             )}
-            <div style={{ marginTop: 12, fontSize: 12, color: 'var(--muted)' }}>
-              {rooms.length} room{rooms.length !== 1 ? 's' : ''} total
-            </div>
           </div>
         )}
 
         {/* ═══ TAB: CREATE ROOM ═══ */}
         {tab === 'create' && (
-          <form onSubmit={handleCreate} style={{ maxWidth: 560, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 28 }}>
-            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 20 }}>Create a new room</div>
-
-            {createMsg && (
-              <div style={{ background: createMsg.includes('Failed') ? 'rgba(240,82,82,0.1)' : 'rgba(45,214,122,0.1)', border: '1px solid ' + (createMsg.includes('Failed') ? 'rgba(240,82,82,0.3)' : 'rgba(45,214,122,0.3)'), borderRadius: 8, padding: '10px 14px', fontSize: 13, color: createMsg.includes('Failed') ? 'var(--red)' : 'var(--green)', marginBottom: 16 }}>
-                {createMsg}
-              </div>
-            )}
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginBottom: 14 }}>
-              <FieldGroup label="Sport">
-                <select value={form.sport} onChange={e => setForm({ ...form, sport: e.target.value })} style={selectStyle}>
-                  <option value="cricket">Cricket</option>
-                  <option value="football">Football</option>
-                </select>
-              </FieldGroup>
-              <FieldGroup label="Format">
-                <input value={form.match_format} onChange={e => setForm({ ...form, match_format: e.target.value })} placeholder="T20, ODI, League..." style={inputStyle} />
-              </FieldGroup>
-            </div>
-
-            <FieldGroup label="Match name *">
-              <input value={form.match_name} onChange={e => setForm({ ...form, match_name: e.target.value })} placeholder="Team A vs Team B" style={inputStyle} required />
-            </FieldGroup>
-
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 14, marginTop: 14 }}>
-              <FieldGroup label="League">
-                <input value={form.league} onChange={e => setForm({ ...form, league: e.target.value })} placeholder="IPL, EPL..." style={inputStyle} />
-              </FieldGroup>
-              <FieldGroup label="Season">
-                <input value={form.season} onChange={e => setForm({ ...form, season: e.target.value })} placeholder="2026" style={inputStyle} />
-              </FieldGroup>
-            </div>
-
-            <FieldGroup label="Venue" style={{ marginTop: 14 }}>
-              <input value={form.venue} onChange={e => setForm({ ...form, venue: e.target.value })} placeholder="Stadium, City" style={inputStyle} />
-            </FieldGroup>
-
-            <FieldGroup label="Match date & time" style={{ marginTop: 14 }}>
-              <input type="datetime-local" value={form.match_date} onChange={e => setForm({ ...form, match_date: e.target.value })} style={inputStyle} />
-            </FieldGroup>
-
-            <button type="submit" disabled={creating} className="btn btn-primary" style={{ width: '100%', padding: '12px 0', fontSize: 14, fontWeight: 700, marginTop: 22 }}>
-              {creating ? 'Creating...' : 'Create Room'}
-            </button>
-          </form>
-        )}
-
-        {/* ═══ TAB: FETCH MATCHES ═══ */}
-        {tab === 'fetch' && (
           <div>
-            <div style={{ display: 'flex', gap: 10, marginBottom: 24 }}>
-              <button onClick={() => { setForm(f => ({ ...f, sport: 'cricket' })); fetchMatches('cricket'); }} disabled={fetchingMatches} style={{ padding: '12px 24px', fontSize: 14, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif", borderRadius: 'var(--radius-sm)', background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer' }}>
-                {fetchingMatches ? '...' : '🏏 Fetch Cricket Matches'}
-              </button>
-              <button onClick={() => { setForm(f => ({ ...f, sport: 'football' })); fetchMatches('football'); }} disabled={fetchingMatches} style={{ padding: '12px 24px', fontSize: 14, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif", borderRadius: 'var(--radius-sm)', background: 'rgba(59,130,246,0.1)', color: 'var(--blue)', border: '1px solid rgba(59,130,246,0.3)', cursor: 'pointer' }}>
-                {fetchingMatches ? '...' : '⚽ Fetch Football Matches'}
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>
+                Select a match to create a room
+              </div>
+              <button onClick={fetchAvailableMatches} disabled={matchesLoading} style={{ padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                {matchesLoading ? 'Loading...' : 'Refresh'}
               </button>
             </div>
 
-            {fetchingMatches && (
+            {/* Sport filter */}
+            <div style={{ display: 'flex', gap: 6, marginBottom: 16 }}>
+              {(['all', 'cricket', 'football'] as const).map(s => (
+                <button key={s} onClick={() => setSportFilter(s)} style={{
+                  padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 20,
+                  background: sportFilter === s ? 'var(--green)' : 'var(--surface2)',
+                  color: sportFilter === s ? '#071a0e' : 'var(--text2)',
+                  border: '1px solid ' + (sportFilter === s ? 'var(--green)' : 'var(--border)'), cursor: 'pointer',
+                }}>
+                  {s === 'all' ? 'All' : s === 'cricket' ? '🏏 Cricket' : '⚽ Football'}
+                </button>
+              ))}
+            </div>
+
+            {matchesLoading && (
+              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>Loading matches from APIs...</div>
+            )}
+
+            {!matchesLoading && filteredAvailable.length === 0 && (
               <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-                Fetching upcoming matches from APIs... (this may take 10-15 seconds)
+                No matches available right now. Try refreshing or check back during match hours.
               </div>
             )}
 
-            {!fetchingMatches && matchSuggestions.length === 0 && (
-              <div style={{ padding: 40, textAlign: 'center', color: 'var(--muted)' }}>
-                Click a button above to fetch upcoming matches (CricketData / Football-Data / Gemini)
-              </div>
+            {/* Live matches */}
+            {!matchesLoading && liveAvailable.length > 0 && (
+              <>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 10 }}>
+                  <span style={{ color: '#ef4444' }}>●</span> LIVE MATCHES
+                </div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10, marginBottom: 24 }}>
+                  {liveAvailable.map(m => (
+                    <MatchSelectCard
+                      key={m.match_id}
+                      match={m}
+                      selected={selectedMatch?.match_id === m.match_id}
+                      onSelect={() => setSelectedMatch(selectedMatch?.match_id === m.match_id ? null : m)}
+                    />
+                  ))}
+                </div>
+              </>
             )}
 
-            {matchSuggestions.length > 0 && (
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(320px, 1fr))', gap: 12 }}>
-                {matchSuggestions.map((m, i) => (
-                  <div key={i} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 20 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 6 }}>
-                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, flex: 1 }}>{m.match_name}</div>
-                      {m.source && (
-                        <span style={{
-                          fontSize: 9, fontWeight: 700, letterSpacing: '0.5px', padding: '2px 7px', borderRadius: 4,
-                          background: m.source === 'gemini' ? 'rgba(139,92,246,0.1)' : 'rgba(45,214,122,0.1)',
-                          color: m.source === 'gemini' ? 'var(--purple)' : 'var(--green)',
-                          border: `1px solid ${m.source === 'gemini' ? 'rgba(139,92,246,0.3)' : 'rgba(45,214,122,0.3)'}`,
-                          textTransform: 'uppercase',
-                        }}>
-                          {m.source}
-                        </span>
-                      )}
+            {/* Upcoming matches */}
+            {!matchesLoading && upcomingAvailable.length > 0 && (
+              <>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 10 }}>UPCOMING MATCHES</div>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(300px, 1fr))', gap: 10, marginBottom: 24 }}>
+                  {upcomingAvailable.map(m => (
+                    <MatchSelectCard
+                      key={m.match_id}
+                      match={m}
+                      selected={selectedMatch?.match_id === m.match_id}
+                      onSelect={() => setSelectedMatch(selectedMatch?.match_id === m.match_id ? null : m)}
+                    />
+                  ))}
+                </div>
+              </>
+            )}
+
+            {/* Confirm creation */}
+            {selectedMatch && (
+              <div style={{
+                position: 'sticky', bottom: 0, left: 0, right: 0,
+                background: 'var(--bg)', borderTop: '1px solid var(--border)',
+                padding: '16px 0', marginTop: 8,
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 16 }}>
+                  <div style={{ flex: 1 }}>
+                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800 }}>
+                      {selectedMatch.match_name}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 4 }}>
-                      {m.league} {m.match_format ? `\u00b7 ${m.match_format}` : ''}
+                    <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+                      {selectedMatch.league} · {selectedMatch.match_format} · {selectedMatch.match_date ? new Date(selectedMatch.match_date).toLocaleString() : 'TBD'}
                     </div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>{m.venue}</div>
-                    <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 4 }}>
-                      {m.match_date ? new Date(m.match_date).toLocaleString() : 'TBD'}
-                    </div>
-                    {m.match_id && <div style={{ fontSize: 10, color: 'var(--muted)', marginBottom: 10, fontFamily: 'monospace' }}>ID: {m.match_id}</div>}
-                    <button onClick={() => fillFromSuggestion(m)} style={{ padding: '8px 18px', fontSize: 12, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif", borderRadius: 7, background: 'var(--green)', color: '#071a0e', border: 'none', cursor: 'pointer' }}>
-                      + Create Room
-                    </button>
                   </div>
-                ))}
+                  <button onClick={() => setSelectedMatch(null)} style={{ padding: '8px 16px', fontSize: 12, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                    Cancel
+                  </button>
+                  <button onClick={handleCreateRoom} disabled={creating} className="btn btn-primary" style={{ padding: '10px 28px', fontSize: 14, fontWeight: 700 }}>
+                    {creating ? 'Creating...' : 'Create Room'}
+                  </button>
+                </div>
               </div>
             )}
           </div>
@@ -333,8 +358,65 @@ export function AdminPage() {
   );
 }
 
-/* ─── Helpers ─── */
 
+/* ─── Match Select Card ─── */
+function MatchSelectCard({ match, selected, onSelect }: { match: AvailableMatch; selected: boolean; onSelect: () => void }) {
+  const t1 = match.team1?.name || 'TBD';
+  const t2 = match.team2?.name || 'TBD';
+  const isLive = match.status === 'live';
+  const isCricket = match.sport === 'cricket';
+
+  return (
+    <div
+      onClick={onSelect}
+      className="cursor-pointer transition-all"
+      style={{
+        background: selected ? 'rgba(45,214,122,0.06)' : 'var(--surface)',
+        border: selected ? '2px solid var(--green)' : '1px solid var(--border)',
+        borderRadius: 12,
+        padding: '14px 16px',
+      }}
+    >
+      <div className="flex items-center justify-between mb-2">
+        <div className="flex items-center gap-2">
+          {isLive ? (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 8px', borderRadius: 4, background: 'rgba(240,82,82,0.1)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.3)' }}>● LIVE</span>
+          ) : (
+            <span style={{ fontSize: 10, color: 'var(--amber)', fontWeight: 600 }}>
+              {match.match_date ? new Date(match.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'TBD'}
+            </span>
+          )}
+        </div>
+        <span style={{ fontSize: 9, fontWeight: 700, padding: '2px 7px', borderRadius: 4, color: isCricket ? 'var(--amber)' : 'var(--blue)', background: isCricket ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)' }}>
+          {isCricket ? '🏏' : '⚽'} {(match.match_format || '').slice(0, 14)}
+        </span>
+      </div>
+
+      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 2 }}>
+        {t1} <span style={{ color: 'var(--faint)', fontWeight: 400, fontSize: 12 }}>vs</span> {t2}
+      </div>
+
+      <div style={{ fontSize: 11, color: 'var(--muted)' }}>
+        {match.league || ''}
+      </div>
+
+      {isLive && match.team1?.score && (
+        <div style={{ fontSize: 11, color: 'var(--green)', marginTop: 4, fontWeight: 600 }}>
+          {match.team1.score} — {match.team2?.score || ''}
+        </div>
+      )}
+
+      {selected && (
+        <div style={{ marginTop: 8, fontSize: 11, fontWeight: 700, color: 'var(--green)' }}>
+          ✓ Selected — click "Create Room" below
+        </div>
+      )}
+    </div>
+  );
+}
+
+
+/* ─── Helpers ─── */
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { bg: string; color: string; border: string }> = {
     live: { bg: 'rgba(240,82,82,0.1)', color: 'var(--red)', border: 'rgba(240,82,82,0.3)' },
@@ -348,30 +430,3 @@ function StatusBadge({ status }: { status: string }) {
     </span>
   );
 }
-
-function FieldGroup({ label, children, style }: { label: string; children: React.ReactNode; style?: React.CSSProperties }) {
-  return (
-    <div style={style}>
-      <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: 'var(--text2)', marginBottom: 6 }}>{label}</label>
-      {children}
-    </div>
-  );
-}
-
-const inputStyle: React.CSSProperties = {
-  width: '100%',
-  background: 'var(--surface2)',
-  border: '1px solid var(--border)',
-  borderRadius: 'var(--radius-sm)',
-  padding: '10px 14px',
-  fontSize: 14,
-  color: 'var(--text)',
-  outline: 'none',
-  boxSizing: 'border-box',
-};
-
-const selectStyle: React.CSSProperties = {
-  ...inputStyle,
-  appearance: 'none',
-  cursor: 'pointer',
-};
