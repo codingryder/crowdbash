@@ -92,7 +92,7 @@ async def create_room(
         sport=body.sport,
         league=body.league,
         season=body.season,
-        status="upcoming",
+        status="open",
         match_date=match_date_parsed,
         admin_created=True,
     )
@@ -153,7 +153,7 @@ async def update_room_status(
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     room.status = body.status
-    if body.status == "completed":
+    if body.status == "closed":
         room.completed_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(room.id), "status": room.status}

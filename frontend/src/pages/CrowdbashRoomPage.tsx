@@ -38,7 +38,7 @@ export function CrowdbashRoomPage() {
 
   // Fetch score on mount + poll
   useEffect(() => {
-    if (!roomId || !room || room.status !== 'live') return;
+    if (!roomId || !room || room.status !== 'locked') return;
     async function fetchScore() {
       try {
         const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
@@ -52,7 +52,7 @@ export function CrowdbashRoomPage() {
 
   if (loading) return <div className="flex items-center justify-center" style={{ height: '100vh', paddingTop: 60 }}><div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--muted)' }}>Loading room...</div></div>;
   if (!room) return <div className="flex items-center justify-center" style={{ height: '100vh', paddingTop: 60 }}><div className="text-center"><div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, color: 'var(--muted)', marginBottom: 8 }}>Room not found</div><Link to="/" className="text-[13px] no-underline" style={{ color: 'var(--green)' }}>Back to home</Link></div></div>;
-  if (room.status === 'completed') return <CompletedMatchView room={room} />;
+  if (room.status === 'closed') return <CompletedMatchView room={room} />;
 
   if (!user) return (
     <div className="flex items-center justify-center" style={{ height: '100vh', paddingTop: 60 }}>
@@ -110,7 +110,7 @@ export function CrowdbashRoomPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {room.status === 'live' && <span className="badge badge-live"><span className="animate-pulse-slow">●</span> LIVE</span>}
+                  {room.status === 'locked' && <span className="badge badge-live"><span className="animate-pulse-slow">●</span> LOCKED</span>}
                   {!game?.match_started && game && (
                     <button onClick={() => setShowTeamBuilder(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit squad</button>
                   )}

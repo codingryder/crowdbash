@@ -91,7 +91,7 @@ async def score_poller():
         try:
             async with AsyncSessionLocal() as db:
                 result = await db.execute(
-                    select(Room).where(Room.status == "live")
+                    select(Room).where(Room.status == "locked")
                 )
                 live_rooms = result.scalars().all()
 
@@ -114,7 +114,7 @@ async def score_poller():
                         if espn_status and espn_status.get("is_finished"):
                             print(f"ESPN: {room.match_name} is FINISHED")
                             from datetime import datetime as _dt, timezone as _tz
-                            room.status = "completed"
+                            room.status = "closed"
                             room.completed_at = _dt.now(_tz.utc)
                             # Fetch final score for summary
                             final_data = await adapter.get_match_score(room.match_id)
@@ -122,14 +122,14 @@ async def score_poller():
                                 try:
                                     room.match_progress = adapter.format_match_summary(final_data, room.match_name)
                                 except Exception:
-                                    room.match_progress = {"status": "completed"}
+                                    room.match_progress = {"status": "closed"}
                                 await calculate_and_update_points(db, str(room.id), room.match_id, final_data, room.sport)
                                 await room_manager.broadcast(str(room.id), {
                                     "type": "score_update",
                                     "payload": {"sport": room.sport, "data": final_data}
                                 })
                             else:
-                                room.match_progress = {"status": "completed"}
+                                room.match_progress = {"status": "closed"}
                             continue
                     except Exception as e:
                         print(f"ESPN check error for {room.match_name}: {e}")
@@ -155,7 +155,7 @@ async def score_poller():
                     # Check if match has finished via adapter (CricketData/Football-Data source)
                     match_finished = adapter.is_match_finished(match_data)
                     if match_finished:
-                        room.status = "completed"
+                        room.status = "closed"
                         from datetime import datetime, timezone
                         room.completed_at = datetime.now(timezone.utc)
                         try:
@@ -163,7 +163,7 @@ async def score_poller():
                             room.match_progress = summary
                         except Exception as e:
                             print(f"Failed to format summary for {room.match_name}: {e}")
-                            room.match_progress = {"status": "completed"}
+                            room.match_progress = {"status": "closed"}
                         await room_manager.broadcast(str(room.id), {
                             "type": "score_update",
                             "payload": {"sport": room.sport, "data": match_data}
@@ -218,9 +218,9 @@ async def score_poller():
 
 async def room_sync():
     """
-    Simple room status management. No external API calls.
-    - Sets upcoming rooms to 'live' when match_date is within 30 min of now
-    - Relies on auto_complete_past_matches for marking finished
+    Auto-lock open rooms when match starts.
+    - Locks 'open' rooms when match_date is reached or ESPN says match is live
+    - Closes rooms when ESPN says match is finished
     """
     from sqlalchemy import select
     from app.models.room import Room
@@ -231,52 +231,52 @@ async def room_sync():
         try:
             async with AsyncSessionLocal() as db:
                 now = datetime.now(timezone.utc)
-                # Activate rooms whose match_date is within 30 min from now
-                upcoming = await db.execute(
+                # Auto-lock open rooms whose match_date is within 30 min from now
+                open_rooms = await db.execute(
                     select(Room).where(
-                        Room.status == "upcoming",
+                        Room.status == "open",
                         Room.match_date != None,
                         Room.match_date <= now + timedelta(minutes=30),
                         Room.match_date >= now - timedelta(hours=4),
                     )
                 )
-                activated = 0
-                completed_early = 0
-                for room in upcoming.scalars().all():
-                    # Verify with ESPN before activating
+                locked = 0
+                closed_early = 0
+                for room in open_rooms.scalars().all():
+                    # Verify with ESPN before locking
                     try:
                         from app.services.espn_service import get_espn_match_status
                         espn = await get_espn_match_status(room.match_name, room.sport, room.league or "")
                         if espn:
                             if espn.get("is_finished"):
-                                room.status = "completed"
+                                room.status = "closed"
                                 room.completed_at = now
-                                completed_early += 1
+                                closed_early += 1
                                 continue
                             elif espn.get("is_live"):
-                                room.status = "live"
-                                activated += 1
+                                room.status = "locked"
+                                locked += 1
                                 continue
                     except Exception:
                         pass
-                    # Default: time-based activation
-                    room.status = "live"
-                    activated += 1
+                    # Default: time-based lock
+                    room.status = "locked"
+                    locked += 1
 
-                if activated or completed_early:
+                if locked or closed_early:
                     await db.commit()
-                    if activated:
-                        print(f"Room sync: activated {activated} rooms to live")
-                    if completed_early:
-                        print(f"Room sync: completed {completed_early} rooms (ESPN says finished)")
+                    if locked:
+                        print(f"Room sync: locked {locked} rooms (match started)")
+                    if closed_early:
+                        print(f"Room sync: closed {closed_early} rooms (ESPN says finished)")
         except Exception as e:
             print(f"Room sync error: {e}")
 
 
-async def auto_complete_past_matches():
+async def auto_close_past_rooms():
     """
-    Auto-complete matches whose date has passed.
-    Runs every 10 minutes. Marks 'upcoming' rooms as 'completed'
+    Auto-close rooms whose match date has long passed.
+    Runs every 10 minutes. Closes 'open' or 'locked' rooms
     if their match_date is more than 4 hours in the past.
     """
     from sqlalchemy import select
@@ -290,14 +290,14 @@ async def auto_complete_past_matches():
                 cutoff = datetime.now(timezone.utc) - timedelta(hours=4)
                 result = await db.execute(
                     select(Room).where(
-                        Room.status == "upcoming",
+                        Room.status.in_(["open", "locked"]),
                         Room.match_date != None,
                         Room.match_date < cutoff,
                     )
                 )
                 stale_rooms = result.scalars().all()
                 for room in stale_rooms:
-                    room.status = "completed"
+                    room.status = "closed"
                     room.completed_at = datetime.now(timezone.utc)
 
                 if stale_rooms:
@@ -332,5 +332,5 @@ async def startup():
 
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
-    asyncio.create_task(auto_complete_past_matches())
+    asyncio.create_task(auto_close_past_rooms())
     asyncio.create_task(keep_alive())

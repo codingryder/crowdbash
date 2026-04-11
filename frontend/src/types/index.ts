@@ -15,7 +15,7 @@ export interface Room {
   match_name: string;
   match_format: string;
   venue: string;
-  status: 'upcoming' | 'live' | 'completed';
+  status: 'open' | 'locked' | 'closed';
   current_over: number;
   fan_count: number;
   sport: Sport;

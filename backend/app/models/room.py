@@ -13,7 +13,7 @@ class Room(Base):
     match_name = Column(String(200), nullable=False)
     match_format = Column(String(100))
     venue = Column(String(200))
-    status = Column(String(20), default="upcoming")
+    status = Column(String(20), default="open")
     current_over = Column(Numeric(4, 1), default=0)
     fan_count = Column(Integer, default=0)
     sport = Column(String(20), nullable=False, default="cricket")

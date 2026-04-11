@@ -111,8 +111,8 @@ export function GamesPage() {
     return dateKey;
   };
 
-  const liveRooms = filteredRooms.filter(r => r.status === 'live');
-  const upcomingRooms = filteredRooms.filter(r => r.status === 'upcoming').sort((a, b) => {
+  const liveRooms = filteredRooms.filter(r => r.status === 'locked');
+  const upcomingRooms = filteredRooms.filter(r => r.status === 'open').sort((a, b) => {
     const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
     const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
     return da - db;
@@ -283,7 +283,7 @@ export function GamesPage() {
             {!roomsLoading && liveRooms.length > 0 && (
               <>
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>
-                  <span className="animate-pulse-slow" style={{ color: '#ef4444' }}>●</span> LIVE ROOMS
+                  <span className="animate-pulse-slow" style={{ color: '#ef4444' }}>●</span> LOCKED — MATCH IN PROGRESS
                 </div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
                   {liveRooms.map(r => <RoomCard key={r.id} room={r} />)}
@@ -293,7 +293,7 @@ export function GamesPage() {
 
             {!roomsLoading && upcomingRooms.length > 0 && (
               <>
-                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>UPCOMING ROOMS</div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>OPEN ROOMS — JOIN & BUILD YOUR TEAM</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
                   {upcomingRooms.map(r => <RoomCard key={r.id} room={r} />)}
                 </div>
@@ -397,15 +397,18 @@ function RoomCard({ room }: { room: Room }) {
   const t2 = parts[1]?.trim() || 'TBD';
   const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
   const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const isLive = room.status === 'live';
+  const isLocked = room.status === 'locked';
+  const isOpen = room.status === 'open';
   const isCricket = room.sport === 'cricket';
 
   return (
     <Link to={`/room/${room.id}`} className="block no-underline transition-all hover:-translate-y-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>
       <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid var(--border)' }}>
         <div className="flex items-center justify-between mb-3">
-          {isLive ? (
-            <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>
+          {isLocked ? (
+            <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LOCKED</span>
+          ) : isOpen ? (
+            <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 10px', borderRadius: 5, background: 'rgba(45,214,122,0.1)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.3)' }}>OPEN</span>
           ) : (
             <span className="badge badge-amber" style={{ fontSize: 10 }}>{formatMatchDate(room.match_date)}</span>
           )}
@@ -430,7 +433,7 @@ function RoomCard({ room }: { room: Room }) {
         <div className="flex items-center gap-2">
           <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: 'var(--green)', background: 'rgba(45,214,122,0.08)', borderRadius: 6, padding: '3px 9px' }}>Free</span>
           <span className="btn btn-primary" style={{ padding: '6px 16px', fontSize: 12, borderRadius: 7 }}>
-            {isLive ? 'Join' : 'Play'}
+            {isLocked ? 'View' : 'Join'}
           </span>
         </div>
       </div>

@@ -121,7 +121,7 @@ async def select_squad(
     # Check room status — player changes only before match
     room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
     room = room_result.scalar_one_or_none()
-    if room and room.status == "live":
+    if room and room.status == "locked":
         raise HTTPException(status_code=400, detail="Match has started. Player changes are no longer allowed.")
 
     game_result = await db.execute(
@@ -219,7 +219,7 @@ async def get_game_state(
     weightages = wt_result.scalars().all()
 
     # Determine if editing is allowed
-    match_started = room and room.status == "live"
+    match_started = room and room.status == "locked"
     can_edit_players = not match_started and not game.squad_locked
     can_edit_weightages = not match_started or False  # During match: only in edit window (handled by frontend)
 

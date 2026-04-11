@@ -173,7 +173,7 @@ export function AdminPage() {
                 </button>
               ))}
               <div style={{ width: 1, height: 28, background: 'var(--border)', margin: '0 4px' }} />
-              {['', 'live', 'upcoming', 'completed'].map(s => (
+              {['', 'open', 'locked', 'closed'].map(s => (
                 <button key={s} onClick={() => setFilterStatus(s)} style={{
                   padding: '6px 16px', fontSize: 12, fontWeight: 600, borderRadius: 20,
                   background: filterStatus === s ? 'var(--surface3)' : 'var(--surface2)',
@@ -222,19 +222,19 @@ export function AdminPage() {
                         <td style={{ padding: '12px', color: 'var(--text2)' }}>{r.fan_count}</td>
                         <td style={{ padding: '12px' }}>
                           <div style={{ display: 'flex', gap: 4 }}>
-                            {r.status === 'upcoming' && (
-                              <button onClick={() => updateStatus(r.id, 'live')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(45,214,122,0.1)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.3)', cursor: 'pointer' }}>
-                                Go Live
+                            {r.status === 'open' && (
+                              <button onClick={() => updateStatus(r.id, 'locked')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.3)', cursor: 'pointer' }}>
+                                Lock
                               </button>
                             )}
-                            {r.status === 'live' && (
-                              <button onClick={() => updateStatus(r.id, 'completed')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(139,92,246,0.1)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)', cursor: 'pointer' }}>
-                                Complete
+                            {r.status === 'locked' && (
+                              <button onClick={() => updateStatus(r.id, 'closed')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(139,92,246,0.1)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)', cursor: 'pointer' }}>
+                                Close
                               </button>
                             )}
-                            {r.status === 'completed' && (
-                              <button onClick={() => updateStatus(r.id, 'upcoming')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
-                                Reset
+                            {r.status === 'closed' && (
+                              <button onClick={() => updateStatus(r.id, 'open')} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                                Reopen
                               </button>
                             )}
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
@@ -419,14 +419,14 @@ function MatchSelectCard({ match, selected, onSelect }: { match: AvailableMatch;
 /* ─── Helpers ─── */
 function StatusBadge({ status }: { status: string }) {
   const colors: Record<string, { bg: string; color: string; border: string }> = {
-    live: { bg: 'rgba(240,82,82,0.1)', color: 'var(--red)', border: 'rgba(240,82,82,0.3)' },
-    upcoming: { bg: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: 'rgba(245,158,11,0.3)' },
-    completed: { bg: 'rgba(139,92,246,0.1)', color: 'var(--purple)', border: 'rgba(139,92,246,0.3)' },
+    open: { bg: 'rgba(45,214,122,0.1)', color: 'var(--green)', border: 'rgba(45,214,122,0.3)' },
+    locked: { bg: 'rgba(245,158,11,0.1)', color: 'var(--amber)', border: 'rgba(245,158,11,0.3)' },
+    closed: { bg: 'rgba(139,92,246,0.1)', color: 'var(--purple)', border: 'rgba(139,92,246,0.3)' },
   };
-  const c = colors[status] || colors.upcoming;
+  const c = colors[status] || colors.open;
   return (
     <span style={{ fontSize: 11, fontWeight: 700, padding: '3px 10px', borderRadius: 5, background: c.bg, color: c.color, border: `1px solid ${c.border}`, textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-      {status === 'live' && '● '}{status}
+      {status === 'locked' && '🔒 '}{status}
     </span>
   );
 }
