@@ -27,6 +27,14 @@ export interface Room {
   completed_at?: string;
 }
 
+/** Split match name into two team names. Handles "vs", "v", "VS" separators. */
+export function splitTeams(matchName: string): [string, string] {
+  // Try " vs " first, then " v "
+  let parts = matchName.split(/ vs /i);
+  if (parts.length < 2) parts = matchName.split(/ v /i);
+  return [parts[0]?.trim() || 'TBD', parts[1]?.trim() || 'TBD'];
+}
+
 /** Format a date string for display. */
 export function formatMatchDate(dateStr?: string | null, options?: { showTime?: boolean }): string {
   if (!dateStr) return '';

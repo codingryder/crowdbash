@@ -12,6 +12,7 @@ import { PaymentGate } from '../components/auth/PaymentGate';
 import { ChatPanel, ChatInput } from '../components/room/ChatPanel';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
+import { splitTeams } from '../types';
 
 export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -69,9 +70,7 @@ export function CrowdbashRoomPage() {
 
   // Parse score
   const scoreData = score as CricketScoreData | null;
-  const parts = room.match_name.split(' vs ');
-  const t1 = parts[0]?.trim() || 'Team 1';
-  const t2 = parts[1]?.trim() || 'Team 2';
+  const [t1, t2] = splitTeams(room.match_name);
   const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
   const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
 

@@ -1,5 +1,6 @@
 import { useRoomStore } from '../../store/roomStore';
 import type { Room, CricketScoreData, FootballScoreData } from '../../types';
+import { splitTeams } from '../../types';
 
 interface Props {
   room: Room;
@@ -12,9 +13,9 @@ export function MatchHeader({ room }: Props) {
 }
 
 function CricketHeader({ room, score }: { room: Room; score: CricketScoreData | null }) {
-  const parts = room.match_name.split(' vs ');
-  const t1 = score?.team1?.name || parts[0]?.trim() || 'TBD';
-  const t2 = score?.team2?.name || parts[1]?.trim() || 'TBD';
+  const [t1Fallback, t2Fallback] = splitTeams(room.match_name);
+  const t1 = score?.team1?.name || t1Fallback;
+  const t2 = score?.team2?.name || t2Fallback;
   const s1 = score?.team1?.score || '—';
   const o1 = score?.team1?.overs ? `${score.team1.overs} ov` : '—';
   const s2 = score?.team2?.score || '—';
@@ -47,9 +48,9 @@ function CricketHeader({ room, score }: { room: Room; score: CricketScoreData | 
 }
 
 function FootballHeader({ room, score }: { room: Room; score: FootballScoreData | null }) {
-  const parts = room.match_name.split(' vs ');
-  const home = score?.home?.name || parts[0]?.trim() || 'Home';
-  const away = score?.away?.name || parts[1]?.trim() || 'Away';
+  const [homeFallback, awayFallback] = splitTeams(room.match_name);
+  const home = score?.home?.name || homeFallback;
+  const away = score?.away?.name || awayFallback;
   const hg = score?.home?.goals ?? '—';
   const ag = score?.away?.goals ?? '—';
   const mp = room.match_progress || {};
