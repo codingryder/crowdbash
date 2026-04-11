@@ -7,33 +7,28 @@ import json
 import asyncio
 
 _model = None
-_model_grounded = None
+_genai = None
+
+
+def _init_genai():
+    global _genai
+    if _genai is None:
+        if not settings.GEMINI_API_KEY:
+            return None
+        import google.generativeai as genai
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        _genai = genai
+    return _genai
 
 
 def _get_model():
     global _model
     if _model is None:
-        if not settings.GEMINI_API_KEY:
+        genai = _init_genai()
+        if not genai:
             return None
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
         _model = genai.GenerativeModel("gemini-2.5-flash")
     return _model
-
-
-def _get_grounded_model():
-    """Get Gemini model with Google Search grounding enabled for real-time data."""
-    global _model_grounded
-    if _model_grounded is None:
-        if not settings.GEMINI_API_KEY:
-            return None
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        _model_grounded = genai.GenerativeModel(
-            "gemini-2.5-flash",
-            tools="google_search_retrieval",
-        )
-    return _model_grounded
 
 
 def _parse_json_response(text: str) -> dict | list | None:
@@ -48,13 +43,23 @@ def _parse_json_response(text: str) -> dict | list | None:
 
 
 async def _ask_gemini(prompt: str, grounded: bool = False) -> dict | None:
-    """Send prompt to Gemini and parse JSON response."""
-    model = _get_grounded_model() if grounded else _get_model()
+    """Send prompt to Gemini and parse JSON response.
+    When grounded=True, uses Google Search grounding for real-time data.
+    """
+    model = _get_model()
     if not model:
         return None
 
     try:
-        response = await asyncio.to_thread(model.generate_content, prompt)
+        if grounded:
+            # Pass google_search_retrieval as tool to generate_content for real-time data
+            response = await asyncio.to_thread(
+                model.generate_content, prompt,
+                tools="google_search_retrieval",
+            )
+        else:
+            response = await asyncio.to_thread(model.generate_content, prompt)
+
         if not response or not response.text:
             print(f"Gemini returned empty response (grounded={grounded})")
             return None
