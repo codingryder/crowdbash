@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.websocket import room_manager
 from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, cricket
-from app.api.routes import sports, admin
+from app.api.routes import sports, admin, matches
 from app.services.game_service import calculate_and_update_points
 from app.services.sport_service import get_adapter
 from app.core.database import AsyncSessionLocal
@@ -30,6 +30,7 @@ app.include_router(payments.router, prefix="/api/payments", tags=["payments"])
 app.include_router(cricket.router, prefix="/api/cricket", tags=["cricket"])
 app.include_router(sports.router, prefix="/api/sports", tags=["sports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
+app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
 
 
 @app.get("/health")

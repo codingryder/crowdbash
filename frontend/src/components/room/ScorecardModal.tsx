@@ -2,7 +2,11 @@ import { useState, useEffect } from 'react';
 import api from '../../lib/api';
 
 interface ScorecardModalProps {
-  roomId: string;
+  /** Provide roomId for room-based scorecard */
+  roomId?: string;
+  /** Provide sport + matchId for direct API scorecard (Live Matches) */
+  sport?: string;
+  matchId?: string;
   roomName: string;
   onClose: () => void;
 }
@@ -32,7 +36,7 @@ interface InningsData {
   bowling: BowlerRow[];
 }
 
-export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProps) {
+export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: ScorecardModalProps) {
   const [innings, setInnings] = useState<InningsData[]>([]);
   const [loading, setLoading] = useState(true);
   const [activeInnings, setActiveInnings] = useState(0);
@@ -45,7 +49,15 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
   useEffect(() => {
     async function fetchScorecard() {
       try {
-        const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
+        let url: string;
+        if (roomId) {
+          url = `/api/rooms/scorecard/${roomId}`;
+        } else if (sport && matchId) {
+          url = `/api/matches/scorecard/${sport}/${matchId}`;
+        } else {
+          return;
+        }
+        const { data } = await api.get(url);
         if (data.scorecard?.innings) {
           setInnings(data.scorecard.innings);
         }
@@ -63,7 +75,7 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
       }
     }
     fetchScorecard();
-  }, [roomId]);
+  }, [roomId, sport, matchId]);
 
   return (
     <div
@@ -73,36 +85,36 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
     >
       <div
         className="rounded-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col"
-        style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
-        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '0.5px solid var(--b1)' }}>
+        <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <div>
-            <div className="font-syne text-lg font-bold" style={{ color: 'var(--gold)' }}>Scorecard</div>
-            <div className="text-[12px]" style={{ color: 'var(--mu)' }}>{roomName}</div>
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>Scorecard</div>
+            <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{roomName}</div>
           </div>
-          <button onClick={onClose} className="text-lg cursor-pointer bg-transparent border-none" style={{ color: 'var(--mu)' }}>✕</button>
+          <button onClick={onClose} className="text-lg cursor-pointer bg-transparent border-none" style={{ color: 'var(--muted)' }}>✕</button>
         </div>
 
         {loading ? (
-          <div className="p-8 text-center" style={{ color: 'var(--mu)' }}>Loading scorecard...</div>
+          <div className="p-8 text-center" style={{ color: 'var(--muted)' }}>Loading scorecard...</div>
         ) : innings.length === 0 ? (
-          <div className="p-8 text-center" style={{ color: 'var(--mu)' }}>Scorecard not available yet</div>
+          <div className="p-8 text-center" style={{ color: 'var(--muted)' }}>Scorecard not available yet</div>
         ) : (
           <>
             {/* Innings tabs */}
-            <div className="flex px-4 shrink-0" style={{ borderBottom: '0.5px solid var(--b1)' }}>
+            <div className="flex px-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
               {innings.map((inn, i) => (
                 <button
                   key={i}
                   onClick={() => setActiveInnings(i)}
                   className="px-4 py-2.5 text-[12px] relative bg-transparent border-none cursor-pointer"
-                  style={{ color: activeInnings === i ? 'var(--gold)' : 'var(--mu)', fontFamily: "'DM Sans', sans-serif" }}
+                  style={{ color: activeInnings === i ? 'var(--green)' : 'var(--muted)', fontFamily: "'DM Sans', sans-serif" }}
                 >
                   {inn.name.length > 25 ? inn.name.slice(0, 25) + '...' : inn.name}
                   {activeInnings === i && (
-                    <span className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] rounded" style={{ background: 'var(--gold)' }} />
+                    <span className="absolute bottom-0 left-[10%] right-[10%] h-[1.5px] rounded" style={{ background: 'var(--green)' }} />
                   )}
                 </button>
               ))}
@@ -112,18 +124,18 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
             <div className="flex-1 overflow-y-auto px-5 py-4">
               {/* Team scores summary */}
               {(teamScores.team1 || teamScores.team2) && (
-                <div className="flex items-center justify-between mb-4 px-2 py-3 rounded-lg" style={{ background: 'var(--s2)' }}>
+                <div className="flex items-center justify-between mb-4 px-3 py-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
                   <div>
-                    <div className="text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{teamScores.team1?.name}</div>
-                    <div className="font-syne text-lg font-bold" style={{ color: 'var(--gold)' }}>
-                      {teamScores.team1?.score || '—'} <span className="text-[10px] font-normal" style={{ color: 'var(--mu)' }}>({teamScores.team1?.overs || '—'} ov)</span>
+                    <div className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>{teamScores.team1?.name}</div>
+                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>
+                      {teamScores.team1?.score || '—'} <span className="text-[10px] font-normal" style={{ color: 'var(--muted)' }}>({teamScores.team1?.overs || '—'} ov)</span>
                     </div>
                   </div>
-                  <div className="text-[11px]" style={{ color: 'var(--dm)' }}>vs</div>
+                  <div className="text-[11px]" style={{ color: 'var(--faint)' }}>vs</div>
                   <div className="text-right">
-                    <div className="text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{teamScores.team2?.name}</div>
-                    <div className="font-syne text-lg font-bold" style={{ color: 'var(--gold)' }}>
-                      {teamScores.team2?.score || '—'} <span className="text-[10px] font-normal" style={{ color: 'var(--mu)' }}>({teamScores.team2?.overs || '—'} ov)</span>
+                    <div className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>{teamScores.team2?.name}</div>
+                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, color: 'var(--text)' }}>
+                      {teamScores.team2?.score || '—'} <span className="text-[10px] font-normal" style={{ color: 'var(--muted)' }}>({teamScores.team2?.overs || '—'} ov)</span>
                     </div>
                   </div>
                 </div>
@@ -135,71 +147,71 @@ export function ScorecardModal({ roomId, roomName, onClose }: ScorecardModalProp
               {innings[activeInnings] && (
                 <>
                   {/* Batting */}
-                  <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>Batting</div>
+                  <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--muted)' }}>Batting</div>
                   <table className="w-full mb-6" style={{ borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ borderBottom: '0.5px solid var(--b1)' }}>
-                        <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--mu)' }}>Batter</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>R</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>B</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>4s</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>6s</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>SR</th>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--muted)' }}>Batter</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>R</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>B</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>4s</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>6s</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>SR</th>
                       </tr>
                     </thead>
                     <tbody>
                       {innings[activeInnings].batting.map((b, i) => (
-                        <tr key={i} style={{ borderBottom: '0.5px solid var(--b1)' }}>
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                           <td className="py-2">
-                            <div className="text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{b.name}</div>
+                            <div className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>{b.name}</div>
                             {b.dismissal && b.dismissal !== 'not out' && b.dismissal !== 'batting' && (
-                              <div className="text-[10px]" style={{ color: 'var(--dm)' }}>{b.dismissal}</div>
+                              <div className="text-[10px]" style={{ color: 'var(--faint)' }}>{b.dismissal}</div>
                             )}
                             {(!b.dismissal || b.dismissal === 'not out' || b.dismissal === 'batting') && (
                               <div className="text-[10px]" style={{ color: 'var(--green)' }}>not out</div>
                             )}
                           </td>
-                          <td className="text-right px-2 font-syne text-[13px] font-bold" style={{ color: 'var(--gold)' }}>{b.runs}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--mu)' }}>{b.balls}</td>
+                          <td className="text-right px-2 text-[13px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--text)' }}>{b.runs}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.balls}</td>
                           <td className="text-right px-2 text-[12px]" style={{ color: 'var(--blue)' }}>{b.fours}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--gold)' }}>{b.sixes}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--mu)' }}>{b.sr}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--amber)' }}>{b.sixes}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.sr}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
                   {/* Bowling */}
-                  <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--mu)' }}>Bowling</div>
+                  <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--muted)' }}>Bowling</div>
                   <table className="w-full" style={{ borderCollapse: 'collapse' }}>
                     <thead>
-                      <tr style={{ borderBottom: '0.5px solid var(--b1)' }}>
-                        <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--mu)' }}>Bowler</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>O</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>M</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>R</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>W</th>
-                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--mu)' }}>Econ</th>
+                      <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                        <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--muted)' }}>Bowler</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>O</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>M</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>R</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>W</th>
+                        <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>Econ</th>
                       </tr>
                     </thead>
                     <tbody>
                       {innings[activeInnings].bowling.map((b, i) => (
-                        <tr key={i} style={{ borderBottom: '0.5px solid var(--b1)' }}>
-                          <td className="py-2 text-[12px] font-medium" style={{ color: 'var(--tx)' }}>{b.name}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--mu)' }}>{b.overs}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--mu)' }}>{b.maidens}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--mu)' }}>{b.runs}</td>
-                          <td className="text-right px-2 font-syne text-[13px] font-bold" style={{ color: 'var(--green)' }}>{b.wickets}</td>
-                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--mu)' }}>{b.economy}</td>
+                        <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                          <td className="py-2 text-[12px] font-medium" style={{ color: 'var(--text)' }}>{b.name}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.overs}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.maidens}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.runs}</td>
+                          <td className="text-right px-2 text-[13px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--green)' }}>{b.wickets}</td>
+                          <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.economy}</td>
                         </tr>
                       ))}
                     </tbody>
                   </table>
 
                   {/* Live match note */}
-                  <div className="text-center mt-4 py-3 rounded-lg" style={{ background: 'var(--s2)' }}>
-                    <div className="text-[11px]" style={{ color: 'var(--mu)' }}>
-                      📡 Live scorecard — updates as players bat and bowl
+                  <div className="text-center mt-4 py-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
+                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                      Live scorecard — updates as players bat and bowl
                     </div>
                   </div>
                 </>
