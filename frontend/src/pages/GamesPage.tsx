@@ -174,9 +174,9 @@ export function GamesPage() {
             {!matchesLoading && filteredUpcomingMatches.length > 0 && (
               <>
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>UPCOMING</div>
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
-                  {filteredUpcomingMatches.map(m => (
-                    <MatchCard key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
+                <div className="flex flex-col gap-1.5 mb-10" style={{ maxWidth: 680 }}>
+                  {filteredUpcomingMatches.slice(0, 12).map(m => (
+                    <UpcomingRow key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
                   ))}
                 </div>
               </>
@@ -358,5 +358,51 @@ function RoomCard({ room }: { room: Room }) {
         </div>
       </div>
     </Link>
+  );
+}
+
+
+/* ── Upcoming Row (compact list item for upcoming matches) ── */
+function UpcomingRow({ match, onClick }: { match: LiveMatch; onClick: () => void }) {
+  const t1 = match.team1.name || 'TBD';
+  const t2 = match.team2.name || 'TBD';
+  const isCricket = match.sport === 'cricket';
+
+  // Truncate league name
+  const league = match.league || '';
+  const shortLeague = league.length > 16 ? league.slice(0, 16) + '…' : league;
+
+  return (
+    <div
+      onClick={onClick}
+      className="flex items-center gap-3 cursor-pointer transition-all hover:translate-x-1"
+      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}
+    >
+      {/* Time */}
+      <div className="shrink-0 text-center" style={{ width: 52 }}>
+        <div className="text-[11px] font-bold" style={{ color: 'var(--amber)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>
+          {formatMatchDate(match.match_date, { showTime: true }).split(', ')[0]}
+        </div>
+        <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
+          {formatMatchDate(match.match_date, { showTime: true }).split(', ')[1] || ''}
+        </div>
+      </div>
+
+      {/* Divider */}
+      <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
+
+      {/* Teams */}
+      <div className="flex-1 min-w-0">
+        <div className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>
+          {t1} <span style={{ color: 'var(--faint)', fontSize: 11, fontWeight: 400 }}>vs</span> {t2}
+        </div>
+        <div className="text-[10px] truncate" style={{ color: 'var(--muted)' }}>
+          {isCricket ? '🏏' : '⚽'} {shortLeague}{match.match_format && match.match_format !== league ? ` · ${match.match_format}` : ''}
+        </div>
+      </div>
+
+      {/* Arrow */}
+      <div className="shrink-0 text-[11px]" style={{ color: 'var(--faint)' }}>→</div>
+    </div>
   );
 }
