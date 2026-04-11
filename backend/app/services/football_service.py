@@ -21,21 +21,44 @@ class FootballAdapter(SportAdapter):
         self._current_match_name = match_name
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
+        """Get live + upcoming football matches."""
         cached = await redis_get_json("football:live_matches")
         if cached:
             return cached
 
-        # Try Football-Data.org first
+        all_matches = []
+        seen_ids = set()
+
+        # Layer 1: Live matches (IN_PLAY, PAUSED)
         try:
             from app.services.footballdata_service import get_matches
-            matches = await get_matches(status="IN_PLAY,PAUSED")
-            if matches:
-                await redis_set_json("football:live_matches", matches, ex=60)
-                return matches
+            live = await get_matches(status="IN_PLAY,PAUSED")
+            if live:
+                for m in live:
+                    mid = str(m.get("id", ""))
+                    if mid not in seen_ids:
+                        seen_ids.add(mid)
+                        all_matches.append(m)
         except Exception as e:
             print(f"Football-Data.org live_matches error: {e}")
 
-        return []
+        # Layer 2: Upcoming matches (next 3 days)
+        try:
+            from app.services.footballdata_service import get_upcoming_matches
+            upcoming = await get_upcoming_matches(days=3)
+            if upcoming:
+                for m in upcoming:
+                    mid = str(m.get("id", ""))
+                    if mid not in seen_ids:
+                        seen_ids.add(mid)
+                        all_matches.append(m)
+        except Exception as e:
+            print(f"Football-Data.org upcoming_matches error: {e}")
+
+        if all_matches:
+            await redis_set_json("football:live_matches", all_matches, ex=120)
+
+        return all_matches
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
         """Get match score: Football-Data.org → Gemini fallback."""
