@@ -162,6 +162,77 @@ If you don't know the squad, return []"""
     return None
 
 
+async def fetch_live_matches_via_gemini(sport: str = "cricket") -> list | None:
+    """Ask Gemini for currently live + today's upcoming matches."""
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"gemini:live_matches:{sport}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    from datetime import datetime, timezone
+    now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if sport == "cricket":
+        prompt = f"""Right now it is {now}. List ALL cricket matches that are:
+1. Currently LIVE (in progress right now)
+2. Scheduled for today (not yet started)
+
+Include: IPL 2026, international ODIs/T20Is/Tests, PSL, BBL, CPL, The Hundred, SA20, and other major leagues.
+Do NOT include: women's matches, U19, associate nations, county cricket, warm-ups.
+
+Return ONLY valid JSON array:
+[
+  {{
+    "id": "gemini_1",
+    "name": "Team A vs Team B, 25th Match",
+    "matchType": "t20",
+    "venue": "Stadium, City",
+    "dateTimeGMT": "2026-04-11T14:00:00Z",
+    "teams": ["Team A", "Team B"],
+    "t1": "Team A",
+    "t2": "Team B",
+    "series": "Indian Premier League 2026",
+    "ms": "live",
+    "matchStarted": true,
+    "matchEnded": false,
+    "status": "Team A 150/3 (15.2 ov)",
+    "score": [
+      {{"r": 150, "w": 3, "o": 15.2, "inning": "Team A Inning 1"}}
+    ]
+  }}
+]
+
+RULES:
+- "ms" must be "live" for matches in progress, "upcoming" for not started yet
+- For live matches, include current score in the "score" array and "status" field
+- For upcoming matches, set "score" to [] and "matchStarted" to false
+- Use real match data — do NOT invent matches
+- If no matches, return []"""
+    else:
+        return None
+
+    data = await _ask_gemini(prompt)
+    if data and isinstance(data, list):
+        # Normalize: ensure all entries have required fields
+        for m in data:
+            if "id" not in m:
+                m["id"] = f"gemini_{data.index(m)}"
+            if "ms" not in m:
+                m["ms"] = "upcoming"
+            if "score" not in m:
+                m["score"] = []
+            if "t1" not in m and "teams" in m and len(m["teams"]) > 0:
+                m["t1"] = m["teams"][0]
+            if "t2" not in m and "teams" in m and len(m["teams"]) > 1:
+                m["t2"] = m["teams"][1]
+            m["source"] = "gemini"
+        await redis_set_json(cache_key, data, ex=300)  # Cache 5 min
+        return data
+    return None
+
+
 async def fetch_upcoming_matches_via_gemini(sport: str = "cricket") -> list | None:
     """Ask Gemini for upcoming matches in the next 7 days."""
     from app.core.redis import redis_get_json, redis_set_json

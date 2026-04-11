@@ -12,12 +12,12 @@ class CricketAdapter(SportAdapter):
         self._current_match_name = match_name
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
-        """Get live matches: CricketData.org → fallback empty."""
+        """Get live matches: CricketData.org → Gemini fallback."""
         cached = await redis_get_json("cricket:live_matches")
         if cached:
             return cached
 
-        # Try CricketData.org first
+        # Layer 1: Try CricketData.org first
         try:
             from app.services.cricketdata_service import get_current_matches
             matches = await get_current_matches()
@@ -26,6 +26,17 @@ class CricketAdapter(SportAdapter):
                 return matches
         except Exception as e:
             print(f"CricketData live_matches error: {e}")
+
+        # Layer 2: Gemini fallback when CricketData is rate-limited
+        try:
+            from app.services.live_score_service import fetch_live_matches_via_gemini
+            gemini_matches = await fetch_live_matches_via_gemini("cricket")
+            if gemini_matches:
+                print(f"Cricket live matches from Gemini: {len(gemini_matches)} matches")
+                await redis_set_json("cricket:live_matches", gemini_matches, ex=300)
+                return gemini_matches
+        except Exception as e:
+            print(f"Gemini live_matches error: {e}")
 
         return []
 
