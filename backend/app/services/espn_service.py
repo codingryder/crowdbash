@@ -192,8 +192,10 @@ async def get_espn_live_cricket_matches() -> list:
     """
     Get all live + upcoming cricket matches from ESPN.
     Free, no auth, real-time data. Returns normalized match list.
+    Fetches today + next 3 days for upcoming matches.
     """
     from app.core.redis import redis_get_json, redis_set_json
+    from datetime import timedelta
 
     cache_key = "espn:cricket:all_live"
     cached = await redis_get_json(cache_key)
@@ -203,28 +205,34 @@ async def get_espn_live_cricket_matches() -> list:
     all_matches = []
     seen_ids = set()
 
-    # Fetch from each known series
-    for series_id, series_name in CRICKET_LIVE_SERIES.items():
-        try:
-            async with httpx.AsyncClient() as client:
-                res = await client.get(
-                    f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
-                    headers=HEADERS, timeout=10,
-                )
-                if res.status_code == 200:
-                    events = res.json().get("events", [])
-                    for event in events:
-                        eid = event.get("id", "")
-                        if eid in seen_ids:
-                            continue
-                        seen_ids.add(eid)
-                        match = _espn_event_to_match(event, series_name)
-                        if match:
-                            all_matches.append(match)
-        except Exception as e:
-            print(f"ESPN cricket series {series_id} error: {e}")
+    # Generate date strings for today + next 3 days
+    today = date.today()
+    dates_to_fetch = [(today + timedelta(days=d)).strftime("%Y%m%d") for d in range(4)]
 
-    # Also try the general cricket scoreboard
+    # Fetch from each known series, for each date
+    for series_id, series_name in CRICKET_LIVE_SERIES.items():
+        for date_str in dates_to_fetch:
+            try:
+                async with httpx.AsyncClient() as client:
+                    res = await client.get(
+                        f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
+                        params={"dates": date_str},
+                        headers=HEADERS, timeout=10,
+                    )
+                    if res.status_code == 200:
+                        events = res.json().get("events", [])
+                        for event in events:
+                            eid = event.get("id", "")
+                            if eid in seen_ids:
+                                continue
+                            seen_ids.add(eid)
+                            match = _espn_event_to_match(event, series_name)
+                            if match:
+                                all_matches.append(match)
+            except Exception as e:
+                print(f"ESPN cricket series {series_id} date {date_str} error: {e}")
+
+    # Also try the general cricket scoreboard (today only)
     try:
         async with httpx.AsyncClient() as client:
             res = await client.get(
