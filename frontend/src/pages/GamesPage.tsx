@@ -65,10 +65,51 @@ export function GamesPage() {
     fetchRooms();
   }, []);
 
+  const [leagueFilter, setLeagueFilter] = useState<string>('all');
+
   // Filter by selected sport from navbar tabs
   const filteredLiveMatches = liveMatches.filter(m => m.sport === sport);
   const filteredUpcomingMatches = upcomingMatches.filter(m => m.sport === sport);
   const filteredRooms = rooms.filter(r => r.sport === sport);
+
+  // Get unique leagues from upcoming matches
+  const upcomingLeagues = [...new Set(filteredUpcomingMatches.map(m => m.league).filter(Boolean))];
+
+  // Filter upcoming by league, cap 6 per league
+  const upcomingByLeague = (() => {
+    const matches = leagueFilter === 'all' ? filteredUpcomingMatches : filteredUpcomingMatches.filter(m => m.league === leagueFilter);
+    // Cap 6 per league
+    const leagueCounts: Record<string, number> = {};
+    return matches.filter(m => {
+      const lg = m.league || 'Other';
+      leagueCounts[lg] = (leagueCounts[lg] || 0) + 1;
+      return leagueCounts[lg] <= 6;
+    });
+  })();
+
+  // Group upcoming matches by date
+  const upcomingGrouped = (() => {
+    const groups: Record<string, LiveMatch[]> = {};
+    for (const m of upcomingByLeague) {
+      if (!m.match_date) continue;
+      const d = new Date(m.match_date);
+      const key = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+      if (!groups[key]) groups[key] = [];
+      groups[key].push(m);
+    }
+    return groups;
+  })();
+
+  // Date label helper
+  const getDateLabel = (dateKey: string): string => {
+    const today = new Date();
+    const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+    const todayStr = today.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    const tomorrowStr = tomorrow.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+    if (dateKey === todayStr) return 'Today';
+    if (dateKey === tomorrowStr) return 'Tomorrow';
+    return dateKey;
+  };
 
   const liveRooms = filteredRooms.filter(r => r.status === 'live');
   const upcomingRooms = filteredRooms.filter(r => r.status === 'upcoming').sort((a, b) => {
@@ -173,12 +214,48 @@ export function GamesPage() {
 
             {!matchesLoading && filteredUpcomingMatches.length > 0 && (
               <>
-                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>UPCOMING</div>
-                <div className="flex flex-col gap-1.5 mb-10" style={{ maxWidth: 680 }}>
-                  {filteredUpcomingMatches.slice(0, 12).map(m => (
-                    <UpcomingRow key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
-                  ))}
+                <div className="flex items-center justify-between mb-3">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)' }}>UPCOMING</div>
                 </div>
+
+                {/* League filter chips */}
+                {upcomingLeagues.length > 1 && (
+                  <div className="flex gap-1.5 mb-4 flex-wrap">
+                    <button
+                      onClick={() => setLeagueFilter('all')}
+                      className={`fchip ${leagueFilter === 'all' ? 'active' : ''}`}
+                      style={{ padding: '5px 14px', fontSize: 11 }}
+                    >
+                      All
+                    </button>
+                    {upcomingLeagues.map(lg => (
+                      <button
+                        key={lg}
+                        onClick={() => setLeagueFilter(lg)}
+                        className={`fchip ${leagueFilter === lg ? 'active' : ''}`}
+                        style={{ padding: '5px 14px', fontSize: 11 }}
+                      >
+                        {lg.length > 20 ? lg.slice(0, 20) + '…' : lg}
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                {/* Grouped by date */}
+                {Object.entries(upcomingGrouped).map(([dateKey, matches]) => (
+                  <div key={dateKey} className="mb-6">
+                    <div className="flex items-center gap-2 mb-3">
+                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{getDateLabel(dateKey)}</div>
+                      <div style={{ flex: 1, height: 1, background: 'var(--border)' }} />
+                      <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{matches.length} match{matches.length > 1 ? 'es' : ''}</div>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+                      {matches.map(m => (
+                        <MatchCard key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
+                      ))}
+                    </div>
+                  </div>
+                ))}
               </>
             )}
 
@@ -270,8 +347,8 @@ function MatchCard({ match, onClick }: { match: LiveMatch; onClick: () => void }
           ) : (
             <span className="badge badge-amber" style={{ fontSize: 10 }}>{formatMatchDate(match.match_date)}</span>
           )}
-          <span style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', fontFamily: "'Cabinet Grotesk', sans-serif", padding: '3px 8px', borderRadius: 4, color: isCricket ? 'var(--amber)' : 'var(--blue)', background: isCricket ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)' }}>
-            {isCricket ? '🏏' : '⚽'} {match.match_format || match.league || ''}
+          <span className="truncate" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', fontFamily: "'Cabinet Grotesk', sans-serif", padding: '3px 8px', borderRadius: 4, maxWidth: 140, color: isCricket ? 'var(--amber)' : 'var(--blue)', background: isCricket ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)' }}>
+            {isCricket ? '🏏' : '⚽'} {(match.match_format || match.league || '').slice(0, 18)}
           </span>
         </div>
 
@@ -362,47 +439,3 @@ function RoomCard({ room }: { room: Room }) {
 }
 
 
-/* ── Upcoming Row (compact list item for upcoming matches) ── */
-function UpcomingRow({ match, onClick }: { match: LiveMatch; onClick: () => void }) {
-  const t1 = match.team1.name || 'TBD';
-  const t2 = match.team2.name || 'TBD';
-  const isCricket = match.sport === 'cricket';
-
-  // Truncate league name
-  const league = match.league || '';
-  const shortLeague = league.length > 16 ? league.slice(0, 16) + '…' : league;
-
-  return (
-    <div
-      onClick={onClick}
-      className="flex items-center gap-3 cursor-pointer transition-all hover:translate-x-1"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '12px 16px' }}
-    >
-      {/* Time */}
-      <div className="shrink-0 text-center" style={{ width: 52 }}>
-        <div className="text-[11px] font-bold" style={{ color: 'var(--amber)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>
-          {formatMatchDate(match.match_date, { showTime: true }).split(', ')[0]}
-        </div>
-        <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
-          {formatMatchDate(match.match_date, { showTime: true }).split(', ')[1] || ''}
-        </div>
-      </div>
-
-      {/* Divider */}
-      <div style={{ width: 1, height: 28, background: 'var(--border)' }} />
-
-      {/* Teams */}
-      <div className="flex-1 min-w-0">
-        <div className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>
-          {t1} <span style={{ color: 'var(--faint)', fontSize: 11, fontWeight: 400 }}>vs</span> {t2}
-        </div>
-        <div className="text-[10px] truncate" style={{ color: 'var(--muted)' }}>
-          {isCricket ? '🏏' : '⚽'} {shortLeague}{match.match_format && match.match_format !== league ? ` · ${match.match_format}` : ''}
-        </div>
-      </div>
-
-      {/* Arrow */}
-      <div className="shrink-0 text-[11px]" style={{ color: 'var(--faint)' }}>→</div>
-    </div>
-  );
-}
