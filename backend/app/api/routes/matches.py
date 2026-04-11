@@ -186,7 +186,7 @@ Include: IPL 2026, international matches, and major T20 leagues.
 Return ONLY valid JSON array:
 [{{"id": "1", "name": "Team A vs Team B", "matchType": "t20", "t1": "Team A", "t2": "Team B", "series": "IPL 2026", "ms": "live", "status": "Team A 150/3", "score": [], "dateTimeGMT": "2026-04-11T14:00:00Z", "matchStarted": true, "matchEnded": false}}]
 If no matches, return []"""
-        raw = await _ask_gemini(prompt)
+        raw = await _ask_gemini(prompt, grounded=True)
         result["gemini_raw_type"] = type(raw).__name__ if raw else "None"
         result["gemini_raw_is_list"] = isinstance(raw, list)
         result["gemini_raw_count"] = len(raw) if isinstance(raw, list) else 0

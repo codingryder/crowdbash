@@ -7,6 +7,7 @@ import json
 import asyncio
 
 _model = None
+_model_grounded = None
 
 
 def _get_model():
@@ -20,30 +21,51 @@ def _get_model():
     return _model
 
 
-async def _ask_gemini(prompt: str) -> dict | None:
+def _get_grounded_model():
+    """Get Gemini model with Google Search grounding enabled for real-time data."""
+    global _model_grounded
+    if _model_grounded is None:
+        if not settings.GEMINI_API_KEY:
+            return None
+        import google.generativeai as genai
+        genai.configure(api_key=settings.GEMINI_API_KEY)
+        _model_grounded = genai.GenerativeModel(
+            "gemini-2.5-flash",
+            tools="google_search_retrieval",
+        )
+    return _model_grounded
+
+
+def _parse_json_response(text: str) -> dict | list | None:
+    """Parse JSON from Gemini response text, handling markdown fences."""
+    text = text.strip()
+    if text.startswith("```"):
+        text = text.split("```")[1]
+        if text.startswith("json"):
+            text = text[4:]
+    text = text.strip()
+    return json.loads(text)
+
+
+async def _ask_gemini(prompt: str, grounded: bool = False) -> dict | None:
     """Send prompt to Gemini and parse JSON response."""
-    model = _get_model()
+    model = _get_grounded_model() if grounded else _get_model()
     if not model:
         return None
 
     try:
         response = await asyncio.to_thread(model.generate_content, prompt)
         if not response or not response.text:
-            print("Gemini returned empty response")
+            print(f"Gemini returned empty response (grounded={grounded})")
             return None
-        text = response.text.strip()
-        if text.startswith("```"):
-            text = text.split("```")[1]
-            if text.startswith("json"):
-                text = text[4:]
-        text = text.strip()
-        data = json.loads(text)
-        if data.get("not_available"):
+        data = _parse_json_response(response.text)
+        if isinstance(data, dict) and data.get("not_available"):
             print("Gemini says data not available")
             return None
         return data
     except json.JSONDecodeError as e:
-        print(f"Gemini JSON parse error: {e} — raw: {text[:200] if 'text' in dir() else 'N/A'}")
+        raw = response.text[:300] if response and response.text else 'N/A'
+        print(f"Gemini JSON parse error: {e} — raw: {raw}")
         return None
     except Exception as e:
         print(f"Gemini error ({type(e).__name__}): {e}")
@@ -213,7 +235,7 @@ RULES:
     else:
         return None
 
-    data = await _ask_gemini(prompt)
+    data = await _ask_gemini(prompt, grounded=True)
     if data and isinstance(data, list):
         # Normalize: ensure all entries have required fields
         for m in data:
