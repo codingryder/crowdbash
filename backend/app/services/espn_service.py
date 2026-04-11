@@ -176,6 +176,156 @@ def _extract_status(event: dict) -> dict:
     }
 
 
+# ── Live matches listing from ESPN ──
+
+# All cricket series to check for live matches
+CRICKET_LIVE_SERIES = {
+    "8048": "Indian Premier League",
+    "8044": "ICC Champions Trophy",
+}
+
+# International cricket endpoint (covers Tests, ODIs, T20Is)
+ESPN_CRICKET_ALL = "https://site.web.api.espn.com/apis/site/v2/sports/cricket/scoreboard"
+
+
+async def get_espn_live_cricket_matches() -> list:
+    """
+    Get all live + upcoming cricket matches from ESPN.
+    Free, no auth, real-time data. Returns normalized match list.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = "espn:cricket:all_live"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    all_matches = []
+    seen_ids = set()
+
+    # Fetch from each known series
+    for series_id, series_name in CRICKET_LIVE_SERIES.items():
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
+                    headers=HEADERS, timeout=10,
+                )
+                if res.status_code == 200:
+                    events = res.json().get("events", [])
+                    for event in events:
+                        eid = event.get("id", "")
+                        if eid in seen_ids:
+                            continue
+                        seen_ids.add(eid)
+                        match = _espn_event_to_match(event, series_name)
+                        if match:
+                            all_matches.append(match)
+        except Exception as e:
+            print(f"ESPN cricket series {series_id} error: {e}")
+
+    # Also try the general cricket scoreboard
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                ESPN_CRICKET_ALL,
+                headers=HEADERS, timeout=10,
+            )
+            if res.status_code == 200:
+                events = res.json().get("events", [])
+                for event in events:
+                    eid = event.get("id", "")
+                    if eid in seen_ids:
+                        continue
+                    seen_ids.add(eid)
+                    match = _espn_event_to_match(event, "")
+                    if match:
+                        all_matches.append(match)
+    except Exception as e:
+        print(f"ESPN cricket general scoreboard error: {e}")
+
+    if all_matches:
+        await redis_set_json(cache_key, all_matches, ex=120)  # Cache 2 min
+
+    return all_matches
+
+
+def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
+    """Convert an ESPN event to our normalized match format."""
+    status_obj = event.get("status", {})
+    status_type = status_obj.get("type", {})
+    state = status_type.get("state", "pre")  # pre, in, post
+
+    # Skip finished matches
+    if state == "post":
+        return None
+
+    competitions = event.get("competitions", [])
+    if not competitions:
+        return None
+
+    comp = competitions[0]
+    competitors = comp.get("competitors", [])
+    if len(competitors) < 2:
+        return None
+
+    t1_data = competitors[0]
+    t2_data = competitors[1]
+    t1_name = t1_data.get("team", {}).get("displayName", "Team 1")
+    t2_name = t2_data.get("team", {}).get("displayName", "Team 2")
+
+    # Build scores from linescores
+    t1_score = ""
+    t2_score = ""
+    for team_data in competitors:
+        team_name = team_data.get("team", {}).get("displayName", "")
+        linescores = team_data.get("linescores", [])
+        if linescores:
+            parts = []
+            for ls in linescores:
+                runs = ls.get("runs", ls.get("value", 0))
+                wickets = ls.get("wickets", 0)
+                overs = ls.get("overs", 0)
+                parts.append(f"{runs}/{wickets} ({overs} ov)")
+            score_str = " & ".join(parts)
+            if team_name == t1_name:
+                t1_score = score_str
+            elif team_name == t2_name:
+                t2_score = score_str
+
+    # Determine series/league from event
+    league = series_name
+    if not league:
+        season = event.get("season", {})
+        league = season.get("type", {}).get("name", "")
+        if not league:
+            league = event.get("name", "").split(",")[0] if "," in event.get("name", "") else ""
+
+    match_format = comp.get("format", {}).get("name", "") or ""
+
+    ms = "live" if state == "in" else "upcoming"
+
+    return {
+        "id": f"espn_{event.get('id', '')}",
+        "name": event.get("name", f"{t1_name} vs {t2_name}"),
+        "matchType": match_format.lower() if match_format else "t20",
+        "venue": comp.get("venue", {}).get("fullName", ""),
+        "dateTimeGMT": event.get("date", ""),
+        "teams": [t1_name, t2_name],
+        "t1": t1_name,
+        "t2": t2_name,
+        "series": league,
+        "ms": ms,
+        "matchStarted": state == "in",
+        "matchEnded": False,
+        "status": status_obj.get("summary", status_type.get("description", "")),
+        "score": [],  # Raw score for compatibility
+        "team1_score": t1_score,
+        "team2_score": t2_score,
+        "source": "espn",
+    }
+
+
 # Legacy function for backward compatibility
 async def fetch_espn_match_by_name(match_name: str, series_id: str = "8048") -> Optional[dict]:
     """Find a specific cricket match by team names."""

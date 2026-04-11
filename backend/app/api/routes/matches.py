@@ -34,34 +34,31 @@ async def get_live_matches():
 
                     score_list = m.get("score", [])
 
-                    # Build score strings from score array
-                    team1_score = ""
-                    team2_score = ""
+                    # Build score strings — ESPN provides team1_score/team2_score directly
                     t1_name = m.get("t1", "")
                     t2_name = m.get("t2", "")
+                    team1_score = m.get("team1_score", "")
+                    team2_score = m.get("team2_score", "")
 
-                    if score_list:
+                    # CricketData uses score array instead
+                    if not team1_score and not team2_score and score_list:
                         for s in score_list:
                             inning = s.get("inning", "")
                             score_str = f"{s.get('r', 0)}/{s.get('w', 0)} ({s.get('o', 0)} ov)"
-                            # Match inning to team by checking team name in inning string
                             if t1_name and t1_name.lower() in inning.lower():
                                 team1_score = score_str
                             elif t2_name and t2_name.lower() in inning.lower():
                                 team2_score = score_str
                             else:
-                                # Fallback: first inning = team1, second = team2
                                 if not team1_score:
                                     team1_score = score_str
                                 elif not team2_score:
                                     team2_score = score_str
 
-                    # Use match name to extract league/series context
                     match_name = m.get("name", f"{t1_name} vs {t2_name}")
                     match_format = m.get("matchType", "")
-                    # series_id is often a numeric ID, not useful for display
-                    # Use matchType as the format label instead
-                    league_label = match_format.upper() if match_format else ""
+                    # ESPN provides series name, CricketData has series_id
+                    league_label = m.get("series", "") or (match_format.upper() if match_format else "")
 
                     entry = {
                         "match_id": m.get("id", ""),
