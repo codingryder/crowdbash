@@ -166,17 +166,34 @@ async def debug_cricket():
     result["gemini_live_matches_cached"] = cached_gemini is not None
     result["gemini_live_matches_count"] = len(cached_gemini) if cached_gemini else 0
 
-    # Try Gemini directly
+    # Try CricketData directly
     try:
-        from app.services.live_score_service import fetch_live_matches_via_gemini
-        gemini_data = await fetch_live_matches_via_gemini("cricket")
-        result["gemini_fallback_result"] = len(gemini_data) if gemini_data else 0
-        result["gemini_fallback_error"] = None
-        if gemini_data:
-            result["gemini_sample"] = gemini_data[0] if gemini_data else None
+        from app.services.cricketdata_service import get_current_matches
+        cd_data = await get_current_matches()
+        result["cricketdata_direct_result"] = len(cd_data) if cd_data else 0
+        result["cricketdata_direct_error"] = None
     except Exception as e:
-        result["gemini_fallback_result"] = 0
-        result["gemini_fallback_error"] = str(e)
+        result["cricketdata_direct_result"] = 0
+        result["cricketdata_direct_error"] = str(e)
+
+    # Try Gemini directly (bypass cache)
+    try:
+        from app.services.live_score_service import _ask_gemini
+        from datetime import datetime, timezone
+        now = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+        prompt = f"""Right now it is {now}. List ALL cricket matches that are currently LIVE or scheduled for today.
+Include: IPL 2026, international matches, and major T20 leagues.
+Return ONLY valid JSON array:
+[{{"id": "1", "name": "Team A vs Team B", "matchType": "t20", "t1": "Team A", "t2": "Team B", "series": "IPL 2026", "ms": "live", "status": "Team A 150/3", "score": [], "dateTimeGMT": "2026-04-11T14:00:00Z", "matchStarted": true, "matchEnded": false}}]
+If no matches, return []"""
+        raw = await _ask_gemini(prompt)
+        result["gemini_raw_type"] = type(raw).__name__ if raw else "None"
+        result["gemini_raw_is_list"] = isinstance(raw, list)
+        result["gemini_raw_count"] = len(raw) if isinstance(raw, list) else 0
+        result["gemini_raw_sample"] = raw[:2] if isinstance(raw, list) and raw else raw
+        result["gemini_raw_error"] = None
+    except Exception as e:
+        result["gemini_raw_error"] = str(e)
 
     return result
 
