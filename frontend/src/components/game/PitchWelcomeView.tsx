@@ -238,7 +238,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                     const isSel = selectedPlayer?.player_id === player.player_id;
                     const rcBg = getRoleBg(player.player_role);
                     const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-                    const lastName = player.player_name.split(' ').pop() || player.player_name;
+                    const fullName = player.player_name;
                     return (
                       <div key={player.player_id} onClick={() => !isPlaced && handleBenchClick(player)} style={{
                         display: 'flex', alignItems: 'center', gap: 6,
@@ -252,7 +252,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                       }}>
                         <div style={{ width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lastName}</div>
+                          <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fullName}</div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
                         </div>
                       </div>
