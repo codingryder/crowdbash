@@ -294,17 +294,57 @@ class CricketAdapter(SportAdapter):
 
     def extract_match_progress(self, match_data: dict) -> dict:
         score_arr = match_data.get("score", [])
+        innings = len(score_arr)  # Number of innings completed/in-progress
+        current_over = 0.0
         if score_arr:
-            return {"over": float(score_arr[-1].get("o", 0))}
-        return {"over": 0}
+            current_over = float(score_arr[-1].get("o", 0))
+        # Track total overs across innings for edit window calculation
+        # Innings 1: overs 0-20, Innings 2: conceptually overs 20-40
+        total_overs = 0.0
+        for i, s in enumerate(score_arr):
+            if i < len(score_arr) - 1:
+                total_overs += float(s.get("o", 0))  # completed innings
+            else:
+                total_overs += float(s.get("o", 0))  # current innings
+        return {
+            "over": current_over,
+            "innings": innings,
+            "total_overs": total_overs,
+        }
 
     def is_edit_window(self, current_progress: dict, last_edit_progress: dict) -> bool:
-        current_over = current_progress.get("over", 0)
-        last_over = last_edit_progress.get("over", 0)
-        return int(float(current_over) / 5) > int(float(last_over) / 5)
+        """
+        T20 reshuffle windows:
+        - 1st innings: after 5, 10, 15, 20 overs
+        - 2nd innings: after 5, 10, 15 overs
+        Triggers when we cross a 5-over boundary in either innings.
+        """
+        curr_innings = current_progress.get("innings", 1)
+        curr_over = float(current_progress.get("over", 0))
+        last_innings = last_edit_progress.get("innings", 1)
+        last_over = float(last_edit_progress.get("over", 0))
+
+        # New innings started (2nd innings just began at over 0)
+        if curr_innings > last_innings and curr_innings == 2 and curr_over < 1:
+            return False  # Don't trigger at start of 2nd innings
+
+        # Same innings: check 5-over boundary crossing
+        if curr_innings == last_innings:
+            curr_window = int(curr_over / 5)
+            last_window = int(last_over / 5)
+            return curr_window > last_window and curr_window > 0
+
+        # Different innings: if we jumped to innings 2, check 2nd innings windows
+        if curr_innings > last_innings:
+            curr_window = int(curr_over / 5)
+            return curr_window > 0
+
+        return False
 
     def get_edit_trigger(self, current_progress: dict) -> str:
-        return f"over_{int(float(current_progress.get('over', 0)))}"
+        innings = current_progress.get("innings", 1)
+        over = int(float(current_progress.get("over", 0)))
+        return f"inn{innings}_over_{over}"
 
     def format_match_summary(self, match_data: dict, room_name: str) -> dict:
         normalized = self.normalize_score(match_data, room_name)

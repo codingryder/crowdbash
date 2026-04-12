@@ -186,12 +186,12 @@ export function CrowdbashRoomPage() {
 
             {/* Edit window banner */}
             {editWindowOpen && (
-              <div className="flex items-center justify-between shrink-0" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '18px 24px 0' }}>
+              <div className="flex items-center justify-between shrink-0 animate-fadeup" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '12px 24px 0' }}>
                 <div className="flex items-center gap-3">
                   <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px]" style={{ background: 'rgba(139,92,246,0.12)' }}>🔄</div>
                   <div>
-                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Power reshuffle window</div>
-                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Redistribute your power · changes are blind</div>
+                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Power reshuffle window open!</div>
+                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>2 min to redistribute power · changes are blind · auto-locks when time is up</div>
                   </div>
                 </div>
                 <button onClick={() => setPitchView(true)} className="btn" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>

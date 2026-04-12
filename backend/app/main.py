@@ -211,17 +211,36 @@ async def score_poller():
                         if room.sport == "cricket":
                             room.current_over = new_progress.get("over", 0)
 
-                        # Check edit window
+                        # Check edit window (T20: after 5, 10, 15, 20 overs per innings)
                         if adapter.is_edit_window(new_progress, old_progress):
+                            trigger = adapter.get_edit_trigger(new_progress)
+                            innings = new_progress.get("innings", 1)
+                            over = int(float(new_progress.get("over", 0)))
+                            print(f"EDIT WINDOW OPEN: {room.match_name} — Inn {innings}, Over {over}")
                             await room_manager.broadcast(str(room.id), {
                                 "type": "edit_window",
                                 "payload": {
                                     "sport": room.sport,
                                     "progress": new_progress,
                                     "edit_window_open": True,
-                                    "trigger": adapter.get_edit_trigger(new_progress),
+                                    "trigger": trigger,
+                                    "innings": innings,
+                                    "over": over,
+                                    "duration_seconds": 120,
                                 }
                             })
+                            # Schedule auto-close after 2 minutes
+                            async def close_window(rid: str, trg: str):
+                                await asyncio.sleep(120)
+                                await room_manager.broadcast(rid, {
+                                    "type": "edit_window",
+                                    "payload": {
+                                        "edit_window_open": False,
+                                        "trigger": trg,
+                                    }
+                                })
+                                print(f"EDIT WINDOW CLOSED: {room.match_name} — {trg}")
+                            asyncio.create_task(close_window(str(room.id), trigger))
 
                 await db.commit()
         except Exception as e:
