@@ -103,13 +103,16 @@ export function CrowdbashRoomPage() {
   const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
   const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
 
-  const AV = [
-    { bg: 'rgba(45,214,122,0.12)', c: '#2dd67a' },
-    { bg: 'rgba(245,158,11,0.12)', c: '#f59e0b' },
-    { bg: 'rgba(139,92,246,0.12)', c: '#8b5cf6' },
-    { bg: 'rgba(59,130,246,0.12)', c: '#3b82f6' },
-    { bg: 'rgba(240,82,82,0.12)', c: '#f05252' },
-  ];
+  const isLive = room.status === 'locked';
+  const t1Score = scoreData?.team1?.score || (isLive ? '0/0' : '—');
+  const t2Score = scoreData?.team2?.score || '—';
+  const t1Overs = scoreData?.team1?.overs || (isLive ? '0.0' : '');
+  const t2Overs = scoreData?.team2?.overs || '';
+  const crr = scoreData?.current_rate || 0;
+
+  // Current batting/bowling from scorecard
+  const currentBatting = (scoreData as Record<string, unknown>)?.current_batting as Array<{ name: string; runs: number; balls: number }> | undefined;
+  const currentBowling = (scoreData as Record<string, unknown>)?.current_bowling as Array<{ name: string; wickets: number; runs: number; overs: string }> | undefined;
 
   return (
     <>
@@ -127,8 +130,9 @@ export function CrowdbashRoomPage() {
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 300px', overflow: 'hidden' }}>
           {/* ═══ LEFT: Main content ═══ */}
           <div className="flex flex-col overflow-hidden">
-            <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <div className="flex items-center justify-between mb-3.5">
+            {/* Header — match name + actions only (no scoreboard) */}
+            <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="flex items-center justify-between">
                 <div>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>{room.match_name}</div>
                   <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
@@ -136,47 +140,10 @@ export function CrowdbashRoomPage() {
                   </div>
                 </div>
                 <div className="flex items-center gap-2">
-                  {room.status === 'locked' && <span className="badge badge-live"><span className="animate-pulse-slow">●</span> LOCKED</span>}
+                  {isLive && <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>}
                   {canEditTeam && game && (
                     <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit squad</button>
                   )}
-                </div>
-              </div>
-
-              {/* Scoreboard */}
-              <div className="flex items-center justify-between rounded-[14px] px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                <div className="text-center flex-1">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--muted)', marginBottom: 3 }}>{a1}</div>
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, letterSpacing: '-1px' }}>
-                    {scoreData?.team1?.score || (room.status === 'locked' ? '0/0' : '—')}
-                  </div>
-                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>
-                    {scoreData?.team1?.overs ? `${scoreData.team1.overs} overs` : room.status === 'locked' ? '0.0 overs' : t1}
-                  </div>
-                </div>
-                <div className="text-center" style={{ padding: '0 16px' }}>
-                  {room.status === 'locked' ? (
-                    <>
-                      <div className="animate-pulse-slow" style={{ fontSize: 10, fontWeight: 700, color: 'var(--red)', marginBottom: 2 }}>● LIVE</div>
-                      {scoreData?.current_rate ? <div className="text-[12px] font-semibold" style={{ color: 'var(--amber)' }}>CRR {scoreData.current_rate}</div> : null}
-                    </>
-                  ) : (
-                    <>
-                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, color: 'var(--faint)' }}>vs</div>
-                      <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
-                        {room.match_date ? new Date(room.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
-                      </div>
-                    </>
-                  )}
-                </div>
-                <div className="text-center flex-1">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--muted)', marginBottom: 3 }}>{a2}</div>
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, letterSpacing: '-1px', color: (scoreData?.team2?.score && scoreData.team2.score !== '—') ? 'var(--text)' : 'var(--muted)' }}>
-                    {scoreData?.team2?.score || (room.status === 'locked' ? '—' : '—')}
-                  </div>
-                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>
-                    {scoreData?.team2?.overs && scoreData.team2.overs !== '—' ? `${scoreData.team2.overs} overs` : room.status === 'locked' ? 'yet to bat' : t2}
-                  </div>
                 </div>
               </div>
             </div>
@@ -222,12 +189,8 @@ export function CrowdbashRoomPage() {
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto flex flex-col">
-              {activeTab === 'myteam' && (
-                <MyTeamTab roomId={room.id} />
-              )}
-              {activeTab === 'leaderboard' && (
-                <LeaderboardTab roomId={room.id} />
-              )}
+              {activeTab === 'myteam' && <MyTeamTab roomId={room.id} />}
+              {activeTab === 'leaderboard' && <LeaderboardTab roomId={room.id} />}
               {activeTab === 'chat' && (
                 <>
                   <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
@@ -241,59 +204,108 @@ export function CrowdbashRoomPage() {
             </div>
           </div>
 
-          {/* ═══ RIGHT: Squad + Performance ═══ */}
+          {/* ═══ RIGHT: MATCH INFO PANEL ═══ */}
           <div className="flex flex-col overflow-hidden" style={{ borderLeft: '1px solid var(--border)', background: 'var(--bg2)' }}>
-            <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 12 }}>YOUR PERFORMANCE</div>
-              <div className="flex items-baseline gap-1.5 mb-3">
-                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 34, fontWeight: 900, color: 'var(--green)', letterSpacing: '-1px' }}>
-                  {game?.total_points || 0}
-                </div>
-                <div className="text-[12px]" style={{ color: 'var(--muted)' }}>points</div>
+
+            {/* Scoreboard */}
+            <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="flex items-center justify-between mb-3">
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)' }}>MATCH SCORE</div>
+                {isLive && <span className="animate-pulse-slow" style={{ fontSize: 9, fontWeight: 700, color: 'var(--red)' }}>● LIVE</span>}
               </div>
-              <div className="flex items-center gap-2">
-                {room.status === 'open' ? (
-                  <button onClick={() => setPitchView(true)} className="text-[11px] font-semibold rounded-full px-2.5 py-1 border-none cursor-pointer" style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)', color: 'var(--green)' }}>
-                    {game?.squad_locked ? 'Edit XI →' : 'Build XI →'}
-                  </button>
-                ) : (
-                  <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>🔒 Locked</span>
-                )}
-                {lastUpdated && (
-                  <span className="text-[9px]" style={{ color: 'var(--muted)' }}>
-                    Updated {lastUpdated.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                  </span>
-                )}
+
+              {/* Team 1 */}
+              <div className="flex items-center justify-between mb-2">
+                <div className="flex items-center gap-2">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>{a1}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{t1}</div>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900 }}>{t1Score}</div>
+                  {t1Overs && <div className="text-[10px]" style={{ color: 'var(--muted)' }}>({t1Overs})</div>}
+                </div>
+              </div>
+
+              {/* Team 2 */}
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>{a2}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{t2}</div>
+                </div>
+                <div className="flex items-baseline gap-1.5">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: t2Score === '—' ? 'var(--muted)' : 'var(--text)' }}>{t2Score}</div>
+                  {t2Overs && t2Overs !== '—' && <div className="text-[10px]" style={{ color: 'var(--muted)' }}>({t2Overs})</div>}
+                </div>
               </div>
             </div>
 
-            <div className="flex-1 overflow-y-auto" style={{ padding: '14px 18px' }}>
-              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 10 }}>YOUR SQUAD</div>
-              {selectedPlayers.length === 0 ? (
-                <div className="text-center py-8">
-                  <div className="text-2xl mb-2">🏏</div>
-                  <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Build your squad to see players here</div>
+            {/* Match details */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="grid grid-cols-2 gap-3">
+                <div className="rounded-lg px-3 py-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div className="text-[9px] font-bold tracking-wider mb-1" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>CRR</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, color: crr > 0 ? 'var(--amber)' : 'var(--muted)' }}>{crr > 0 ? crr.toFixed(2) : '—'}</div>
                 </div>
-              ) : (
-                selectedPlayers.map((pw, i) => {
-                  const av = AV[i % AV.length];
-                  return (
-                    <div key={pw.player_id} className="flex items-center gap-2 rounded-[9px] px-2.5 py-2 mb-1.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                      <div className="w-7 h-7 rounded-[7px] flex items-center justify-center text-[8px] font-bold shrink-0" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: av.bg, color: av.c }}>
-                        {pw.player_name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
-                      <div className="flex-1 text-[12px] font-medium truncate">{pw.player_name.split(' ').pop()}</div>
-                      <div className="text-[13px] font-extrabold shrink-0" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--amber)' }}>{pw.weightage}x</div>
-                      <div className="text-[11px] min-w-[40px] text-right shrink-0" style={{ color: pw.points_earned > 0 ? 'var(--green)' : 'var(--muted)' }}>
-                        {pw.points_earned > 0 ? `${pw.points_earned}pts` : '—'}
-                      </div>
-                    </div>
-                  );
-                })
+                <div className="rounded-lg px-3 py-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                  <div className="text-[9px] font-bold tracking-wider mb-1" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>STATUS</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: isLive ? 'var(--green)' : 'var(--amber)' }}>
+                    {isLive ? 'In Progress' : room.match_date ? new Date(room.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Upcoming'}
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            {/* Current batters */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>AT THE CREASE</div>
+              {currentBatting && currentBatting.length > 0 ? currentBatting.map((b, i) => (
+                <div key={i} className="flex items-center justify-between mb-1.5">
+                  <div className="text-[12px] font-medium">{b.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, color: 'var(--green)' }}>{b.runs}</span>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.balls})</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
               )}
             </div>
 
-            <div className="shrink-0 flex items-center gap-1.5 px-4 py-2" style={{ borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
+            {/* Current bowler */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>BOWLING</div>
+              {currentBowling && currentBowling.length > 0 ? currentBowling.map((b, i) => (
+                <div key={i} className="flex items-center justify-between mb-1.5">
+                  <div className="text-[12px] font-medium">{b.name}</div>
+                  <div className="flex items-center gap-2">
+                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, color: 'var(--purple)' }}>{b.wickets}/{b.runs}</span>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.overs})</span>
+                  </div>
+                </div>
+              )) : (
+                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
+              )}
+            </div>
+
+            {/* Your performance */}
+            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <div className="text-[9px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>YOUR POINTS</div>
+              <div className="flex items-baseline gap-1.5">
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: 'var(--green)', letterSpacing: '-1px' }}>
+                  {game?.total_points || 0}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>pts</div>
+              </div>
+              {canEditTeam && (
+                <button onClick={() => setPitchView(true)} className="text-[11px] font-semibold rounded-full px-2.5 py-1 border-none cursor-pointer mt-2" style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)', color: 'var(--green)' }}>
+                  {game?.squad_locked ? 'Edit XI →' : 'Build XI →'}
+                </button>
+              )}
+            </div>
+
+            {/* Spacer + fan count */}
+            <div style={{ flex: 1 }} />
+            <div className="shrink-0 flex items-center gap-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--green)' }} />
               {fanCount > 0 ? fanCount : room.fan_count || 0} fans watching
             </div>
