@@ -22,6 +22,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const [slots, setSlots] = useState<(SquadPlayer | null)[]>(new Array(11).fill(null));
   const [powers, setPowers] = useState<number[]>(new Array(11).fill(DEF_B));
   const [selectedPlayer, setSelectedPlayer] = useState<SquadPlayer | null>(null);
+  const [activeSlot, setActiveSlot] = useState<number | null>(null); // slot being power-adjusted
   const [roleFilter, setRoleFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [locking, setLocking] = useState(false);
@@ -32,12 +33,11 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
   useEffect(() => { fetchSquads(); }, []);
 
-  // Pre-populate slots from existing game state (when editing)
+  // Pre-populate from existing game state
   useEffect(() => {
     if (initialized || !game || !availableSquads) return;
     const allP: SquadPlayer[] = Object.values(availableSquads).flat();
     if (!allP.length) return;
-
     const selected = game.player_weightages.filter(pw => pw.selected);
     if (selected.length > 0) {
       const newSlots: (SquadPlayer | null)[] = new Array(11).fill(null);
@@ -45,10 +45,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
       selected.forEach((pw, i) => {
         if (i >= 11) return;
         const player = allP.find(p => p.player_id === pw.player_id);
-        if (player) {
-          newSlots[i] = player;
-          newPowers[i] = pw.weightage || DEF_B;
-        }
+        if (player) { newSlots[i] = player; newPowers[i] = pw.weightage || DEF_B; }
       });
       setSlots(newSlots);
       setPowers(newPowers);
@@ -63,7 +60,6 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const isBalanced = totalUsed === TOTAL_B;
   const canLock = pickCount === 11 && isBalanced;
 
-  // Filter bench players
   const benchPlayers = allPlayers.filter(p => {
     if (roleFilter !== 'all') {
       const r = p.player_role.toLowerCase();
@@ -75,49 +71,54 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     if (search && !p.player_name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
-
   const teams = [...new Set(benchPlayers.map(p => p.team))];
 
   function handleBenchClick(player: SquadPlayer) {
     if (placedIds.has(player.player_id)) return;
     setSelectedPlayer(selectedPlayer?.player_id === player.player_id ? null : player);
+    setActiveSlot(null);
   }
 
   function handleSlotClick(index: number) {
     if (slots[index]) {
-      const updated = [...slots];
-      updated[index] = null;
-      setSlots(updated);
-      const pw = [...powers]; pw[index] = DEF_B; setPowers(pw);
+      if (activeSlot === index) {
+        // Second click on same filled slot → remove player
+        const updated = [...slots]; updated[index] = null; setSlots(updated);
+        const pw = [...powers]; pw[index] = DEF_B; setPowers(pw);
+        setActiveSlot(null);
+      } else {
+        // First click on filled slot → select for power adjustment
+        setActiveSlot(index);
+        setSelectedPlayer(null);
+      }
     } else if (selectedPlayer) {
-      const updated = [...slots];
-      updated[index] = selectedPlayer;
-      setSlots(updated);
+      const updated = [...slots]; updated[index] = selectedPlayer; setSlots(updated);
       setSelectedPlayer(null);
+      setActiveSlot(null);
     }
   }
 
-  function setPower(idx: number, newVal: number) {
-    newVal = Math.max(MIN_B, Math.min(MAX_B, newVal));
-    const delta = newVal - powers[idx];
-    if (!delta) return;
+  function adjustPower(idx: number, delta: number) {
+    const newVal = Math.max(MIN_B, Math.min(MAX_B, powers[idx] + delta));
+    if (newVal === powers[idx]) return;
+    const d = newVal - powers[idx];
     const pw = [...powers];
     pw[idx] = newVal;
-    if (delta > 0) {
-      let remaining = delta;
-      for (let s = 0; s < 50 && remaining > 0; s++) {
+    if (d > 0) {
+      let rem = d;
+      for (let s = 0; s < 50 && rem > 0; s++) {
         let ri = -1, rv = MIN_B;
         for (let i = 0; i < 11; i++) { if (i !== idx && slots[i] && pw[i] > rv) { rv = pw[i]; ri = i; } }
-        if (ri === -1) { pw[idx] -= remaining; break; }
-        const take = Math.min(remaining, pw[ri] - MIN_B); pw[ri] -= take; remaining -= take;
+        if (ri === -1) { pw[idx] -= rem; break; }
+        const take = Math.min(rem, pw[ri] - MIN_B); pw[ri] -= take; rem -= take;
       }
     } else {
-      let surplus = -delta;
-      for (let s = 0; s < 50 && surplus > 0; s++) {
+      let sur = -d;
+      for (let s = 0; s < 50 && sur > 0; s++) {
         let pi = -1, pv = MAX_B;
         for (let i = 0; i < 11; i++) { if (i !== idx && slots[i] && pw[i] < pv) { pv = pw[i]; pi = i; } }
-        if (pi === -1) { pw[idx] += surplus; break; }
-        const give = Math.min(surplus, MAX_B - pw[pi]); pw[pi] += give; surplus -= give;
+        if (pi === -1) { pw[idx] += sur; break; }
+        const give = Math.min(sur, MAX_B - pw[pi]); pw[pi] += give; sur -= give;
       }
     }
     setPowers(pw);
@@ -131,7 +132,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     if (key === 'balanced') {
       placed.forEach(({ i }) => { pw[i] = DEF_B; });
     } else {
-      const roleMap: Record<string, string> = { top3bat: 'bat', bowlers: 'bowl', allrounder: 'all' };
+      const roleMap: Record<string, string> = { bat: 'bat', bowl: 'bowl', ar: 'all' };
       const targetRole = roleMap[key] || '';
       const targets = placed.filter(x => x.p!.player_role.toLowerCase().includes(targetRole));
       let budget = TOTAL_B - (placed.length * MIN_B);
@@ -142,12 +143,12 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
       });
     }
     setPowers(pw);
+    setActiveSlot(null);
   }
 
   async function handleLockTeam() {
     if (!canLock) return;
-    setLocking(true);
-    setError('');
+    setLocking(true); setError('');
     try {
       const playerIds = slots.filter(Boolean).map(p => p!.player_id);
       await selectSquad(playerIds);
@@ -158,9 +159,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     } catch (e) {
       console.error('Failed to lock team', e);
       setError('Failed to save team. Please try again.');
-    } finally {
-      setLocking(false);
-    }
+    } finally { setLocking(false); }
   }
 
   const getRoleBg = (role: string) => {
@@ -170,13 +169,10 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     if (r.includes('all')) return { bg: 'rgba(245,158,11,0.1)', color: 'var(--amber)' };
     return { bg: 'rgba(192,194,200,0.08)', color: 'var(--muted)' };
   };
-
   const roleTag = (role: string) => {
     const r = role.toLowerCase();
-    if (r.includes('bat')) return 'BAT';
-    if (r.includes('bowl')) return 'BOWL';
-    if (r.includes('all')) return 'AR';
-    if (r.includes('keep') || r.includes('wk')) return 'WK';
+    if (r.includes('bat')) return 'BAT'; if (r.includes('bowl')) return 'BOWL';
+    if (r.includes('all')) return 'AR'; if (r.includes('keep') || r.includes('wk')) return 'WK';
     return '?';
   };
 
@@ -202,34 +198,27 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
         </div>
         <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
           <div style={{ fontSize: 12, color: 'var(--muted)' }}>
-            <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: pickCount === 11 ? 'var(--green)' : 'var(--amber)' }}>{pickCount}</b>/11 picked
-            <span style={{ margin: '0 8px', color: 'var(--faint)' }}>·</span>
+            <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: pickCount === 11 ? 'var(--green)' : 'var(--amber)' }}>{pickCount}</b>/11
+            <span style={{ margin: '0 6px', color: 'var(--faint)' }}>·</span>
             <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33 power
           </div>
           <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
             Back to room
           </button>
-          <button
-            onClick={handleLockTeam}
-            disabled={!canLock || locking}
-            style={{
-              background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
-              padding: '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800,
-              cursor: canLock ? 'pointer' : 'not-allowed', transition: 'all 0.15s',
-              opacity: canLock && !locking ? 1 : 0.3,
-            }}
-          >
+          <button onClick={handleLockTeam} disabled={!canLock || locking} style={{
+            background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
+            padding: '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800,
+            cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
+          }}>
             {locking ? 'Locking...' : 'Lock Team ✓'}
           </button>
         </div>
       </div>
 
-      {error && (
-        <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', padding: '8px 24px', fontSize: 12, color: 'var(--red)' }}>{error}</div>
-      )}
+      {error && <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', padding: '8px 24px', fontSize: 12, color: 'var(--red)' }}>{error}</div>}
 
-      {/* ── 3-COLUMN BODY ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '252px 1fr 252px', overflow: 'hidden' }}>
+      {/* ── 2-COLUMN: BENCH + PITCH ── */}
+      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '252px 1fr', overflow: 'hidden' }}>
 
         {/* ══ LEFT: BENCH ══ */}
         <div style={{ borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg2)' }}>
@@ -272,70 +261,58 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
           </div>
         </div>
 
-        {/* ══ CENTER: FIELD ══ */}
-        <CricketPitch slots={slots} powers={powers} selectedPlayer={selectedPlayer} phase={1} onSlotClick={handleSlotClick} hint="CLICK PLAYER · THEN CLICK A POSITION" />
+        {/* ══ RIGHT: FULL PITCH WITH POWER CONTROLS ══ */}
+        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
+          {/* Preset buttons floating on top */}
+          {pickCount > 0 && (
+            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', gap: 6, background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '4px 6px', border: '1px solid var(--border)' }}>
+              {[
+                { key: 'balanced', icon: '⚖️', label: 'Balance' },
+                { key: 'bat', icon: '🏏', label: 'Batters' },
+                { key: 'bowl', icon: '🎯', label: 'Bowlers' },
+                { key: 'ar', icon: '⚡', label: 'All-rds' },
+              ].map(p => (
+                <button key={p.key} onClick={() => applyPreset(p.key)} style={{
+                  padding: '5px 12px', borderRadius: 100, border: 'none', background: 'transparent',
+                  color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                  fontFamily: "'Cabinet Grotesk', sans-serif", transition: 'all 0.15s',
+                }}
+                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; }}
+                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent'; }}
+                >
+                  {p.icon} {p.label}
+                </button>
+              ))}
+            </div>
+          )}
 
-        {/* ══ RIGHT: POWER PANEL ══ */}
-        <div style={{ borderLeft: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg2)' }}>
-          <div style={{ padding: '13px 15px 10px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, marginBottom: 1 }}>Power distribution</div>
-            <div style={{ fontSize: 10, color: 'var(--muted)' }}>33 total · max 6x · min 1x</div>
-          </div>
-          <div style={{ padding: '10px 15px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-            <div style={{ height: 4, background: 'var(--faint)', borderRadius: 2, overflow: 'hidden', marginBottom: 5 }}>
-              <div style={{ height: '100%', borderRadius: 2, width: pickCount ? `${Math.round(totalUsed / TOTAL_B * 100)}%` : '0%', background: isBalanced ? 'var(--green)' : 'var(--amber)', transition: 'width 0.3s' }} />
-            </div>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 600 }}>
-              <span>Assigned: <b style={{ color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33</span>
-              <span>{pickCount < 11 ? 'Pick players first' : isBalanced ? 'Balanced ✓' : `${TOTAL_B - totalUsed} unassigned`}</span>
-            </div>
-          </div>
-          <div style={{ display: 'flex', gap: 5, padding: '8px 15px', borderBottom: '1px solid var(--border)', flexShrink: 0, flexWrap: 'wrap' }}>
-            {[{ key: 'balanced', icon: '⚖️', label: 'Reset' }, { key: 'top3bat', icon: '🏏', label: 'Batters' }, { key: 'bowlers', icon: '🎯', label: 'Bowlers' }, { key: 'allrounder', icon: '⚡', label: 'All-rds' }].map(p => (
-              <button key={p.key} onClick={() => applyPreset(p.key)} style={{ padding: '4px 9px', borderRadius: 100, border: '1px solid var(--border)', background: 'transparent', color: 'var(--muted)', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}>
-                {p.icon} {p.label}
-              </button>
-            ))}
-          </div>
-          <div style={{ flex: 1, overflowY: 'auto', padding: '10px 15px' }}>
-            {pickCount === 0 && (
-              <div style={{ textAlign: 'center', padding: '30px 10px', color: 'var(--muted)', fontSize: 12 }}>
-                Place players on the pitch to assign power
+          {/* Active slot power adjuster — floating below presets */}
+          {activeSlot !== null && slots[activeSlot] && (
+            <div style={{ position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(26,27,30,0.92)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '8px 14px', border: '1px solid var(--border)' }}>
+              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', minWidth: 80 }}>
+                {slots[activeSlot]!.player_name.split(' ').pop()}
               </div>
-            )}
-            {slots.map((player, i) => {
-              if (!player) return null;
-              const pw = powers[i];
-              const maxed = pw >= MAX_B;
-              const minned = pw <= MIN_B;
-              const pct = ((pw - MIN_B) / (MAX_B - MIN_B) * 100).toFixed(1);
-              const rcBg = getRoleBg(player.player_role);
-              const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-              return (
-                <div key={player.player_id} style={{ background: 'var(--surface)', border: `1px solid ${maxed ? 'rgba(240,82,82,0.22)' : 'var(--border)'}`, borderRadius: 10, padding: '9px 12px', marginBottom: 7 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 7, marginBottom: 7 }}>
-                    <div style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 8, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
-                    <div style={{ flex: 1, fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.player_name.split(' ').pop()}</div>
-                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 900, minWidth: 24, textAlign: 'right', color: maxed ? 'var(--red)' : minned ? 'var(--blue)' : 'var(--amber)' }}>{pw}x</div>
-                  </div>
-                  <div style={{ position: 'relative', height: 24, display: 'flex', alignItems: 'center', cursor: 'pointer', userSelect: 'none' }}
-                    onMouseDown={(e) => {
-                      const rect = e.currentTarget.getBoundingClientRect();
-                      const handle = (clientX: number) => { const pctX = Math.max(0, Math.min(1, (clientX - rect.left) / rect.width)); setPower(i, Math.round(MIN_B + pctX * (MAX_B - MIN_B))); };
-                      handle(e.clientX);
-                      const move = (ev: MouseEvent) => handle(ev.clientX);
-                      const up = () => { window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
-                      window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
-                    }}
-                  >
-                    <div style={{ position: 'absolute', left: 0, right: 0, height: 5, background: 'var(--faint)', borderRadius: 3 }} />
-                    <div style={{ position: 'absolute', left: 0, height: 5, borderRadius: 3, width: `${pct}%`, background: maxed ? 'var(--red)' : minned ? 'var(--blue)' : 'var(--amber)', transition: 'width 0.12s', pointerEvents: 'none' }} />
-                    <div style={{ position: 'absolute', left: `${pct}%`, width: 18, height: 18, borderRadius: '50%', border: '2.5px solid rgba(0,0,0,0.35)', transform: 'translateX(-50%)', pointerEvents: 'none', background: maxed ? 'var(--red)' : minned ? 'var(--blue)' : 'var(--amber)' }} />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
+              <button onClick={() => adjustPower(activeSlot, -1)} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 22, fontWeight: 900, width: 32, textAlign: 'center', color: powers[activeSlot] >= MAX_B ? 'var(--red)' : powers[activeSlot] <= MIN_B ? 'var(--blue)' : 'var(--amber)' }}>
+                {powers[activeSlot]}x
+              </div>
+              <button onClick={() => adjustPower(activeSlot, 1)} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+              <button onClick={() => { const updated = [...slots]; updated[activeSlot] = null; setSlots(updated); const pw = [...powers]; pw[activeSlot] = DEF_B; setPowers(pw); setActiveSlot(null); }} style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer', marginLeft: 4 }}>
+                Remove
+              </button>
+            </div>
+          )}
+
+          {/* Cricket pitch */}
+          <CricketPitch
+            slots={slots}
+            powers={powers}
+            selectedPlayer={selectedPlayer}
+            phase={1}
+            onSlotClick={handleSlotClick}
+            hint={activeSlot !== null ? 'TAP PLAYER TO ADJUST POWER · TAP AGAIN TO REMOVE' : 'CLICK PLAYER · THEN CLICK A POSITION'}
+            activeSlot={activeSlot}
+          />
         </div>
       </div>
     </div>

@@ -27,12 +27,13 @@ interface CricketPitchProps {
   slots: (SquadPlayer | null)[];
   powers: number[];
   selectedPlayer: SquadPlayer | null;
-  phase: number; // 1=pick, 2=power
+  phase: number;
   onSlotClick: (index: number) => void;
   hint: string;
+  activeSlot?: number | null;
 }
 
-export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick, hint }: CricketPitchProps) {
+export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick, hint, activeSlot }: CricketPitchProps) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', flex: 1 }}>
       {/* Hint text */}
@@ -74,8 +75,9 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
 
           const style: React.CSSProperties = {
             position: 'absolute', width: 58, height: 58, borderRadius: '50%',
-            border: filled ? '1.5px solid rgba(255,255,255,0.1)' : '1.5px dashed rgba(255,255,255,0.11)',
+            border: (filled && activeSlot === i) ? '2px solid var(--amber)' : filled ? '1.5px solid rgba(255,255,255,0.1)' : '1.5px dashed rgba(255,255,255,0.11)',
             borderStyle: filled ? 'solid' : 'dashed',
+            boxShadow: (activeSlot === i) ? '0 0 12px rgba(245,158,11,0.3)' : 'none',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', transition: 'all 0.2s', zIndex: 10,
             background: (hasSel && !filled) ? 'rgba(45,214,122,0.08)' : 'transparent',
