@@ -277,6 +277,9 @@ export function CrowdbashRoomPage() {
               )}
             </div>
 
+            {/* Top 3 Leaders */}
+            <MiniLeaderboard roomId={room.id} />
+
             {/* Spacer + fan count */}
             <div style={{ flex: 1 }} />
             <div className="shrink-0 flex items-center gap-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
@@ -287,5 +290,66 @@ export function CrowdbashRoomPage() {
         </div>
       </div>
     </>
+  );
+}
+
+/* ── Mini Leaderboard (top 3) for right panel ── */
+function MiniLeaderboard({ roomId }: { roomId: string }) {
+  const [leaders, setLeaders] = useState<Array<{ user_id: string; username?: string; points: number; rank: number; prev_rank?: number }>>([]);
+
+  useEffect(() => {
+    async function fetch() {
+      try {
+        const { data } = await api.get(`/api/leaderboard/${roomId}?limit=3`);
+        if (Array.isArray(data)) setLeaders(data.slice(0, 3));
+      } catch { /* */ }
+    }
+    fetch();
+    const interval = setInterval(fetch, 30000);
+    return () => clearInterval(interval);
+  }, [roomId]);
+
+  const rankColors = ['var(--amber)', '#A8B4C0', '#CD8F5A'];
+  const rankIcons = ['🥇', '🥈', '🥉'];
+
+  if (leaders.length === 0) {
+    return (
+      <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+        <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>TOP PLAYERS</div>
+        <div className="text-[11px]" style={{ color: 'var(--muted)' }}>No players yet</div>
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div className="text-[9px] font-bold tracking-wider mb-3" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>TOP PLAYERS</div>
+      {leaders.map((entry, i) => {
+        const delta = entry.prev_rank != null ? entry.prev_rank - entry.rank : 0;
+        return (
+          <div key={entry.user_id} className="flex items-center gap-2.5 mb-2.5">
+            {/* Rank icon */}
+            <div style={{ fontSize: 14, width: 20, textAlign: 'center' }}>{rankIcons[i] || `${i + 1}`}</div>
+
+            {/* Name */}
+            <div className="flex-1 min-w-0">
+              <div className="text-[12px] font-semibold truncate">{entry.username || `Player ${i + 1}`}</div>
+            </div>
+
+            {/* Movement arrow */}
+            {delta !== 0 && (
+              <div style={{ fontSize: 11, fontWeight: 700, color: delta > 0 ? 'var(--green)' : 'var(--red)' }}>
+                {delta > 0 ? '▲' : '▼'}
+              </div>
+            )}
+
+            {/* Points */}
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, color: rankColors[i] || 'var(--text)', minWidth: 36, textAlign: 'right' }}>
+              {entry.points}
+            </div>
+          </div>
+        );
+      })}
+    </div>
   );
 }
