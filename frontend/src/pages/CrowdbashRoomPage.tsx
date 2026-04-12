@@ -10,6 +10,8 @@ import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
 import { PitchWelcomeView } from '../components/game/PitchWelcomeView';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
 import { ChatPanel, ChatInput } from '../components/room/ChatPanel';
+import { MyTeamTab } from '../components/room/MyTeamTab';
+import { LeaderboardTab } from '../components/room/LeaderboardTab';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
 import { splitTeams } from '../types';
@@ -31,6 +33,7 @@ export function CrowdbashRoomPage() {
   const [pitchView, setPitchView] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoJoined, setAutoJoined] = useState(false);
+  const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard'>('myteam');
 
   const sport: Sport = room?.sport || 'cricket';
   const selectedPlayers = game?.player_weightages.filter(pw => pw.selected) || [];
@@ -140,36 +143,68 @@ export function CrowdbashRoomPage() {
                 </div>
               </div>
 
+              {/* Scoreboard */}
               <div className="flex items-center justify-between rounded-[14px] px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
-                <div className="text-center">
+                <div className="text-center flex-1">
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--muted)', marginBottom: 3 }}>{a1}</div>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, letterSpacing: '-1px' }}>
-                    {scoreData?.team1?.score || '—'}
+                    {scoreData?.team1?.score || (room.status === 'locked' ? '0/0' : '—')}
                   </div>
-                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>{scoreData?.team1?.overs ? `${scoreData.team1.overs} overs` : ''}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>
+                    {scoreData?.team1?.overs ? `${scoreData.team1.overs} overs` : room.status === 'locked' ? '0.0 overs' : t1}
+                  </div>
                 </div>
-                <div className="text-center">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, color: 'var(--faint)' }}>vs</div>
-                  {scoreData?.current_rate ? <div className="text-[12px] font-semibold mt-1" style={{ color: 'var(--amber)' }}>CRR {scoreData.current_rate}</div> : null}
+                <div className="text-center" style={{ padding: '0 16px' }}>
+                  {room.status === 'locked' ? (
+                    <>
+                      <div className="animate-pulse-slow" style={{ fontSize: 10, fontWeight: 700, color: 'var(--red)', marginBottom: 2 }}>● LIVE</div>
+                      {scoreData?.current_rate ? <div className="text-[12px] font-semibold" style={{ color: 'var(--amber)' }}>CRR {scoreData.current_rate}</div> : null}
+                    </>
+                  ) : (
+                    <>
+                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, color: 'var(--faint)' }}>vs</div>
+                      <div className="text-[10px] mt-1" style={{ color: 'var(--muted)' }}>
+                        {room.match_date ? new Date(room.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : ''}
+                      </div>
+                    </>
+                  )}
                 </div>
-                <div className="text-center">
+                <div className="text-center flex-1">
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--muted)', marginBottom: 3 }}>{a2}</div>
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, letterSpacing: '-1px', color: scoreData?.team2?.score === '—' ? 'var(--muted)' : 'var(--text)' }}>
-                    {scoreData?.team2?.score || '—'}
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, letterSpacing: '-1px', color: (scoreData?.team2?.score && scoreData.team2.score !== '—') ? 'var(--text)' : 'var(--muted)' }}>
+                    {scoreData?.team2?.score || (room.status === 'locked' ? '—' : '—')}
                   </div>
-                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>{scoreData?.team2?.overs && scoreData.team2.overs !== '—' ? `${scoreData.team2.overs} overs` : scoreData?.team2?.score === '—' ? 'yet to bat' : ''}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>
+                    {scoreData?.team2?.overs && scoreData.team2.overs !== '—' ? `${scoreData.team2.overs} overs` : room.status === 'locked' ? 'yet to bat' : t2}
+                  </div>
                 </div>
               </div>
             </div>
 
+            {/* Tabs */}
             <div className="flex shrink-0" style={{ padding: '0 24px', borderBottom: '1px solid var(--border)' }}>
-              {['Chat', 'My Team', 'Leaderboard'].map(tab => (
-                <div key={tab} className="px-4 py-3 text-[12px] font-semibold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: tab === 'Chat' ? 'var(--green)' : 'var(--muted)', borderBottom: tab === 'Chat' ? '2px solid var(--green)' : '2px solid transparent', cursor: 'pointer' }}>
-                  {tab}
+              {([
+                { key: 'myteam' as const, label: 'My Team' },
+                { key: 'leaderboard' as const, label: 'Leaderboard' },
+                { key: 'chat' as const, label: 'Chat' },
+              ]).map(tab => (
+                <div
+                  key={tab.key}
+                  onClick={() => setActiveTab(tab.key)}
+                  className="px-4 py-3 text-[13px] font-semibold"
+                  style={{
+                    fontFamily: "'Cabinet Grotesk', sans-serif",
+                    color: activeTab === tab.key ? 'var(--green)' : 'var(--muted)',
+                    borderBottom: activeTab === tab.key ? '2px solid var(--green)' : '2px solid transparent',
+                    cursor: 'pointer', transition: 'all 0.15s',
+                  }}
+                >
+                  {tab.label}
                 </div>
               ))}
             </div>
 
+            {/* Edit window banner */}
             {editWindowOpen && (
               <div className="flex items-center justify-between shrink-0" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '18px 24px 0' }}>
                 <div className="flex items-center gap-3">
@@ -179,17 +214,30 @@ export function CrowdbashRoomPage() {
                     <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Redistribute your power · changes are blind</div>
                   </div>
                 </div>
-                <button onClick={() => setShowTeamBuilder(true)} className="btn" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
+                <button onClick={() => setPitchView(true)} className="btn" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
                   Reshuffle power ↗
                 </button>
               </div>
             )}
 
-            <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
-              <ChatPanel onSendChat={sendChat} />
-            </div>
-            <div style={{ padding: '0 24px' }}>
-              <ChatInput onSendChat={sendChat} />
+            {/* Tab content */}
+            <div className="flex-1 overflow-y-auto flex flex-col">
+              {activeTab === 'myteam' && (
+                <MyTeamTab roomId={room.id} />
+              )}
+              {activeTab === 'leaderboard' && (
+                <LeaderboardTab roomId={room.id} />
+              )}
+              {activeTab === 'chat' && (
+                <>
+                  <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
+                    <ChatPanel onSendChat={sendChat} />
+                  </div>
+                  <div style={{ padding: '0 24px 12px' }}>
+                    <ChatInput onSendChat={sendChat} />
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
