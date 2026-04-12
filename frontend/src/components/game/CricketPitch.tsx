@@ -9,18 +9,19 @@ interface PosCoord {
   label: string;
 }
 
+// Coordinates scaled for 540px field (1.184x from 456px original)
 const POS_COORDS: PosCoord[] = [
-  { top: 12, left: '50%', tx: '-50%', label: 'Long On' },
-  { top: 40, left: 74, label: 'Fine Leg' },
-  { top: 40, right: 74, label: 'Long Off' },
-  { top: 135, left: 20, label: 'Mid Wicket' },
-  { top: 135, right: 20, label: 'Cover' },
-  { top: 163, left: 88, label: 'Mid On' },
-  { top: 163, right: 88, label: 'Mid Off' },
-  { top: 191, left: '50%', tx: '-50%', label: 'Bowler' },
-  { bottom: 130, left: '50%', tx: '-50%', label: 'Keeper' },
-  { bottom: 56, left: 88, label: 'Square Leg' },
-  { bottom: 56, right: 88, label: 'Point' },
+  { top: 10, left: '50%', tx: '-50%', label: 'Long On' },
+  { top: 42, left: 82, label: 'Fine Leg' },
+  { top: 42, right: 82, label: 'Long Off' },
+  { top: 155, left: 18, label: 'Mid Wicket' },
+  { top: 155, right: 18, label: 'Cover' },
+  { top: 188, left: 98, label: 'Mid On' },
+  { top: 188, right: 98, label: 'Mid Off' },
+  { top: 222, left: '50%', tx: '-50%', label: 'Bowler' },
+  { bottom: 148, left: '50%', tx: '-50%', label: 'Keeper' },
+  { bottom: 60, left: 98, label: 'Square Leg' },
+  { bottom: 60, right: 98, label: 'Point' },
 ];
 
 interface CricketPitchProps {
@@ -41,10 +42,10 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
         {hint}
       </div>
 
-      {/* Field container */}
-      <div style={{ position: 'relative', width: 456, height: 456, flexShrink: 0 }}>
+      {/* Field container — large */}
+      <div style={{ position: 'relative', width: 540, height: 540, flexShrink: 0 }}>
         {/* SVG Field */}
-        <svg width="456" height="456" viewBox="0 0 456 456" style={{ position: 'absolute', top: 0, left: 0, pointerEvents: 'none' }}>
+        <svg width="540" height="540" viewBox="0 0 456 456" preserveAspectRatio="xMidYMid meet" style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}>
           <ellipse cx="228" cy="228" rx="222" ry="222" fill="#111f11" />
           <ellipse cx="228" cy="228" rx="180" ry="180" fill="#142814" />
           <ellipse cx="228" cy="228" rx="132" ry="132" fill="#163016" stroke="rgba(255,255,255,0.04)" strokeWidth="1" strokeDasharray="5,6" />
@@ -74,7 +75,7 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
           const filled = !!player;
 
           const style: React.CSSProperties = {
-            position: 'absolute', width: 58, height: 58, borderRadius: '50%',
+            position: 'absolute', width: 64, height: 64, borderRadius: '50%',
             border: (filled && activeSlot === i) ? '2px solid var(--amber)' : filled ? '1.5px solid rgba(255,255,255,0.1)' : '1.5px dashed rgba(255,255,255,0.11)',
             borderStyle: filled ? 'solid' : 'dashed',
             boxShadow: (activeSlot === i) ? '0 0 12px rgba(245,158,11,0.3)' : 'none',
