@@ -43,18 +43,18 @@ export function MyTeamTab({ roomId: _roomId }: MyTeamTabProps) {
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div>
-          <div className="font-syne text-[15px] font-bold" style={{ color: 'var(--tx)' }}>
+          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900 }}>
             My Fantasy XI
           </div>
-          <div className="text-[11px]" style={{ color: 'var(--mu)' }}>
+          <div className="text-[12px]" style={{ color: 'var(--muted)' }}>
             {selectedPlayers.length} players · Budget: {game.total_budget} pts
           </div>
         </div>
         <div className="text-right">
-          <div className="font-syne text-2xl font-extrabold" style={{ color: 'var(--gold)' }}>
+          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 36, fontWeight: 900, color: 'var(--green)', letterSpacing: '-1px' }}>
             {totalPoints.toLocaleString()}
           </div>
-          <div className="text-[10px]" style={{ color: 'var(--mu)' }}>total points</div>
+          <div className="text-[11px]" style={{ color: 'var(--muted)' }}>total points</div>
         </div>
       </div>
 
@@ -88,30 +88,30 @@ export function MyTeamTab({ roomId: _roomId }: MyTeamTabProps) {
                 {/* Info */}
                 <div className="flex-1 min-w-0">
                   <div className="flex items-center gap-2">
-                    <span className="text-[13px] font-medium" style={{ color: 'var(--tx)' }}>{player.player_name}</span>
+                    <span className="text-[15px] font-semibold">{player.player_name}</span>
                     {badge && (
-                      <span className="text-[8px] font-semibold px-1.5 py-px rounded" style={{ background: 'var(--s2)', color: badge.color }}>
+                      <span className="text-[9px] font-semibold px-1.5 py-px rounded" style={{ background: 'var(--surface)', color: badge.color }}>
                         {badge.label}
                       </span>
                     )}
                   </div>
-                  <div className="text-[10px]" style={{ color: 'var(--mu)' }}>{player.team}</div>
+                  <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{player.team}</div>
                 </div>
 
                 {/* Weightage */}
-                <div className="text-center shrink-0 mr-2">
-                  <div className="font-syne text-[14px] font-bold" style={{ color: 'var(--gold)' }}>
-                    {player.weightage}
+                <div className="text-center shrink-0 mr-3">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, color: 'var(--amber)' }}>
+                    {player.weightage}x
                   </div>
-                  <div className="text-[8px]" style={{ color: 'var(--mu)' }}>wt</div>
+                  <div className="text-[9px]" style={{ color: 'var(--muted)' }}>power</div>
                 </div>
 
                 {/* Points */}
-                <div className="text-right shrink-0 min-w-[60px]">
-                  <div className="font-syne text-[14px] font-bold" style={{ color: player.points_earned > 0 ? 'var(--green)' : 'var(--dm)' }}>
+                <div className="text-right shrink-0 min-w-[65px]">
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, color: player.points_earned > 0 ? 'var(--green)' : 'var(--muted)' }}>
                     {player.points_earned > 0 ? `+${player.points_earned}` : '0'}
                   </div>
-                  <div className="text-[8px]" style={{ color: 'var(--mu)' }}>pts</div>
+                  <div className="text-[9px]" style={{ color: 'var(--muted)' }}>pts</div>
                 </div>
               </div>
 

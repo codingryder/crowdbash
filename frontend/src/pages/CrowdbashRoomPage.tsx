@@ -144,7 +144,7 @@ export function CrowdbashRoomPage() {
                 <div className="flex items-center gap-2">
                   {isLive && <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>}
                   {canEditTeam && game && (
-                    <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit squad</button>
+                    <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit your XI</button>
                   )}
                 </div>
               </div>
@@ -209,21 +209,25 @@ export function CrowdbashRoomPage() {
           {/* ═══ RIGHT: MATCH INFO PANEL ═══ */}
           <div className="flex flex-col overflow-hidden" style={{ borderLeft: '1px solid var(--border)', background: 'var(--bg2)' }}>
 
-            {/* Scoreboard */}
+            {/* Scoreboard + CRR inline */}
             <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div className="flex items-center justify-between mb-3">
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)' }}>MATCH SCORE</div>
-                {isLive && <span className="animate-pulse-slow" style={{ fontSize: 9, fontWeight: 700, color: 'var(--red)' }}>● LIVE</span>}
+                <div className="flex items-center gap-2">
+                  {crr > 0 && <span className="text-[10px] font-semibold" style={{ color: 'var(--amber)' }}>CRR {crr.toFixed(2)}</span>}
+                  {isLive && <span className="animate-pulse-slow" style={{ fontSize: 9, fontWeight: 700, color: 'var(--red)' }}>● LIVE</span>}
+                  {!isLive && room.match_date && <span className="text-[10px]" style={{ color: 'var(--amber)' }}>{new Date(room.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
+                </div>
               </div>
 
               {/* Team 1 */}
-              <div className="flex items-center justify-between mb-2">
+              <div className="flex items-center justify-between mb-2.5">
                 <div className="flex items-center gap-2">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>{a1}</div>
-                  <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{t1}</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800 }}>{a1}</div>
+                  <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{t1}</div>
                 </div>
                 <div className="flex items-baseline gap-1.5">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900 }}>{t1Score}</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 22, fontWeight: 900 }}>{t1Score}</div>
                   {t1Overs && <div className="text-[10px]" style={{ color: 'var(--muted)' }}>({t1Overs})</div>}
                 </div>
               </div>
@@ -231,28 +235,12 @@ export function CrowdbashRoomPage() {
               {/* Team 2 */}
               <div className="flex items-center justify-between">
                 <div className="flex items-center gap-2">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>{a2}</div>
-                  <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{t2}</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800 }}>{a2}</div>
+                  <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{t2}</div>
                 </div>
                 <div className="flex items-baseline gap-1.5">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: t2Score === '—' ? 'var(--muted)' : 'var(--text)' }}>{t2Score}</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 22, fontWeight: 900, color: t2Score === '—' ? 'var(--muted)' : 'var(--text)' }}>{t2Score}</div>
                   {t2Overs && t2Overs !== '—' && <div className="text-[10px]" style={{ color: 'var(--muted)' }}>({t2Overs})</div>}
-                </div>
-              </div>
-            </div>
-
-            {/* Match details */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <div className="grid grid-cols-2 gap-3">
-                <div className="rounded-lg px-3 py-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                  <div className="text-[9px] font-bold tracking-wider mb-1" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>CRR</div>
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, color: crr > 0 ? 'var(--amber)' : 'var(--muted)' }}>{crr > 0 ? crr.toFixed(2) : '—'}</div>
-                </div>
-                <div className="rounded-lg px-3 py-2.5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-                  <div className="text-[9px] font-bold tracking-wider mb-1" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>STATUS</div>
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: isLive ? 'var(--green)' : 'var(--amber)' }}>
-                    {isLive ? 'In Progress' : room.match_date ? new Date(room.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' }) : 'Upcoming'}
-                  </div>
                 </div>
               </div>
             </div>
@@ -261,11 +249,11 @@ export function CrowdbashRoomPage() {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>AT THE CREASE</div>
               {currentBatting && currentBatting.length > 0 ? currentBatting.map((b, i) => (
-                <div key={i} className="flex items-center justify-between mb-1.5">
-                  <div className="text-[12px] font-medium">{b.name}</div>
+                <div key={i} className="flex items-center justify-between mb-2">
+                  <div className="text-[13px] font-medium">{b.name}</div>
                   <div className="flex items-center gap-2">
-                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, color: 'var(--green)' }}>{b.runs}</span>
-                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.balls})</span>
+                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>{b.runs}</span>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.balls}b)</span>
                   </div>
                 </div>
               )) : (
@@ -277,31 +265,15 @@ export function CrowdbashRoomPage() {
             <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>BOWLING</div>
               {currentBowling && currentBowling.length > 0 ? currentBowling.map((b, i) => (
-                <div key={i} className="flex items-center justify-between mb-1.5">
-                  <div className="text-[12px] font-medium">{b.name}</div>
+                <div key={i} className="flex items-center justify-between mb-2">
+                  <div className="text-[13px] font-medium">{b.name}</div>
                   <div className="flex items-center gap-2">
-                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, color: 'var(--purple)' }}>{b.wickets}/{b.runs}</span>
-                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.overs})</span>
+                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: 'var(--purple)' }}>{b.wickets}/{b.runs}</span>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.overs} ov)</span>
                   </div>
                 </div>
               )) : (
                 <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
-              )}
-            </div>
-
-            {/* Your performance */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <div className="text-[9px] font-bold tracking-wider mb-2" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>YOUR POINTS</div>
-              <div className="flex items-baseline gap-1.5">
-                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: 'var(--green)', letterSpacing: '-1px' }}>
-                  {game?.total_points || 0}
-                </div>
-                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>pts</div>
-              </div>
-              {canEditTeam && (
-                <button onClick={() => setPitchView(true)} className="text-[11px] font-semibold rounded-full px-2.5 py-1 border-none cursor-pointer mt-2" style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)', color: 'var(--green)' }}>
-                  {game?.squad_locked ? 'Edit XI →' : 'Build XI →'}
-                </button>
               )}
             </div>
 
