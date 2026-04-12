@@ -100,29 +100,29 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
               {filled ? (
                 <>
                   <div style={{
-                    width: 30, height: 30, borderRadius: '50%',
+                    width: 34, height: 34, borderRadius: '50%',
                     display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 8, fontWeight: 700,
+                    fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700,
                     background: roleColor.bg, color: roleColor.color,
                     position: 'relative',
                   }}>
                     {initials}
                     <div style={{
-                      position: 'absolute', top: -3, right: -3, width: 14, height: 14,
+                      position: 'absolute', top: -4, right: -4, width: 17, height: 17,
                       borderRadius: '50%', background: 'var(--amber)', color: '#000',
-                      fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 7, fontWeight: 900,
+                      fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 9, fontWeight: 900,
                       display: 'flex', alignItems: 'center', justifyContent: 'center',
                       border: '1.5px solid var(--bg)',
                     }}>
                       {powers[i]}
                     </div>
                   </div>
-                  <div style={{ fontSize: 7, fontWeight: 500, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: 54, color: 'var(--text)', marginTop: 2 }}>
+                  <div style={{ fontSize: 9, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: 58, color: 'var(--text)', marginTop: 2 }}>
                     {lastName}
                   </div>
                 </>
               ) : (
-                <div style={{ fontSize: 7, color: 'var(--faint)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, letterSpacing: 0.4, textAlign: 'center', lineHeight: 1.3 }}>
+                <div style={{ fontSize: 8, color: 'var(--faint)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, letterSpacing: 0.5, textAlign: 'center', lineHeight: 1.3 }}>
                   {pos.label.toUpperCase()}
                 </div>
               )}

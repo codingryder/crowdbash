@@ -216,14 +216,14 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
         <div style={{ borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg2)' }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
-              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Player bench</div>
-              <div style={{ fontSize: 10, color: 'var(--muted)' }}>Click player · click field</div>
+              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800 }}>Player bench</div>
+              <div style={{ fontSize: 12, color: 'var(--muted)' }}>Click player · click field</div>
             </div>
-            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: 110, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 8px', fontSize: 11, color: 'var(--text)', outline: 'none' }} />
+            <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: 120, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
           </div>
           <div style={{ display: 'flex', gap: 4, padding: '6px 14px', flexShrink: 0, flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
             {['all', 'bat', 'bowl', 'ar', 'wk'].map(r => (
-              <button key={r} onClick={() => setRoleFilter(r)} style={{ fontSize: 10, padding: '3px 9px', borderRadius: 100, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, border: roleFilter === r ? '1px solid rgba(45,214,122,0.25)' : '1px solid var(--border)', background: roleFilter === r ? 'rgba(45,214,122,0.08)' : 'transparent', color: roleFilter === r ? 'var(--green)' : 'var(--muted)' }}>
+              <button key={r} onClick={() => setRoleFilter(r)} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 100, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, border: roleFilter === r ? '1px solid rgba(45,214,122,0.25)' : '1px solid var(--border)', background: roleFilter === r ? 'rgba(45,214,122,0.08)' : 'transparent', color: roleFilter === r ? 'var(--green)' : 'var(--muted)' }}>
                 {r === 'all' ? 'All' : r === 'bat' ? 'Bat' : r === 'bowl' ? 'Bowl' : r === 'ar' ? 'AR' : 'WK'}
               </button>
             ))}
@@ -231,7 +231,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
           <div style={{ flex: 1, overflowY: 'auto', padding: '8px 10px' }}>
             {teams.map(team => (
               <div key={team}>
-                <div style={{ fontSize: 9, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', padding: '6px 4px 4px', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{team}</div>
+                <div style={{ fontSize: 11, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', padding: '8px 4px 5px', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{team}</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
                   {benchPlayers.filter(p => p.team === team).map(player => {
                     const isPlaced = placedIds.has(player.player_id);
@@ -250,10 +250,10 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                         pointerEvents: isPlaced ? 'none' : 'auto',
                         transition: 'all 0.15s',
                       }}>
-                        <div style={{ width: 26, height: 26, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 8, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
+                        <div style={{ width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
                         <div style={{ flex: 1, minWidth: 0 }}>
-                          <div style={{ fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lastName}</div>
-                          <div style={{ fontSize: 8, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
+                          <div style={{ fontSize: 13, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{lastName}</div>
+                          <div style={{ fontSize: 10, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
                         </div>
                       </div>
                     );
@@ -336,12 +336,12 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                 </div>
 
                 {/* Player name */}
-                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>
+                <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2, fontFamily: "'Cabinet Grotesk', sans-serif" }}>
                   {player.player_name.split(' ').pop()}
                 </div>
 
                 {/* Available power */}
-                <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 600 }}>
+                <div style={{ fontSize: 10, color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 600 }}>
                   {availablePower} avail
                 </div>
 
