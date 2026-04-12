@@ -29,6 +29,8 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const [locking, setLocking] = useState(false);
   const [error, setError] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [mobileStep, setMobileStep] = useState<'pick' | 'power'>('pick');
+  const [mobileSelected, setMobileSelected] = useState<Set<string>>(new Set());
   const isMobile = useIsMobile();
 
   const [t1, t2] = splitTeams(roomName);
@@ -156,6 +158,35 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     } finally { setLocking(false); }
   }
 
+  // Mobile: toggle player selection (multi-select)
+  function mobileTogglePlayer(playerId: string) {
+    const newSet = new Set(mobileSelected);
+    if (newSet.has(playerId)) {
+      newSet.delete(playerId);
+    } else if (newSet.size < 11) {
+      newSet.add(playerId);
+    }
+    setMobileSelected(newSet);
+  }
+
+  // Mobile: place all selected players onto pitch slots
+  function mobilePlaceAll() {
+    const playerIds = Array.from(mobileSelected);
+    const newSlots: (SquadPlayer | null)[] = new Array(11).fill(null);
+    const newPowers: number[] = new Array(11).fill(DEF_B);
+    playerIds.forEach((pid, i) => {
+      if (i >= 11) return;
+      const player = allPlayers.find(p => p.player_id === pid);
+      if (player) {
+        newSlots[i] = player;
+        newPowers[i] = DEF_B;
+      }
+    });
+    setSlots(newSlots);
+    setPowers(newPowers);
+    setMobileStep('power');
+  }
+
   const getRoleBg = (role: string) => {
     const r = role.toLowerCase();
     if (r.includes('bat')) return { bg: 'rgba(45,214,122,0.1)', color: 'var(--green)' };
@@ -213,87 +244,115 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
       {/* ── LAYOUT: BENCH + PITCH ── */}
       {isMobile ? (
-        /* ══ MOBILE: single scrollable column — pitch on top, bench below ══ */
+        /* ══ MOBILE: Step 1 = multi-select players, Step 2 = pitch + power ══ */
         <div style={{ flex: 1, overflowY: 'auto', display: 'flex', flexDirection: 'column' }}>
-          {/* Pitch area */}
-          <div style={{ position: 'relative', flexShrink: 0 }}>
-            {/* Preset buttons */}
-            {pickCount > 0 && (
-              <div style={{ display: 'flex', justifyContent: 'center', gap: 4, padding: '8px 8px 0', flexWrap: 'wrap' }}>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {[{ key: 'balanced', icon: '⚖️', label: 'Balance' }, { key: 'bat', icon: '🏏', label: 'Batters' }].map(p => (
-                    <button key={p.key} onClick={() => applyPreset(p.key)} style={{ padding: '4px 10px', borderRadius: 100, border: 'none', background: 'var(--surface)', color: 'var(--muted)', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{p.icon} {p.label}</button>
-                  ))}
+
+          {mobileStep === 'pick' ? (
+            /* ── STEP 1: SELECT 11 PLAYERS ── */
+            <>
+              <div style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800 }}>Select 11 Players</div>
+                  <div style={{ fontSize: 11, color: 'var(--muted)' }}>Tap to select · {mobileSelected.size}/11 picked</div>
                 </div>
-                <div style={{ display: 'flex', gap: 4 }}>
-                  {[{ key: 'bowl', icon: '🎯', label: 'Bowlers' }, { key: 'ar', icon: '⚡', label: 'All-rds' }].map(p => (
-                    <button key={p.key} onClick={() => applyPreset(p.key)} style={{ padding: '4px 10px', borderRadius: 100, border: 'none', background: 'var(--surface)', color: 'var(--muted)', fontSize: 10, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{p.icon} {p.label}</button>
-                  ))}
+                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                  <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: 90, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 8px', fontSize: 12, color: 'var(--text)', outline: 'none' }} />
                 </div>
               </div>
-            )}
-
-            {/* Power adjuster floating */}
-            {activeSlot !== null && slots[activeSlot] && (() => {
-              const player = slots[activeSlot]!;
-              const pw = powers[activeSlot];
-              const canInc = pw < MAX_B && availablePower > 0;
-              const canDec = pw > MIN_B;
-              return (
-                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8, padding: '6px 12px', background: 'var(--surface)', borderBottom: '1px solid var(--border)' }}>
-                  <span style={{ fontSize: 12, fontWeight: 600 }}>{player.player_name.split(' ').pop()}</span>
-                  <button onClick={() => adjustPower(activeSlot, -1)} disabled={!canDec} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: canDec ? 'var(--text)' : 'var(--faint)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-                  <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, color: 'var(--amber)', width: 28, textAlign: 'center' }}>{pw}x</span>
-                  <button onClick={() => adjustPower(activeSlot, 1)} disabled={!canInc} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: canInc ? 'var(--text)' : 'var(--faint)', fontSize: 16, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-                  <button onClick={() => { const u = [...slots]; u[activeSlot] = null; setSlots(u); const p = [...powers]; p[activeSlot] = DEF_B; setPowers(p); setActiveSlot(null); }} style={{ fontSize: 10, fontWeight: 700, padding: '4px 8px', borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>✕</button>
-                  <button onClick={() => setActiveSlot(null)} style={{ fontSize: 10, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer' }}>Done</button>
-                </div>
-              );
-            })()}
-
-            <CricketPitch slots={slots} powers={powers} selectedPlayer={selectedPlayer} phase={1} onSlotClick={handleSlotClick} hint={activeSlot !== null ? 'TAP PLAYER TO ADJUST · TAP AGAIN TO REMOVE' : 'TAP PLAYER · THEN TAP POSITION'} activeSlot={activeSlot} />
-          </div>
-
-          {/* Bench below pitch */}
-          <div style={{ borderTop: '1px solid var(--border)', background: 'var(--bg2)' }}>
-            <div style={{ padding: '8px 12px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', borderBottom: '1px solid var(--border)' }}>
-              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800 }}>Players</div>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: 100, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 8px', fontSize: 12, color: 'var(--text)', outline: 'none' }} />
+              <div style={{ display: 'flex', gap: 4, padding: '6px 12px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
+                {['all', 'bat', 'bowl', 'ar', 'wk'].map(r => (
+                  <button key={r} onClick={() => setRoleFilter(r)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 100, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, border: roleFilter === r ? '1px solid rgba(45,214,122,0.25)' : '1px solid var(--border)', background: roleFilter === r ? 'rgba(45,214,122,0.08)' : 'transparent', color: roleFilter === r ? 'var(--green)' : 'var(--muted)' }}>
+                    {r === 'all' ? 'All' : r === 'bat' ? 'Bat' : r === 'bowl' ? 'Bowl' : r === 'ar' ? 'AR' : 'WK'}
+                  </button>
+                ))}
               </div>
-            </div>
-            <div style={{ display: 'flex', gap: 4, padding: '6px 12px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
-              {['all', 'bat', 'bowl', 'ar', 'wk'].map(r => (
-                <button key={r} onClick={() => setRoleFilter(r)} style={{ fontSize: 11, padding: '3px 10px', borderRadius: 100, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, border: roleFilter === r ? '1px solid rgba(45,214,122,0.25)' : '1px solid var(--border)', background: roleFilter === r ? 'rgba(45,214,122,0.08)' : 'transparent', color: roleFilter === r ? 'var(--green)' : 'var(--muted)' }}>
-                  {r === 'all' ? 'All' : r === 'bat' ? 'Bat' : r === 'bowl' ? 'Bowl' : r === 'ar' ? 'AR' : 'WK'}
-                </button>
-              ))}
-            </div>
-            <div style={{ padding: '8px 10px' }}>
-              {teams.map(team => (
-                <div key={team}>
-                  <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', padding: '6px 4px 4px', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{team}</div>
-                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
-                    {benchPlayers.filter(p => p.team === team).map(player => {
-                      const isPlaced = placedIds.has(player.player_id);
-                      const isSel = selectedPlayer?.player_id === player.player_id;
-                      const rcBg = getRoleBg(player.player_role);
-                      const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
-                      return (
-                        <div key={player.player_id} onClick={() => !isPlaced && handleBenchClick(player)} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '5px 7px', borderRadius: 7, border: isSel ? '1px solid var(--green)' : '1px solid var(--border)', background: isSel ? 'rgba(45,214,122,0.05)' : 'var(--surface)', cursor: isPlaced ? 'default' : 'pointer', opacity: isPlaced ? 0.25 : 1, pointerEvents: isPlaced ? 'none' : 'auto' }}>
-                          <div style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 8, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
-                          <div style={{ flex: 1, minWidth: 0 }}>
-                            <div style={{ fontSize: 11, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.player_name}</div>
-                            <div style={{ fontSize: 9, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
+              <div style={{ flex: 1, padding: '8px 10px' }}>
+                {teams.map(team => (
+                  <div key={team}>
+                    <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: 1.5, color: 'var(--muted)', padding: '8px 4px 5px', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{team}</div>
+                    <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 4 }}>
+                      {benchPlayers.filter(p => p.team === team).map(player => {
+                        const isSel = mobileSelected.has(player.player_id);
+                        const rcBg = getRoleBg(player.player_role);
+                        const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+                        const canSelect = mobileSelected.size < 11 || isSel;
+                        return (
+                          <div key={player.player_id} onClick={() => canSelect && mobileTogglePlayer(player.player_id)} style={{
+                            display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 8,
+                            border: isSel ? '2px solid var(--green)' : '1px solid var(--border)',
+                            background: isSel ? 'rgba(45,214,122,0.08)' : 'var(--surface)',
+                            cursor: canSelect ? 'pointer' : 'default', opacity: canSelect ? 1 : 0.4,
+                          }}>
+                            {/* Checkbox */}
+                            <div style={{ width: 20, height: 20, borderRadius: 5, border: isSel ? '2px solid var(--green)' : '1.5px solid var(--border)', background: isSel ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, color: '#071a0e', fontWeight: 900 }}>
+                              {isSel ? '✓' : ''}
+                            </div>
+                            <div style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 8, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
+                            <div style={{ flex: 1, minWidth: 0 }}>
+                              <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.player_name}</div>
+                              <div style={{ fontSize: 9, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
+                            </div>
                           </div>
-                        </div>
-                      );
-                    })}
+                        );
+                      })}
+                    </div>
                   </div>
+                ))}
+              </div>
+
+              {/* Sticky bottom bar */}
+              {mobileSelected.size > 0 && (
+                <div style={{ position: 'sticky', bottom: 0, padding: '10px 14px', background: 'var(--bg)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif" }}>
+                    <span style={{ color: mobileSelected.size === 11 ? 'var(--green)' : 'var(--amber)' }}>{mobileSelected.size}</span>/11 selected
+                  </div>
+                  <button onClick={mobilePlaceAll} disabled={mobileSelected.size !== 11} style={{
+                    background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 9,
+                    padding: '10px 24px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800,
+                    cursor: mobileSelected.size === 11 ? 'pointer' : 'not-allowed',
+                    opacity: mobileSelected.size === 11 ? 1 : 0.3,
+                  }}>
+                    Assign Power →
+                  </button>
                 </div>
-              ))}
-            </div>
-          </div>
+              )}
+            </>
+          ) : (
+            /* ── STEP 2: PITCH VIEW + POWER DISTRIBUTION ── */
+            <>
+              {/* Pitch with players placed */}
+              <div style={{ flexShrink: 0, padding: '0 8px' }}>
+                <CricketPitch slots={slots} powers={powers} selectedPlayer={null} phase={2} onSlotClick={(i) => setActiveSlot(activeSlot === i ? null : i)} hint="" activeSlot={activeSlot} />
+              </div>
+
+              {/* Power adjuster for selected slot */}
+              {activeSlot !== null && slots[activeSlot] && (() => {
+                const player = slots[activeSlot]!;
+                const pw = powers[activeSlot];
+                const canInc = pw < MAX_B && availablePower > 0;
+                const canDec = pw > MIN_B;
+                return (
+                  <div style={{ padding: '8px 14px', background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 10 }}>
+                    <span style={{ fontSize: 13, fontWeight: 700, flex: 1 }}>{player.player_name}</span>
+                    <button onClick={() => adjustPower(activeSlot, -1)} disabled={!canDec} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: canDec ? 'var(--text)' : 'var(--faint)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
+                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 24, fontWeight: 900, color: 'var(--amber)', width: 36, textAlign: 'center' }}>{pw}x</span>
+                    <button onClick={() => adjustPower(activeSlot, 1)} disabled={!canInc} style={{ width: 32, height: 32, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: canInc ? 'var(--text)' : 'var(--faint)', fontSize: 18, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
+                  </div>
+                );
+              })()}
+
+              {/* Presets + power list */}
+              <div style={{ padding: '10px 14px' }}>
+                <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
+                  {[{ key: 'balanced', icon: '⚖️', label: 'Balance' }, { key: 'bat', icon: '🏏', label: 'Bat' }, { key: 'bowl', icon: '🎯', label: 'Bowl' }, { key: 'ar', icon: '⚡', label: 'AR' }].map(p => (
+                    <button key={p.key} onClick={() => applyPreset(p.key)} style={{ padding: '5px 12px', borderRadius: 100, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{p.icon} {p.label}</button>
+                  ))}
+                </div>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>Tap a player on the pitch to adjust power · <b style={{ color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}/33</b> used · <b>{availablePower}</b> available</div>
+                <button onClick={() => setMobileStep('pick')} style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>← Change players</button>
+              </div>
+            </>
+          )}
         </div>
       ) : (
       /* ══ DESKTOP: side-by-side layout ══ */
