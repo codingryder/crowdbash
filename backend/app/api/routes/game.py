@@ -149,10 +149,10 @@ async def select_squad(
         if pid not in available:
             raise HTTPException(status_code=400, detail=f"Player {pid} not in match squads")
 
-    # Clear previous and create new selections
-    old_result = await db.execute(select(PlayerWeightage).where(PlayerWeightage.game_id == game.id))
-    for old in old_result.scalars().all():
-        await db.delete(old)
+    # Clear previous selections using bulk DELETE
+    from sqlalchemy import delete
+    await db.execute(delete(PlayerWeightage).where(PlayerWeightage.game_id == game.id))
+    await db.flush()
 
     for pid in body.player_ids:
         s = available[pid]
