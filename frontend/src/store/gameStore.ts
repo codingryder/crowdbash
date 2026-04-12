@@ -32,6 +32,9 @@ interface GameStore {
   getRemainingBudget: () => number;
   canIncrease: (playerId: string) => boolean;
   canDecrease: (playerId: string) => boolean;
+
+  // Reset
+  reset: () => void;
 }
 
 export const useGameStore = create<GameStore>((set, get) => ({
@@ -86,6 +89,16 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
     set({ game: { ...game, player_weightages: pws }, remainingBudget: budget });
   },
+
+  reset: () => set({
+    game: null,
+    leaderboard: [],
+    editWindowOpen: false,
+    remainingBudget: TOTAL_BUDGET,
+    showTeamBuilder: false,
+    availableSquads: {},
+    selectedPlayerIds: [],
+  }),
 
   getRemainingBudget: () => get().remainingBudget,
   canIncrease: () => get().remainingBudget > 0,

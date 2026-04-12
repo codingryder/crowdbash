@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { useGameStore } from './gameStore';
 
 interface AuthUser {
   id: string;
@@ -36,5 +37,6 @@ export const useAuthStore = create<AuthStore>((set) => ({
   logout: () => {
     localStorage.removeItem('crowdbash_token');
     set({ user: null, isLoading: false });
+    useGameStore.getState().reset();
   },
 }));
