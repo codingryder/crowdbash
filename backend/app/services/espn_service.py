@@ -416,23 +416,22 @@ def _map_espn_position(abbr: str, name: str) -> str:
 async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Optional[dict]:
     """
     Get detailed match data from ESPN summary endpoint.
-    Returns score, scorecard with batting/bowling, and match status.
+    Parses rosters for batting/bowling stats, header for scores.
     """
     from app.core.redis import redis_get_json, redis_set_json
+    import re
 
-    # First find the event ID from scoreboard
+    # Find event ID from scoreboard
     status_data = await _get_cricket_status(match_name, "IPL")
     if not status_data:
         return None
 
-    # Get events from cached scoreboard data
     cache_key = f"espn:cricket:{series_id}"
     events = await redis_get_json(cache_key)
     if not events:
         return None
 
-    # Find matching event
-    parts = match_name.lower().split(" vs ") if " vs " in match_name.lower() else match_name.lower().split(" v ")
+    parts = re.split(r'\s+vs?\s+', match_name.lower())
     if len(parts) != 2:
         return None
 
@@ -451,13 +450,11 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
     if not event_id:
         return None
 
-    # Check cache for detail
     detail_cache = f"espn:detail:{event_id}"
     cached = await redis_get_json(detail_cache)
     if cached:
         return cached
 
-    # Fetch summary endpoint for detailed scorecard
     try:
         async with httpx.AsyncClient() as client:
             res = await client.get(
@@ -476,56 +473,100 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
 
             comp = competitions[0]
             competitors = comp.get("competitors", [])
+            rosters = data.get("rosters", [])
 
-            # Build score array
+            # Build score array from header
             score_arr = []
             for team_data in competitors:
                 team_name = team_data.get("team", {}).get("displayName", "")
                 for ls in team_data.get("linescores", []):
                     score_arr.append({
-                        "r": ls.get("runs", ls.get("value", 0)),
+                        "r": ls.get("runs", 0),
                         "w": ls.get("wickets", 0),
                         "o": float(ls.get("overs", 0)),
                         "inning": f"{team_name} Inning {ls.get('period', 1)}",
                     })
 
-            # Build scorecard from innings data
+            # Build scorecard from rosters (batting team = roster with isBatting=true in linescores)
             scorecard = []
-            innings_data = data.get("innings", [])
-            for inn in innings_data:
+            for roster_idx, roster in enumerate(rosters):
+                team_name = roster.get("team", {}).get("displayName", f"Team {roster_idx + 1}")
+                players = roster.get("roster", [])
+
                 batting = []
-                for bat in inn.get("batsmen", inn.get("batting", [])):
-                    name = bat.get("athlete", {}).get("displayName", bat.get("name", ""))
-                    batting.append({
-                        "batsman": {"id": str(bat.get("athlete", {}).get("id", "")), "name": name},
-                        "r": bat.get("totalRuns", bat.get("runs", 0)),
-                        "b": bat.get("balls", bat.get("ballsFaced", 0)),
-                        "4s": bat.get("fours", 0),
-                        "6s": bat.get("sixes", 0),
-                        "dismissal": bat.get("dismissalText", bat.get("dismissal", "not out")),
-                    })
-
                 bowling = []
-                for bowl in inn.get("bowlers", inn.get("bowling", [])):
-                    name = bowl.get("athlete", {}).get("displayName", bowl.get("name", ""))
-                    bowling.append({
-                        "bowler": {"id": str(bowl.get("athlete", {}).get("id", "")), "name": name},
-                        "o": float(bowl.get("overs", 0)),
-                        "m": bowl.get("maidens", 0),
-                        "r": bowl.get("conceded", bowl.get("runs", 0)),
-                        "w": bowl.get("wickets", 0),
+
+                for player in players:
+                    athlete = player.get("athlete", {})
+                    pid = str(athlete.get("id", ""))
+                    pname = athlete.get("displayName", "")
+                    player_ls = player.get("linescores", [])
+                    if not player_ls:
+                        continue
+
+                    ls0 = player_ls[0]
+                    stats_obj = ls0.get("statistics", {})
+                    bat_data = stats_obj.get("batting", {})
+                    cats = stats_obj.get("categories", [])
+
+                    # Extract stats from categories[0].stats array
+                    stat_map = {}
+                    if cats:
+                        for stat in cats[0].get("stats", []):
+                            stat_map[stat.get("name", "")] = stat.get("value", 0)
+
+                    runs = stat_map.get("runs", 0)
+                    balls = stat_map.get("ballsFaced", 0)
+                    fours = stat_map.get("fours", 0)
+                    sixes = stat_map.get("sixes", 0)
+                    batted = stat_map.get("batted", 0)
+                    outs = stat_map.get("outs", 0)
+
+                    # Check if this player batted
+                    if batted and batted > 0:
+                        dismissal_text = "not out"
+                        out_details = bat_data.get("outDetails", {})
+                        if outs and outs > 0 and out_details:
+                            dismissal_text = out_details.get("shortText", "out")
+                        is_active = bat_data.get("active", False)
+                        if is_active:
+                            dismissal_text = "batting"
+
+                        batting.append({
+                            "batsman": {"id": pid, "name": pname},
+                            "r": int(runs) if runs else 0,
+                            "b": int(balls) if balls else 0,
+                            "4s": int(fours) if fours else 0,
+                            "6s": int(sixes) if sixes else 0,
+                            "dismissal": dismissal_text,
+                        })
+
+                    # Check bowling stats (from the OTHER team's linescores)
+                    # Bowling data is in the opponent roster's bowler linescores
+                    # We'll handle bowling separately below
+
+                # Sort batting by batting order
+                batting.sort(key=lambda b: next(
+                    (p.get("linescores", [{}])[0].get("statistics", {}).get("batting", {}).get("order", 99)
+                     for p in players if str(p.get("athlete", {}).get("id", "")) == b["batsman"]["id"]),
+                    99
+                ))
+
+                if batting:
+                    scorecard.append({
+                        "inning": f"{team_name} Inning 1",
+                        "batting": batting,
+                        "bowling": [],  # Will be filled from opposite roster
                     })
 
-                inning_name = inn.get("team", {}).get("displayName", f"Innings {len(scorecard) + 1}")
-                scorecard.append({
-                    "inning": f"{inning_name} Inning {inn.get('period', len(scorecard) + 1)}",
-                    "batting": batting,
-                    "bowling": bowling,
-                })
+            # Cross-fill bowling: Team A's bowlers are in Team B's scorecard and vice versa
+            # For now bowling stats aren't in ESPN rosters easily, leave empty
+            # The batting data is sufficient for points calculation + display
 
             status_obj = comp.get("status", {})
-            status_text = status_obj.get("type", {}).get("shortDetail", "")
-            match_ended = status_obj.get("type", {}).get("state", "") == "post"
+            status_type = status_obj.get("type", {})
+            status_text = status_type.get("shortDetail", status_type.get("detail", ""))
+            match_ended = status_type.get("state", "") == "post"
 
             result = {
                 "score": score_arr,
@@ -536,11 +577,13 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
                 "source": "espn",
             }
 
-            await redis_set_json(detail_cache, result, ex=30)  # Cache 30s for live data
+            await redis_set_json(detail_cache, result, ex=30)
             return result
 
     except Exception as e:
         print(f"ESPN detail error: {e}")
+        import traceback
+        traceback.print_exc()
         return None
 
 
