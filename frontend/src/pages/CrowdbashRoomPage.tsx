@@ -48,12 +48,12 @@ export function CrowdbashRoomPage() {
     }
   }, [user, room, game, autoJoined, roomId]);
 
-  // If room is locked (match started) and squad is locked, skip pitch view
+  // If squad is already locked, go straight to room view
   useEffect(() => {
-    if (game?.squad_locked && room?.status === 'locked') {
+    if (game?.squad_locked) {
       setPitchView(false);
     }
-  }, [game?.squad_locked, room?.status]);
+  }, [game?.squad_locked]);
 
   // Fetch score on mount + poll
   useEffect(() => {
