@@ -36,7 +36,7 @@ export function CrowdbashRoomPage() {
   const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard'>('myteam');
 
   const sport: Sport = room?.sport || 'cricket';
-  const _selectedPlayers = game?.player_weightages.filter(pw => pw.selected) || [];
+  void game?.player_weightages; // used by MyTeamTab via gameStore
 
   useEffect(() => { setSport(sport); }, [sport, setSport]);
 
