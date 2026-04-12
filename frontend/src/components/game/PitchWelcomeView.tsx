@@ -98,29 +98,21 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     }
   }
 
+  const availablePower = TOTAL_B - totalUsed;
+
   function adjustPower(idx: number, delta: number) {
-    const newVal = Math.max(MIN_B, Math.min(MAX_B, powers[idx] + delta));
-    if (newVal === powers[idx]) return;
-    const d = newVal - powers[idx];
+    const current = powers[idx];
+    let newVal = current + delta;
+    // Clamp to min/max
+    newVal = Math.max(MIN_B, Math.min(MAX_B, newVal));
+    if (newVal === current) return;
+    // If increasing, check available budget
+    if (delta > 0 && availablePower <= 0) return;
+    if (delta > 0 && (newVal - current) > availablePower) {
+      newVal = current + availablePower;
+    }
     const pw = [...powers];
     pw[idx] = newVal;
-    if (d > 0) {
-      let rem = d;
-      for (let s = 0; s < 50 && rem > 0; s++) {
-        let ri = -1, rv = MIN_B;
-        for (let i = 0; i < 11; i++) { if (i !== idx && slots[i] && pw[i] > rv) { rv = pw[i]; ri = i; } }
-        if (ri === -1) { pw[idx] -= rem; break; }
-        const take = Math.min(rem, pw[ri] - MIN_B); pw[ri] -= take; rem -= take;
-      }
-    } else {
-      let sur = -d;
-      for (let s = 0; s < 50 && sur > 0; s++) {
-        let pi = -1, pv = MAX_B;
-        for (let i = 0; i < 11; i++) { if (i !== idx && slots[i] && pw[i] < pv) { pv = pw[i]; pi = i; } }
-        if (pi === -1) { pw[idx] += sur; break; }
-        const give = Math.min(sur, MAX_B - pw[pi]); pw[pi] += give; sur -= give;
-      }
-    }
     setPowers(pw);
   }
 
@@ -272,58 +264,130 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
           </div>
         </div>
 
-        {/* ══ RIGHT: FULL PITCH WITH POWER CONTROLS ══ */}
-        <div style={{ display: 'flex', flexDirection: 'column', overflow: 'hidden', position: 'relative' }}>
-          {/* Preset buttons floating on top */}
-          {pickCount > 0 && (
-            <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', gap: 6, background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '4px 6px', border: '1px solid var(--border)' }}>
-              {[
-                { key: 'balanced', icon: '⚖️', label: 'Balance' },
-                { key: 'bat', icon: '🏏', label: 'Batters' },
-                { key: 'bowl', icon: '🎯', label: 'Bowlers' },
-                { key: 'ar', icon: '⚡', label: 'All-rds' },
-              ].map(p => (
-                <button key={p.key} onClick={() => applyPreset(p.key)} style={{
-                  padding: '5px 12px', borderRadius: 100, border: 'none', background: 'transparent',
-                  color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-                  fontFamily: "'Cabinet Grotesk', sans-serif", transition: 'all 0.15s',
-                }}
-                  onMouseEnter={e => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; }}
-                  onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent'; }}
-                >
-                  {p.icon} {p.label}
+        {/* ══ RIGHT: PITCH + VERTICAL POWER STRIP ══ */}
+        <div style={{ display: 'flex', overflow: 'hidden', position: 'relative' }}>
+
+          {/* Pitch area */}
+          <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
+            {/* Preset buttons floating on top */}
+            {pickCount > 0 && (
+              <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', gap: 6, background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(8px)', borderRadius: 100, padding: '4px 6px', border: '1px solid var(--border)' }}>
+                {[
+                  { key: 'balanced', icon: '⚖️', label: 'Balance' },
+                  { key: 'bat', icon: '🏏', label: 'Batters' },
+                  { key: 'bowl', icon: '🎯', label: 'Bowlers' },
+                  { key: 'ar', icon: '⚡', label: 'All-rds' },
+                ].map(p => (
+                  <button key={p.key} onClick={() => applyPreset(p.key)} style={{
+                    padding: '5px 12px', borderRadius: 100, border: 'none', background: 'transparent',
+                    color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+                    fontFamily: "'Cabinet Grotesk', sans-serif", transition: 'all 0.15s',
+                  }}
+                    onMouseEnter={e => { e.currentTarget.style.color = 'var(--amber)'; e.currentTarget.style.background = 'rgba(245,158,11,0.08)'; }}
+                    onMouseLeave={e => { e.currentTarget.style.color = 'var(--muted)'; e.currentTarget.style.background = 'transparent'; }}
+                  >
+                    {p.icon} {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+
+            {/* Cricket pitch */}
+            <CricketPitch
+              slots={slots}
+              powers={powers}
+              selectedPlayer={selectedPlayer}
+              phase={1}
+              onSlotClick={handleSlotClick}
+              hint={activeSlot !== null ? 'TAP PLAYER TO ADJUST POWER · TAP AGAIN TO REMOVE' : 'CLICK PLAYER · THEN CLICK A POSITION'}
+              activeSlot={activeSlot}
+            />
+          </div>
+
+          {/* Vertical power strip on the right — only when a player is selected */}
+          {activeSlot !== null && slots[activeSlot] && (() => {
+            const player = slots[activeSlot]!;
+            const pw = powers[activeSlot];
+            const maxed = pw >= MAX_B;
+            const minned = pw <= MIN_B;
+            const canIncrease = pw < MAX_B && availablePower > 0;
+            const canDecrease = pw > MIN_B;
+            const rcBg = getRoleBg(player.player_role);
+            const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
+
+            return (
+              <div style={{
+                width: 80, borderLeft: '1px solid var(--border)', background: 'var(--bg2)',
+                display: 'flex', flexDirection: 'column', alignItems: 'center',
+                padding: '16px 8px', gap: 8, flexShrink: 0,
+              }}>
+                {/* Close button */}
+                <button onClick={() => setActiveSlot(null)} style={{
+                  width: 24, height: 24, borderRadius: 6, background: 'var(--surface)', border: '1px solid var(--border)',
+                  color: 'var(--muted)', fontSize: 14, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  alignSelf: 'flex-end', lineHeight: 1,
+                }}>×</button>
+
+                {/* Player avatar */}
+                <div style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 700, ...rcBg }}>
+                  {initials}
+                </div>
+
+                {/* Player name */}
+                <div style={{ fontSize: 10, fontWeight: 600, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2 }}>
+                  {player.player_name.split(' ').pop()}
+                </div>
+
+                {/* Available power */}
+                <div style={{ fontSize: 9, color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 600 }}>
+                  {availablePower} avail
+                </div>
+
+                {/* + button */}
+                <button onClick={() => adjustPower(activeSlot, 1)} disabled={!canIncrease} style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: canIncrease ? 'var(--surface2)' : 'var(--surface)',
+                  border: '1px solid var(--border)', color: canIncrease ? 'var(--text)' : 'var(--faint)',
+                  fontSize: 20, fontWeight: 700, cursor: canIncrease ? 'pointer' : 'not-allowed',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>+</button>
+
+                {/* Power value */}
+                <div style={{
+                  fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 32, fontWeight: 900,
+                  color: maxed ? 'var(--red)' : minned ? 'var(--blue)' : 'var(--amber)',
+                  lineHeight: 1,
+                }}>
+                  {pw}<span style={{ fontSize: 14, fontWeight: 700 }}>x</span>
+                </div>
+
+                {/* - button */}
+                <button onClick={() => adjustPower(activeSlot, -1)} disabled={!canDecrease} style={{
+                  width: 36, height: 36, borderRadius: '50%',
+                  background: canDecrease ? 'var(--surface2)' : 'var(--surface)',
+                  border: '1px solid var(--border)', color: canDecrease ? 'var(--text)' : 'var(--faint)',
+                  fontSize: 20, fontWeight: 700, cursor: canDecrease ? 'pointer' : 'not-allowed',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center',
+                }}>−</button>
+
+                {/* Spacer */}
+                <div style={{ flex: 1 }} />
+
+                {/* Remove button */}
+                <button onClick={() => {
+                  const updated = [...slots]; updated[activeSlot] = null; setSlots(updated);
+                  const newPw = [...powers]; newPw[activeSlot] = DEF_B; setPowers(newPw);
+                  setActiveSlot(null);
+                }} style={{
+                  fontSize: 9, fontWeight: 700, padding: '6px 8px', borderRadius: 6, width: '100%',
+                  background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)',
+                  cursor: 'pointer', textAlign: 'center',
+                }}>
+                  Remove
                 </button>
-              ))}
-            </div>
-          )}
-
-          {/* Active slot power adjuster — floating below presets */}
-          {activeSlot !== null && slots[activeSlot] && (
-            <div style={{ position: 'absolute', top: 52, left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', alignItems: 'center', gap: 10, background: 'rgba(26,27,30,0.92)', backdropFilter: 'blur(8px)', borderRadius: 12, padding: '8px 14px', border: '1px solid var(--border)' }}>
-              <div style={{ fontSize: 12, fontWeight: 600, color: 'var(--text)', minWidth: 80 }}>
-                {slots[activeSlot]!.player_name.split(' ').pop()}
               </div>
-              <button onClick={() => adjustPower(activeSlot, -1)} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--muted)', fontSize: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>−</button>
-              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 22, fontWeight: 900, width: 32, textAlign: 'center', color: powers[activeSlot] >= MAX_B ? 'var(--red)' : powers[activeSlot] <= MIN_B ? 'var(--blue)' : 'var(--amber)' }}>
-                {powers[activeSlot]}x
-              </div>
-              <button onClick={() => adjustPower(activeSlot, 1)} style={{ width: 28, height: 28, borderRadius: '50%', background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text)', fontSize: 16, fontWeight: 700, cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>+</button>
-              <button onClick={() => { const updated = [...slots]; updated[activeSlot] = null; setSlots(updated); const pw = [...powers]; pw[activeSlot] = DEF_B; setPowers(pw); setActiveSlot(null); }} style={{ fontSize: 10, fontWeight: 700, padding: '4px 10px', borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer', marginLeft: 4 }}>
-                Remove
-              </button>
-            </div>
-          )}
-
-          {/* Cricket pitch */}
-          <CricketPitch
-            slots={slots}
-            powers={powers}
-            selectedPlayer={selectedPlayer}
-            phase={1}
-            onSlotClick={handleSlotClick}
-            hint={activeSlot !== null ? 'TAP PLAYER TO ADJUST POWER · TAP AGAIN TO REMOVE' : 'CLICK PLAYER · THEN CLICK A POSITION'}
-            activeSlot={activeSlot}
-          />
+            );
+          })()}
         </div>
       </div>
     </div>
