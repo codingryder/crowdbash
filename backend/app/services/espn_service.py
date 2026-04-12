@@ -456,16 +456,29 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
     competitors = comp.get("competitors", [])
 
     # Build FRESH score array from scoreboard
+    # ESPN has multiple linescores per team (one per innings period)
+    # We collect ALL batting innings across both teams, sorted by period
     score_arr = []
+    all_innings = []
     for team_data in competitors:
         team_name = team_data.get("team", {}).get("displayName", "")
         for ls in team_data.get("linescores", []):
-            score_arr.append({
-                "r": ls.get("runs", 0),
-                "w": ls.get("wickets", 0),
-                "o": float(ls.get("overs", 0)),
-                "inning": f"{team_name} Inning {ls.get('period', 1)}",
-            })
+            runs = ls.get("runs", 0)
+            is_batting = ls.get("isBatting", False)
+            # Include if team actually batted here (runs > 0 or currently batting)
+            if runs > 0 or is_batting:
+                all_innings.append({
+                    "r": runs,
+                    "w": ls.get("wickets", 0),
+                    "o": float(ls.get("overs", 0)),
+                    "inning": f"{team_name} Inning {ls.get('period', 1)}",
+                    "period": ls.get("period", 1),
+                })
+
+    # Sort by period so innings 1 comes first
+    all_innings.sort(key=lambda x: x["period"])
+    for inn in all_innings:
+        score_arr.append({"r": inn["r"], "w": inn["w"], "o": inn["o"], "inning": inn["inning"]})
 
     status_obj = event.get("status", {})
     status_type = status_obj.get("type", {})
@@ -502,14 +515,28 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
                             if not player_ls:
                                 continue
 
-                            stats_obj = player_ls[0].get("statistics", {})
-                            bat_data = stats_obj.get("batting", {})
-                            cats = stats_obj.get("categories", [])
+                            # Use ALL periods' stats (combine innings)
+                            # Each period has its own statistics
+                            total_stat_map = {}
+                            bat_data = {}
+                            for pls in player_ls:
+                                pls_stats = pls.get("statistics", {})
+                                pls_bat = pls_stats.get("batting", {})
+                                pls_cats = pls_stats.get("categories", [])
+                                if pls_cats:
+                                    for stat in pls_cats[0].get("stats", []):
+                                        sname = stat.get("name", "")
+                                        sval = stat.get("value", 0)
+                                        # Sum numeric stats across periods
+                                        if sname in ("runs", "ballsFaced", "fours", "sixes", "batted", "outs"):
+                                            total_stat_map[sname] = total_stat_map.get(sname, 0) + (sval if isinstance(sval, (int, float)) else 0)
+                                        else:
+                                            total_stat_map[sname] = sval
+                                # Use the latest period's batting data for active/dismissal
+                                if pls_bat.get("active", False) or pls_bat.get("outDetails"):
+                                    bat_data = pls_bat
 
-                            stat_map = {}
-                            if cats:
-                                for stat in cats[0].get("stats", []):
-                                    stat_map[stat.get("name", "")] = stat.get("value", 0)
+                            stat_map = total_stat_map
 
                             batted = stat_map.get("batted", 0)
                             if batted and batted > 0:
