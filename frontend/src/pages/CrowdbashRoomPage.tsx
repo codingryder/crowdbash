@@ -45,12 +45,12 @@ export function CrowdbashRoomPage() {
     }
   }, [user, room, game, autoJoined, roomId]);
 
-  // If game is loaded and squad is locked, skip pitch view
+  // If room is locked (match started) and squad is locked, skip pitch view
   useEffect(() => {
-    if (game?.squad_locked) {
+    if (game?.squad_locked && room?.status === 'locked') {
       setPitchView(false);
     }
-  }, [game?.squad_locked]);
+  }, [game?.squad_locked, room?.status]);
 
   // Fetch score on mount + poll
   useEffect(() => {
@@ -81,8 +81,9 @@ export function CrowdbashRoomPage() {
     </div>
   );
 
-  // ── PITCH WELCOME VIEW (first time / squad not locked) ──
-  if (pitchView && (!game?.squad_locked)) {
+  // ── PITCH VIEW (shown when room is open — user can edit team anytime before match) ──
+  const canEditTeam = room.status === 'open';
+  if (pitchView && canEditTeam) {
     return (
       <PitchWelcomeView
         roomId={room.id}
@@ -133,8 +134,8 @@ export function CrowdbashRoomPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {room.status === 'locked' && <span className="badge badge-live"><span className="animate-pulse-slow">●</span> LOCKED</span>}
-                  {!game?.match_started && game && (
-                    <button onClick={() => setShowTeamBuilder(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit squad</button>
+                  {canEditTeam && game && (
+                    <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit squad</button>
                   )}
                 </div>
               </div>
@@ -203,12 +204,12 @@ export function CrowdbashRoomPage() {
                 <div className="text-[12px]" style={{ color: 'var(--muted)' }}>points</div>
               </div>
               <div className="flex items-center gap-2">
-                {game?.squad_locked ? (
-                  <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>🔒 Locked</span>
-                ) : (
+                {room.status === 'open' ? (
                   <button onClick={() => setPitchView(true)} className="text-[11px] font-semibold rounded-full px-2.5 py-1 border-none cursor-pointer" style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)', color: 'var(--green)' }}>
-                    Build XI →
+                    {game?.squad_locked ? 'Edit XI →' : 'Build XI →'}
                   </button>
+                ) : (
+                  <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>🔒 Locked</span>
                 )}
                 {lastUpdated && (
                   <span className="text-[9px]" style={{ color: 'var(--muted)' }}>

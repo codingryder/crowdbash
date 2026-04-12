@@ -131,8 +131,14 @@ async def select_squad(
     if not game:
         raise HTTPException(status_code=404, detail="Join the room first")
 
-    if game.squad_locked:
+    # Allow re-selection if room is still open (match hasn't started)
+    if game.squad_locked and room and room.status != "open":
         raise HTTPException(status_code=400, detail="Match has started. Squad is locked.")
+
+    # Unlock squad if room is still open (user is re-editing)
+    if game.squad_locked and room and room.status == "open":
+        game.squad_locked = False
+        game.squad_locked_at = None
 
     # Validate players exist in squads
     squad_result = await db.execute(

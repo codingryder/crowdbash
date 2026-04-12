@@ -18,6 +18,8 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const { selectSquad, saveWeightages, lockSquad, fetchSquads } = useGame(roomId);
   const availableSquads = useGameStore(s => s.availableSquads);
 
+  const game = useGameStore(s => s.game);
+
   const [phase, setPhase] = useState(1); // 1=pick, 2=power, 3=locked
   const [slots, setSlots] = useState<(SquadPlayer | null)[]>(new Array(11).fill(null));
   const [powers, setPowers] = useState<number[]>(new Array(11).fill(DEF_B));
@@ -25,10 +27,35 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const [roleFilter, setRoleFilter] = useState('all');
   const [search, setSearch] = useState('');
   const [saving, setSaving] = useState(false);
+  const [initialized, setInitialized] = useState(false);
 
   const [t1, t2] = splitTeams(roomName);
 
   useEffect(() => { fetchSquads(); }, []);
+
+  // Pre-populate slots from existing game state (when editing)
+  useEffect(() => {
+    if (initialized || !game || !availableSquads) return;
+    const allP: SquadPlayer[] = Object.values(availableSquads).flat();
+    if (!allP.length) return;
+
+    const selected = game.player_weightages.filter(pw => pw.selected);
+    if (selected.length > 0) {
+      const newSlots: (SquadPlayer | null)[] = new Array(11).fill(null);
+      const newPowers: number[] = new Array(11).fill(DEF_B);
+      selected.forEach((pw, i) => {
+        if (i >= 11) return;
+        const player = allP.find(p => p.player_id === pw.player_id);
+        if (player) {
+          newSlots[i] = player;
+          newPowers[i] = pw.weightage || DEF_B;
+        }
+      });
+      setSlots(newSlots);
+      setPowers(newPowers);
+      setInitialized(true);
+    }
+  }, [game, availableSquads, initialized]);
 
   const allPlayers: SquadPlayer[] = Object.values(availableSquads || {}).flat();
   const placedIds = new Set(slots.filter(Boolean).map(p => p!.player_id));
