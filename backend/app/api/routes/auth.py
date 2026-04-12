@@ -164,3 +164,43 @@ async def get_me(
         "weightage_balance": user.weightage_balance,
         "payment_status": user.payment_status,
     }
+
+
+class UpdateProfileRequest(BaseModel):
+    first_name: str | None = None
+    last_name: str | None = None
+    username: str | None = None
+
+
+@router.put("/me")
+async def update_profile(
+    body: UpdateProfileRequest,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Update current user's profile."""
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+
+    if body.first_name is not None:
+        user.first_name = body.first_name.strip()
+    if body.last_name is not None:
+        user.last_name = body.last_name.strip()
+    if body.username is not None:
+        new_username = body.username.strip().lower()
+        if new_username != user.username:
+            existing = await db.execute(select(User).where(User.username == new_username))
+            if existing.scalar_one_or_none():
+                raise HTTPException(status_code=400, detail="Username already taken")
+            user.username = new_username
+
+    await db.commit()
+    return {
+        "id": str(user.id),
+        "first_name": user.first_name,
+        "last_name": user.last_name,
+        "username": user.username,
+        "message": "Profile updated",
+    }
