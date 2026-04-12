@@ -577,7 +577,7 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
                 "source": "espn",
             }
 
-            await redis_set_json(detail_cache, result, ex=30)
+            await redis_set_json(detail_cache, result, ex=15)  # 15s for live freshness
             return result
 
     except Exception as e:

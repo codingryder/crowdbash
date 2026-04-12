@@ -111,7 +111,7 @@ class CricketAdapter(SportAdapter):
                 print(f"Gemini cricket error: {e}")
 
         if score_data:
-            await redis_set_json(cache_key, score_data, ex=45)
+            await redis_set_json(cache_key, score_data, ex=20)  # Short cache for live data
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
