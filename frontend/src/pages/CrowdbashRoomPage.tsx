@@ -7,8 +7,8 @@ import { useAuth } from '../hooks/useAuth';
 import { useRoomStore } from '../store/roomStore';
 import { useGameStore } from '../store/gameStore';
 import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
+import { PitchWelcomeView } from '../components/game/PitchWelcomeView';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
-import { PaymentGate } from '../components/auth/PaymentGate';
 import { ChatPanel, ChatInput } from '../components/room/ChatPanel';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
@@ -28,14 +28,29 @@ export function CrowdbashRoomPage() {
   const setShowTeamBuilder = useGameStore((s) => s.setShowTeamBuilder);
   const game = useGameStore((s) => s.game);
   const editWindowOpen = useGameStore((s) => s.editWindowOpen);
-  const [paymentDone, setPaymentDone] = useState(false);
+  const [pitchView, setPitchView] = useState(true);
   const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [autoJoined, setAutoJoined] = useState(false);
 
   const sport: Sport = room?.sport || 'cricket';
   const selectedPlayers = game?.player_weightages.filter(pw => pw.selected) || [];
 
   useEffect(() => { setSport(sport); }, [sport, setSport]);
-  useEffect(() => { if (user?.payment_status === 'paid') setPaymentDone(true); }, [user]);
+
+  // Auto-join game when user is authenticated and hasn't joined
+  useEffect(() => {
+    if (user && room && !game && !autoJoined && roomId) {
+      setAutoJoined(true);
+      joinGame();
+    }
+  }, [user, room, game, autoJoined, roomId]);
+
+  // If game is loaded and squad is locked, skip pitch view
+  useEffect(() => {
+    if (game?.squad_locked) {
+      setPitchView(false);
+    }
+  }, [game?.squad_locked]);
 
   // Fetch score on mount + poll
   useEffect(() => {
@@ -66,9 +81,19 @@ export function CrowdbashRoomPage() {
     </div>
   );
 
-  if (!paymentDone) return <PaymentGate roomId={room.id} roomName={room.match_name} onSuccess={() => setPaymentDone(true)} />;
+  // ── PITCH WELCOME VIEW (first time / squad not locked) ──
+  if (pitchView && (!game?.squad_locked)) {
+    return (
+      <PitchWelcomeView
+        roomId={room.id}
+        roomName={room.match_name}
+        sport={sport}
+        onComplete={() => setPitchView(false)}
+      />
+    );
+  }
 
-  // Parse score
+  // ── NORMAL ROOM VIEW ──
   const scoreData = score as CricketScoreData | null;
   const [t1, t2] = splitTeams(room.match_name);
   const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
@@ -95,11 +120,9 @@ export function CrowdbashRoomPage() {
       )}
 
       <div style={{ paddingTop: 60, height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        {/* 2-column layout */}
         <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 300px', overflow: 'hidden' }}>
           {/* ═══ LEFT: Main content ═══ */}
           <div className="flex flex-col overflow-hidden">
-            {/* Room header */}
             <div style={{ padding: '18px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div className="flex items-center justify-between mb-3.5">
                 <div>
@@ -116,12 +139,11 @@ export function CrowdbashRoomPage() {
                 </div>
               </div>
 
-              {/* Scoreboard */}
               <div className="flex items-center justify-between rounded-[14px] px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
                 <div className="text-center">
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--muted)', marginBottom: 3 }}>{a1}</div>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, letterSpacing: '-1px' }}>
-                    {scoreData?.team1?.score || '—'}<span className="text-[17px]" style={{ color: 'var(--muted)' }}></span>
+                    {scoreData?.team1?.score || '—'}
                   </div>
                   <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>{scoreData?.team1?.overs ? `${scoreData.team1.overs} overs` : ''}</div>
                 </div>
@@ -139,7 +161,6 @@ export function CrowdbashRoomPage() {
               </div>
             </div>
 
-            {/* Tabs */}
             <div className="flex shrink-0" style={{ padding: '0 24px', borderBottom: '1px solid var(--border)' }}>
               {['Chat', 'My Team', 'Leaderboard'].map(tab => (
                 <div key={tab} className="px-4 py-3 text-[12px] font-semibold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: tab === 'Chat' ? 'var(--green)' : 'var(--muted)', borderBottom: tab === 'Chat' ? '2px solid var(--green)' : '2px solid transparent', cursor: 'pointer' }}>
@@ -148,7 +169,6 @@ export function CrowdbashRoomPage() {
               ))}
             </div>
 
-            {/* Edit window banner */}
             {editWindowOpen && (
               <div className="flex items-center justify-between shrink-0" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '18px 24px 0' }}>
                 <div className="flex items-center gap-3">
@@ -164,7 +184,6 @@ export function CrowdbashRoomPage() {
               </div>
             )}
 
-            {/* Chat content */}
             <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
               <ChatPanel onSendChat={sendChat} />
             </div>
@@ -175,7 +194,6 @@ export function CrowdbashRoomPage() {
 
           {/* ═══ RIGHT: Squad + Performance ═══ */}
           <div className="flex flex-col overflow-hidden" style={{ borderLeft: '1px solid var(--border)', background: 'var(--bg2)' }}>
-            {/* Performance header */}
             <div style={{ padding: '16px 18px 12px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 12 }}>YOUR PERFORMANCE</div>
               <div className="flex items-baseline gap-1.5 mb-3">
@@ -187,13 +205,9 @@ export function CrowdbashRoomPage() {
               <div className="flex items-center gap-2">
                 {game?.squad_locked ? (
                   <span className="text-[11px] font-semibold rounded-full px-2.5 py-1" style={{ background: 'var(--surface2)', border: '1px solid var(--border)', color: 'var(--text2)' }}>🔒 Locked</span>
-                ) : game ? (
-                  <button onClick={() => setShowTeamBuilder(true)} className="text-[11px] font-semibold rounded-full px-2.5 py-1 border-none" style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)', color: 'var(--green)' }}>
-                    Build XI →
-                  </button>
                 ) : (
-                  <button onClick={joinGame} className="text-[11px] font-semibold rounded-full px-3 py-1.5 border-none cursor-pointer" style={{ background: 'var(--green)', color: '#071a0e' }}>
-                    Join Game
+                  <button onClick={() => setPitchView(true)} className="text-[11px] font-semibold rounded-full px-2.5 py-1 border-none cursor-pointer" style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)', color: 'var(--green)' }}>
+                    Build XI →
                   </button>
                 )}
                 {lastUpdated && (
@@ -204,7 +218,6 @@ export function CrowdbashRoomPage() {
               </div>
             </div>
 
-            {/* Squad list */}
             <div className="flex-1 overflow-y-auto" style={{ padding: '14px 18px' }}>
               <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 10 }}>YOUR SQUAD</div>
               {selectedPlayers.length === 0 ? (
@@ -231,7 +244,6 @@ export function CrowdbashRoomPage() {
               )}
             </div>
 
-            {/* Fan count */}
             <div className="shrink-0 flex items-center gap-1.5 px-4 py-2" style={{ borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--green)' }} />
               {fanCount > 0 ? fanCount : room.fan_count || 0} fans watching
