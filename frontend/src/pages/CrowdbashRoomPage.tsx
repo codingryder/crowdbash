@@ -111,8 +111,10 @@ export function CrowdbashRoomPage() {
   const crr = scoreData?.current_rate || 0;
 
   // Current batting/bowling from scorecard
-  const currentBatting = (scoreData as Record<string, unknown>)?.current_batting as Array<{ name: string; runs: number; balls: number }> | undefined;
-  const currentBowling = (scoreData as Record<string, unknown>)?.current_bowling as Array<{ name: string; wickets: number; runs: number; overs: string }> | undefined;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const sd = scoreData as any;
+  const currentBatting = sd?.current_batting as Array<{ name: string; runs: number; balls: number }> | undefined;
+  const currentBowling = sd?.current_bowling as Array<{ name: string; wickets: number; runs: number; overs: string }> | undefined;
 
   return (
     <>
