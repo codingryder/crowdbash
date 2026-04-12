@@ -57,17 +57,18 @@ export function CrowdbashRoomPage() {
     }
   }, [game?.squad_locked]);
 
-  // Fetch score on mount + poll
+  // Fetch score on mount + poll (regardless of room status — match may be live)
   useEffect(() => {
-    if (!roomId || !room || room.status !== 'locked') return;
+    if (!roomId || !room) return;
     async function fetchScore() {
       try {
         const { data } = await api.get(`/api/rooms/scorecard/${roomId}`);
         if (data.scorecard) { setScore(data.scorecard as ScoreData); setLastUpdated(new Date()); }
       } catch { /* */ }
     }
-    fetchScore();
-    const interval = setInterval(fetchScore, 15000);
+    fetchScore(); // immediate fetch on load
+    const pollInterval = room.status === 'locked' ? 15000 : 60000; // 15s when live, 60s when open
+    const interval = setInterval(fetchScore, pollInterval);
     return () => clearInterval(interval);
   }, [roomId, room?.status]);
 
