@@ -295,3 +295,46 @@ async def update_game_weightages(
         edit_trigger,
     )
     return {"changes": changes}
+
+
+@router.get("/{room_id}/team/{target_user_id}")
+async def get_user_team(
+    room_id: str,
+    target_user_id: str,
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """View another user's team in the same room. Only visible after room is locked."""
+    room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
+    room = room_result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.status == "open":
+        raise HTTPException(status_code=403, detail="Teams are hidden until match starts")
+
+    game_result = await db.execute(
+        select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == uuid.UUID(target_user_id))
+    )
+    game = game_result.scalar_one_or_none()
+    if not game:
+        raise HTTPException(status_code=404, detail="Player not found in this room")
+
+    wt_result = await db.execute(select(PlayerWeightage).where(PlayerWeightage.game_id == game.id))
+    weightages = wt_result.scalars().all()
+
+    return {
+        "user_id": target_user_id,
+        "total_points": game.total_points,
+        "player_weightages": [
+            {
+                "player_id": pw.player_id,
+                "player_name": pw.player_name,
+                "team": pw.team,
+                "weightage": pw.weightage,
+                "points_earned": pw.points_earned,
+                "player_role": pw.player_role,
+                "selected": pw.selected,
+            }
+            for pw in weightages if pw.selected
+        ],
+    }

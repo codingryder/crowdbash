@@ -52,7 +52,7 @@ class CricketAdapter(SportAdapter):
         return []
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
-        """Get match score: CricketData.org → Gemini fallback."""
+        """Get match score: ESPN → CricketData.org → Gemini fallback."""
         cache_key = f"cricket:score:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached and cached.get("score"):
@@ -60,15 +60,27 @@ class CricketAdapter(SportAdapter):
 
         score_data = {}
 
-        # Layer 1: Try CricketData.org
-        try:
-            from app.services.cricketdata_service import get_match_scorecard
-            cd_data = await get_match_scorecard(match_id)
-            if cd_data and (cd_data.get("score") or cd_data.get("scorecard")):
-                score_data = cd_data
-                print(f"Cricket score from CricketData: {match_id}")
-        except Exception as e:
-            print(f"CricketData scorecard error: {e}")
+        # Layer 1: ESPN (for espn_ prefixed IDs)
+        if match_id.startswith("espn_"):
+            try:
+                from app.services.espn_service import fetch_espn_match_by_name
+                espn_data = await fetch_espn_match_by_name(self._current_match_name)
+                if espn_data and espn_data.get("score"):
+                    score_data = espn_data
+                    print(f"Cricket score from ESPN: {match_id}")
+            except Exception as e:
+                print(f"ESPN score error: {e}")
+
+        # Layer 2: Try CricketData.org
+        if not score_data:
+            try:
+                from app.services.cricketdata_service import get_match_scorecard
+                cd_data = await get_match_scorecard(match_id)
+                if cd_data and (cd_data.get("score") or cd_data.get("scorecard")):
+                    score_data = cd_data
+                    print(f"Cricket score from CricketData: {match_id}")
+            except Exception as e:
+                print(f"CricketData scorecard error: {e}")
 
         # Layer 2: Gemini fallback
         if not score_data:

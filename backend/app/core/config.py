@@ -26,7 +26,7 @@ class Settings(BaseSettings):
     # App
     ENVIRONMENT: str = "development"
     FRONTEND_URL: str = "http://localhost:5173"
-    CORS_ORIGINS: str = '["http://localhost:5173"]'
+    CORS_ORIGINS: str = '["http://localhost:5173","http://localhost:5175","https://crowdbash.codingryder.com"]'
 
     @property
     def cors_origins_list(self) -> List[str]:

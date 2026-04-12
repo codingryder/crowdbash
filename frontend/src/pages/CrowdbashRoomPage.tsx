@@ -33,7 +33,7 @@ export function CrowdbashRoomPage() {
   const [pitchView, setPitchView] = useState(true);
   const [_lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoJoined, setAutoJoined] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard'>('myteam');
+  const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard' | 'rules'>('myteam');
 
   const sport: Sport = room?.sport || 'cricket';
   void game?.player_weightages; // used by MyTeamTab via gameStore
@@ -156,6 +156,7 @@ export function CrowdbashRoomPage() {
                 { key: 'myteam' as const, label: 'My Team' },
                 { key: 'leaderboard' as const, label: 'Leaderboard' },
                 { key: 'chat' as const, label: 'Chat' },
+                { key: 'rules' as const, label: 'How to Play' },
               ]).map(tab => (
                 <div
                   key={tab.key}
@@ -202,6 +203,29 @@ export function CrowdbashRoomPage() {
                     <ChatInput onSendChat={sendChat} />
                   </div>
                 </>
+              )}
+              {activeTab === 'rules' && (
+                <div style={{ padding: '20px 24px' }}>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 16 }}>How to Play</div>
+                  <div className="space-y-4">
+                    {[
+                      { icon: '🎯', title: 'Pick 11 Players', desc: 'Select 11 players from both teams to form your fantasy XI. You can pick any combination of batters, bowlers, all-rounders, and wicket-keepers.' },
+                      { icon: '⚡', title: 'Assign Power (33 pts)', desc: 'Distribute 33 power points across your 11 players. Min 1x, max 6x per player. Higher power = more points when that player performs.' },
+                      { icon: '🏏', title: 'Scoring', desc: 'Batting: 1pt/run + 4pt/four + 6pt/six + milestones. Bowling: 25pt/wicket + 10pt/maiden. Fielding: 10pt/catch + 15pt/stumping. Your score = fantasy points × power.' },
+                      { icon: '🔒', title: 'Lock & Play', desc: 'Lock your team before the match starts. Once the room is locked, no more player changes. Your power distribution is final.' },
+                      { icon: '🔄', title: 'Power Reshuffle', desc: 'Every 5 overs, a 2-minute reshuffle window opens. Redistribute your 33 power points — but you can\'t change players, only power. Changes are blind.' },
+                      { icon: '🏆', title: 'Win', desc: 'The player with the highest total points at the end of the match wins. Points update live as the match progresses.' },
+                    ].map((rule, i) => (
+                      <div key={i} className="flex gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
+                        <div style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>{rule.icon}</div>
+                        <div>
+                          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, marginBottom: 3 }}>{rule.title}</div>
+                          <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.6 }}>{rule.desc}</div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
               )}
             </div>
           </div>

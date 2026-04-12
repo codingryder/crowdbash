@@ -138,8 +138,9 @@ async def score_poller():
                     if not match_data or not match_data.get("score"):
                         continue  # Skip if no actual score data
 
-                    # Auto-lock all unlocked squads when match is live
-                    from app.models.game import Game as GameModel
+                    # Auto-lock unlocked squads that have 11 players selected
+                    from app.models.game import Game as GameModel, PlayerWeightage as PW
+                    from sqlalchemy import func as sqfunc
                     unlock_result = await db.execute(
                         select(GameModel).where(
                             GameModel.room_id == room.id,
@@ -148,9 +149,20 @@ async def score_poller():
                         )
                     )
                     for unlocked_game in unlock_result.scalars().all():
-                        unlocked_game.squad_locked = True
-                        from datetime import datetime as dt2, timezone as tz2
-                        unlocked_game.squad_locked_at = dt2.now(tz2.utc)
+                        # Only auto-lock if they have 11 players selected
+                        pw_count = await db.execute(
+                            select(sqfunc.count()).where(
+                                PW.game_id == unlocked_game.id,
+                                PW.selected == True,
+                            )
+                        )
+                        count = pw_count.scalar() or 0
+                        if count >= 11:
+                            unlocked_game.squad_locked = True
+                            from datetime import datetime as dt2, timezone as tz2
+                            unlocked_game.squad_locked_at = dt2.now(tz2.utc)
+                        else:
+                            print(f"Skipping auto-lock for game {unlocked_game.id}: only {count}/11 players")
 
                     # Check if match has finished via adapter (CricketData/Football-Data source)
                     match_finished = adapter.is_match_finished(match_data)
@@ -227,7 +239,7 @@ async def room_sync():
     from datetime import datetime, timezone, timedelta
 
     while True:
-        await asyncio.sleep(300)  # every 5 minutes
+        await asyncio.sleep(60)  # every 1 minute for faster auto-lock
         try:
             async with AsyncSessionLocal() as db:
                 now = datetime.now(timezone.utc)

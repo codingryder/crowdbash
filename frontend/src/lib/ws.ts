@@ -16,7 +16,12 @@ export class CrowdbashWebSocket {
   }
 
   connect() {
-    const WS_BASE = import.meta.env.VITE_WS_URL || 'ws://localhost:8000';
+    // Auto-derive WS URL from API URL if VITE_WS_URL not set
+    let WS_BASE = import.meta.env.VITE_WS_URL || '';
+    if (!WS_BASE) {
+      const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      WS_BASE = apiUrl.replace('https://', 'wss://').replace('http://', 'ws://');
+    }
     this.ws = new WebSocket(`${WS_BASE}/ws/${this.roomId}`);
 
     this.ws.onopen = () => {
