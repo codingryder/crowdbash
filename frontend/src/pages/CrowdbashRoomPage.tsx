@@ -31,12 +31,12 @@ export function CrowdbashRoomPage() {
   const game = useGameStore((s) => s.game);
   const editWindowOpen = useGameStore((s) => s.editWindowOpen);
   const [pitchView, setPitchView] = useState(true);
-  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
+  const [_lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoJoined, setAutoJoined] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard'>('myteam');
 
   const sport: Sport = room?.sport || 'cricket';
-  const selectedPlayers = game?.player_weightages.filter(pw => pw.selected) || [];
+  const _selectedPlayers = game?.player_weightages.filter(pw => pw.selected) || [];
 
   useEffect(() => { setSport(sport); }, [sport, setSport]);
 
