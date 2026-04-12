@@ -304,7 +304,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
             />
           </div>
 
-          {/* Vertical power strip on the right — only when a player is selected */}
+          {/* Floating vertical power strip — between pitch and right edge */}
           {activeSlot !== null && slots[activeSlot] && (() => {
             const player = slots[activeSlot]!;
             const pw = powers[activeSlot];
@@ -317,9 +317,11 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
             return (
               <div style={{
-                width: 80, borderLeft: '1px solid var(--border)', background: 'var(--bg2)',
+                position: 'absolute', right: 24, top: '50%', transform: 'translateY(-50%)', zIndex: 30,
+                width: 80, background: 'rgba(33,34,38,0.95)', backdropFilter: 'blur(12px)',
+                border: '1px solid var(--border2)', borderRadius: 16, boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
                 display: 'flex', flexDirection: 'column', alignItems: 'center',
-                padding: '16px 8px', gap: 8, flexShrink: 0,
+                padding: '14px 8px', gap: 8,
               }}>
                 {/* Close button */}
                 <button onClick={() => setActiveSlot(null)} style={{
