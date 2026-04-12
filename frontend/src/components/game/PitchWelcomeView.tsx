@@ -352,7 +352,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
         </div>
 
         {/* ══ PITCH + POWER STRIP ══ */}
-        <div style={{ display: (isMobile && showBench) ? 'none' : 'flex', overflow: 'hidden', position: 'relative', flex: 1 }}>
+        <div style={{ display: 'flex', overflow: 'hidden', position: 'relative', flex: 1 }}>
 
           {/* Pitch area */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
