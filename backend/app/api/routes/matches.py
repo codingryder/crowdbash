@@ -288,7 +288,7 @@ async def _get_espn_scorecard(sport: str, event_id: str, match_name: str) -> dic
                     if str(event.get("id", "")) == event_id:
                         scorecard = _build_espn_scorecard(event)
                         if scorecard:
-                            await redis_set_json(cache_key, scorecard, ex=60)
+                            await redis_set_json(cache_key, scorecard, ex=20)
                         return scorecard
     except Exception as e:
         print(f"ESPN scorecard error: {e}")
@@ -307,28 +307,52 @@ def _build_espn_scorecard(event: dict) -> dict | None:
     if len(competitors) < 2:
         return None
 
-    # Extract team data
+    # Extract team data — only use batting linescores (runs > 0 or isBatting)
+    import re as _re
     teams = []
     innings_data = []
     for team_data in competitors:
         team_name = team_data.get("team", {}).get("displayName", "Unknown")
         linescores = team_data.get("linescores", [])
 
-        team_score = ""
+        # ESPN raw score e.g. "89/2 (9.1/20 ov, target 241)" or "240/4"
+        raw_score = team_data.get("score", "")
+
+        # Collect only batting linescores (skip fielding periods where runs=0)
+        batting_parts = []
         team_overs = ""
         for ls in linescores:
             runs = ls.get("runs", ls.get("value", 0))
             wickets = ls.get("wickets", 0)
             overs = ls.get("overs", 0)
-            team_score = str(runs) if not team_score else team_score
-            team_overs = str(overs) if not team_overs else team_overs
+            is_batting = ls.get("isBatting", False)
 
-            # Build innings entry (ESPN doesn't have ball-by-ball, just summary)
-            innings_data.append({
-                "name": f"{team_name} Innings {ls.get('period', 1)}",
-                "batting": [],
-                "bowling": [],
-            })
+            if runs > 0 or is_batting:
+                batting_parts.append({"runs": runs, "wickets": wickets, "overs": overs})
+                team_overs = str(overs)
+
+                # Build innings entry
+                innings_data.append({
+                    "name": f"{team_name} Innings {ls.get('period', 1)}",
+                    "batting": [],
+                    "bowling": [],
+                })
+
+        # Build score string and overs from the most accurate source
+        if raw_score:
+            # Parse ESPN raw score: "89/2 (9.1/20 ov, target 241)" → score="89/2", overs="9.1"
+            score_match = _re.match(r'^([\d/]+)', raw_score)
+            team_score = score_match.group(1) if score_match else raw_score
+            overs_match = _re.search(r'\(([\d.]+)/', raw_score)
+            if overs_match:
+                team_overs = overs_match.group(1)
+        elif batting_parts:
+            parts_str = []
+            for bp in batting_parts:
+                parts_str.append(f"{bp['runs']}/{bp['wickets']}")
+            team_score = " & ".join(parts_str)
+        else:
+            team_score = ""
 
         teams.append({
             "name": team_name,

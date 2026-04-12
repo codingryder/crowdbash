@@ -241,13 +241,25 @@ class CricketAdapter(SportAdapter):
         t1_score, t1_overs, t2_score, t2_overs = "—", "—", "—", "—"
 
         if score_arr:
-            for i, s in enumerate(score_arr[:2]):
-                if i == 0:
-                    t1_score = f"{s.get('r', 0)}/{s.get('w', 0)}"
-                    t1_overs = str(s.get("o", "0"))
-                elif i == 1:
-                    t2_score = f"{s.get('r', 0)}/{s.get('w', 0)}"
-                    t2_overs = str(s.get("o", "0"))
+            # Match scores to teams by inning name, not by index position
+            for s in score_arr:
+                inning = s.get("inning", "")
+                score_str = f"{s.get('r', 0)}/{s.get('w', 0)}"
+                overs_str = str(s.get("o", "0"))
+                if t1.lower() in inning.lower():
+                    t1_score = score_str
+                    t1_overs = overs_str
+                elif t2.lower() in inning.lower():
+                    t2_score = score_str
+                    t2_overs = overs_str
+                else:
+                    # Fallback: assign by position if inning name doesn't match
+                    if t1_score == "—":
+                        t1_score = score_str
+                        t1_overs = overs_str
+                    elif t2_score == "—":
+                        t2_score = score_str
+                        t2_overs = overs_str
 
         crr = 0
         if score_arr:
