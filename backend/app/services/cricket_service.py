@@ -60,16 +60,27 @@ class CricketAdapter(SportAdapter):
 
         score_data = {}
 
-        # Layer 1: ESPN (for espn_ prefixed IDs)
+        # Layer 1: ESPN detailed (for espn_ prefixed IDs — includes scorecard)
         if match_id.startswith("espn_"):
             try:
-                from app.services.espn_service import fetch_espn_match_by_name
-                espn_data = await fetch_espn_match_by_name(self._current_match_name)
-                if espn_data and espn_data.get("score"):
+                from app.services.espn_service import get_espn_match_detail
+                espn_data = await get_espn_match_detail(self._current_match_name)
+                if espn_data and (espn_data.get("score") or espn_data.get("scorecard")):
                     score_data = espn_data
-                    print(f"Cricket score from ESPN: {match_id}")
+                    print(f"Cricket score+scorecard from ESPN: {match_id}")
             except Exception as e:
-                print(f"ESPN score error: {e}")
+                print(f"ESPN detail error: {e}")
+
+            # Fallback to basic ESPN status if detail failed
+            if not score_data:
+                try:
+                    from app.services.espn_service import fetch_espn_match_by_name
+                    espn_basic = await fetch_espn_match_by_name(self._current_match_name)
+                    if espn_basic and espn_basic.get("score"):
+                        score_data = espn_basic
+                        print(f"Cricket basic score from ESPN: {match_id}")
+                except Exception as e:
+                    print(f"ESPN basic score error: {e}")
 
         # Layer 2: Try CricketData.org
         if not score_data:
@@ -220,7 +231,8 @@ class CricketAdapter(SportAdapter):
         return total_points, breakdown
 
     def normalize_score(self, match_data: dict, room_name: str) -> dict:
-        parts = room_name.split(" vs ")
+        import re
+        parts = re.split(r'\s+vs?\s+', room_name, flags=re.IGNORECASE)
         t1 = parts[0].strip() if len(parts) > 0 else "Team 1"
         t2 = parts[1].strip() if len(parts) > 1 else "Team 2"
 

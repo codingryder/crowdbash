@@ -9,6 +9,7 @@ import { useGameStore } from '../store/gameStore';
 import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
 import { PitchWelcomeView } from '../components/game/PitchWelcomeView';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
+import { ScorecardModal } from '../components/room/ScorecardModal';
 import { ChatPanel, ChatInput } from '../components/room/ChatPanel';
 import { MyTeamTab } from '../components/room/MyTeamTab';
 import { LeaderboardTab } from '../components/room/LeaderboardTab';
@@ -34,6 +35,7 @@ export function CrowdbashRoomPage() {
   const [_lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoJoined, setAutoJoined] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard' | 'rules'>('myteam');
+  const [showScorecard, setShowScorecard] = useState(false);
 
   const sport: Sport = room?.sport || 'cricket';
   void game?.player_weightages; // used by MyTeamTab via gameStore
@@ -118,6 +120,13 @@ export function CrowdbashRoomPage() {
 
   return (
     <>
+      {showScorecard && (
+        <ScorecardModal
+          roomId={room.id}
+          roomName={room.match_name}
+          onClose={() => setShowScorecard(false)}
+        />
+      )}
       {showTeamBuilder && (
         <TeamBuilderModal
           roomName={room.match_name}
@@ -300,6 +309,19 @@ export function CrowdbashRoomPage() {
                 <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
               )}
             </div>
+
+            {/* Scorecard button */}
+            {isLive && (
+              <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <button
+                  onClick={() => setShowScorecard(true)}
+                  className="w-full flex items-center justify-center gap-2"
+                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 9, padding: '10px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}
+                >
+                  📊 Full Scorecard
+                </button>
+              </div>
+            )}
 
             {/* Top 3 Leaders */}
             <MiniLeaderboard roomId={room.id} />

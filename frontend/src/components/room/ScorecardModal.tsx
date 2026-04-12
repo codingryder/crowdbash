@@ -70,6 +70,9 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
       }
     }
     fetchScorecard();
+    // Auto-refresh every 30 seconds for live data
+    const interval = setInterval(fetchScorecard, 30000);
+    return () => clearInterval(interval);
   }, [roomId, sport, matchId, roomName]);
 
   const isCricket = scorecard?.sport === 'cricket' || sport === 'cricket';
