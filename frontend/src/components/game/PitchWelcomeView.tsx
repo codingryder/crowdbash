@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { CricketPitch } from './CricketPitch';
 import { useGameStore } from '../../store/gameStore';
 import { useGame } from '../../hooks/useGame';
+import { useIsMobile } from '../../hooks/useIsMobile';
 import type { Sport, SquadPlayer } from '../../types';
 import { splitTeams } from '../../types';
 
@@ -28,6 +29,8 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const [locking, setLocking] = useState(false);
   const [error, setError] = useState('');
   const [initialized, setInitialized] = useState(false);
+  const [showBench, setShowBench] = useState(false);
+  const isMobile = useIsMobile();
 
   const [t1, t2] = splitTeams(roomName);
 
@@ -183,37 +186,44 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   return (
     <div style={{ paddingTop: 60, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── TOP BAR ── */}
-      <div style={{ height: 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', flexShrink: 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800 }}>Build Your XI</div>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t1} vs {t2}</div>
+      <div style={{ minHeight: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '6px 12px' : '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', flexShrink: 0, flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 6 : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 13 : 15, fontWeight: 800 }}>Build Your XI</div>
+          {!isMobile && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t1} vs {t2}</div>}
         </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
-          <div style={{ fontSize: 12, color: 'var(--muted)' }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 14 }}>
+          <div style={{ fontSize: isMobile ? 11 : 12, color: 'var(--muted)' }}>
             <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: pickCount === 11 ? 'var(--green)' : 'var(--amber)' }}>{pickCount}</b>/11
-            <span style={{ margin: '0 6px', color: 'var(--faint)' }}>·</span>
-            <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33 power
+            <span style={{ margin: '0 4px', color: 'var(--faint)' }}>·</span>
+            <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33
           </div>
-          <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
-            Back to room
-          </button>
+          {isMobile && (
+            <button onClick={() => setShowBench(!showBench)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 11, fontWeight: 700, color: showBench ? 'var(--green)' : 'var(--muted)', cursor: 'pointer' }}>
+              {showBench ? 'Pitch' : 'Players'}
+            </button>
+          )}
+          {!isMobile && (
+            <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: '7px 16px', fontSize: 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
+              Back to room
+            </button>
+          )}
           <button onClick={handleLockTeam} disabled={!canLock || locking} style={{
             background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
-            padding: '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800,
+            padding: isMobile ? '6px 14px' : '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 12 : 13, fontWeight: 800,
             cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
           }}>
-            {locking ? 'Locking...' : 'Lock Team ✓'}
+            {locking ? '...' : 'Lock ✓'}
           </button>
         </div>
       </div>
 
       {error && <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', padding: '8px 24px', fontSize: 12, color: 'var(--red)' }}>{error}</div>}
 
-      {/* ── 2-COLUMN: BENCH + PITCH ── */}
-      <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '340px 1fr', overflow: 'hidden' }}>
+      {/* ── LAYOUT: BENCH + PITCH ── */}
+      <div style={{ flex: 1, display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: isMobile ? undefined : '340px 1fr', overflow: 'hidden' }}>
 
-        {/* ══ LEFT: BENCH (2-column compact grid) ══ */}
-        <div style={{ borderRight: '1px solid var(--border)', display: 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg2)' }}>
+        {/* ══ BENCH (hidden on mobile unless toggled) ══ */}
+        <div style={{ borderRight: isMobile ? 'none' : '1px solid var(--border)', display: (isMobile && !showBench) ? 'none' : 'flex', flexDirection: 'column', overflow: 'hidden', background: 'var(--bg2)', flex: isMobile ? 1 : undefined }}>
           <div style={{ padding: '10px 14px 8px', borderBottom: '1px solid var(--border)', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
             <div>
               <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800 }}>Player bench</div>
@@ -264,8 +274,8 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
           </div>
         </div>
 
-        {/* ══ RIGHT: PITCH + VERTICAL POWER STRIP ══ */}
-        <div style={{ display: 'flex', overflow: 'hidden', position: 'relative' }}>
+        {/* ══ PITCH + POWER STRIP ══ */}
+        <div style={{ display: (isMobile && showBench) ? 'none' : 'flex', overflow: 'hidden', position: 'relative', flex: 1 }}>
 
           {/* Pitch area */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>

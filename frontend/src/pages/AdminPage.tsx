@@ -107,7 +107,7 @@ export function AdminPage() {
   if (!isLoggedIn) {
     return (
       <div style={{ paddingTop: 60, minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <form onSubmit={handleLogin} style={{ width: 380, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: 36 }}>
+        <form onSubmit={handleLogin} style={{ width: '100%', maxWidth: 380, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '24px 20px' }} className="md:!p-9">
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 24, fontWeight: 900, marginBottom: 6 }}>Admin Panel</div>
           <div style={{ fontSize: 13, color: 'var(--muted)', marginBottom: 28 }}>Login to manage rooms and matches</div>
           {loginError && <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--red)', marginBottom: 16 }}>{loginError}</div>}

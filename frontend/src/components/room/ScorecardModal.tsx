@@ -181,7 +181,7 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                     {innings[activeInnings].batting.length > 0 && (
                       <>
                         <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--muted)' }}>Batting</div>
-                        <table className="w-full mb-6" style={{ borderCollapse: 'collapse' }}>
+                        <div style={{ overflowX: 'auto' }}><table className="w-full mb-6" style={{ borderCollapse: 'collapse', minWidth: 400 }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                               <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--muted)' }}>Batter</th>
@@ -211,7 +211,7 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </>
                     )}
 
@@ -219,7 +219,7 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                     {innings[activeInnings].bowling.length > 0 && (
                       <>
                         <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--muted)' }}>Bowling</div>
-                        <table className="w-full" style={{ borderCollapse: 'collapse' }}>
+                        <div style={{ overflowX: 'auto' }}><table className="w-full" style={{ borderCollapse: 'collapse', minWidth: 400 }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                               <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--muted)' }}>Bowler</th>
@@ -242,7 +242,7 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                               </tr>
                             ))}
                           </tbody>
-                        </table>
+                        </table></div>
                       </>
                     )}
                   </>

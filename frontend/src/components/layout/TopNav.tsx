@@ -14,7 +14,7 @@ export function TopNav() {
       className="fixed top-0 left-0 right-0 z-[900] flex items-center justify-between"
       style={{
         height: 60,
-        padding: '0 36px',
+        padding: '0 12px',
         background: 'rgba(26,27,30,0.88)',
         borderBottom: '1px solid var(--border)',
         backdropFilter: 'blur(20px)',

@@ -16,6 +16,7 @@ import { LeaderboardTab } from '../components/room/LeaderboardTab';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
 import { splitTeams } from '../types';
+import { useIsMobile } from '../hooks/useIsMobile';
 
 export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
@@ -36,6 +37,8 @@ export function CrowdbashRoomPage() {
   const [autoJoined, setAutoJoined] = useState(false);
   const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard' | 'rules'>('myteam');
   const [showScorecard, setShowScorecard] = useState(false);
+  const isMobile = useIsMobile();
+  const [showMatchInfo, setShowMatchInfo] = useState(false);
 
   const sport: Sport = room?.sport || 'cricket';
   void game?.player_weightages; // used by MyTeamTab via gameStore
@@ -139,11 +142,11 @@ export function CrowdbashRoomPage() {
       )}
 
       <div style={{ paddingTop: 60, height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
-        <div style={{ flex: 1, display: 'grid', gridTemplateColumns: '1fr 300px', overflow: 'hidden' }}>
+        <div style={{ flex: 1, display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: isMobile ? undefined : '1fr 300px', overflow: 'hidden' }}>
           {/* ═══ LEFT: Main content ═══ */}
-          <div className="flex flex-col overflow-hidden">
-            {/* Header — match name + actions only (no scoreboard) */}
-            <div style={{ padding: '14px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+          <div className="flex flex-col overflow-hidden" style={{ flex: 1, display: (isMobile && showMatchInfo) ? 'none' : 'flex' }}>
+            {/* Header */}
+            <div style={{ padding: isMobile ? '10px 12px' : '14px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div className="flex items-center justify-between">
                 <div>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>{room.match_name}</div>
@@ -153,15 +156,20 @@ export function CrowdbashRoomPage() {
                 </div>
                 <div className="flex items-center gap-2">
                   {isLive && <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>}
+                  {isMobile && (
+                    <button onClick={() => setShowMatchInfo(!showMatchInfo)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 10, fontWeight: 700, color: showMatchInfo ? 'var(--green)' : 'var(--muted)', cursor: 'pointer' }}>
+                      {showMatchInfo ? 'My Team' : 'Score'}
+                    </button>
+                  )}
                   {canEditTeam && game && (
-                    <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit your XI</button>
+                    <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: isMobile ? 11 : 12, padding: isMobile ? '5px 10px' : '7px 14px' }}>Edit XI</button>
                   )}
                 </div>
               </div>
             </div>
 
             {/* Tabs */}
-            <div className="flex shrink-0" style={{ padding: '0 24px', borderBottom: '1px solid var(--border)' }}>
+            <div className="flex shrink-0" style={{ padding: isMobile ? '0 12px' : '0 24px', borderBottom: '1px solid var(--border)' }}>
               {([
                 { key: 'myteam' as const, label: 'My Team' },
                 { key: 'leaderboard' as const, label: 'Leaderboard' },
@@ -241,7 +249,7 @@ export function CrowdbashRoomPage() {
           </div>
 
           {/* ═══ RIGHT: MATCH INFO PANEL ═══ */}
-          <div className="flex flex-col overflow-hidden" style={{ borderLeft: '1px solid var(--border)', background: 'var(--bg2)' }}>
+          <div className="flex flex-col overflow-hidden" style={{ borderLeft: isMobile ? 'none' : '1px solid var(--border)', background: 'var(--bg2)', display: (isMobile && !showMatchInfo) ? 'none' : 'flex', flex: isMobile ? 1 : undefined }}>
 
             {/* Scoreboard + CRR inline */}
             <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>

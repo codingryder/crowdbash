@@ -125,7 +125,7 @@ export function GamesPage() {
   return (
     <div style={{ paddingTop: 60, minHeight: '100vh' }}>
       {/* Header */}
-      <div style={{ padding: '40px 36px 0', borderBottom: '1px solid var(--border)' }}>
+      <div style={{ padding: '24px 16px 0', borderBottom: '1px solid var(--border)' }} className="md:!px-9 md:!pt-10">
         <div style={{ maxWidth: 1080, margin: '0 auto' }}>
           <div className="flex items-end justify-between mb-5">
             <div>
@@ -188,7 +188,7 @@ export function GamesPage() {
       </div>
 
       {/* Body */}
-      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '24px 36px 60px' }}>
+      <div style={{ maxWidth: 1080, margin: '0 auto', padding: '16px 16px 60px' }} className="md:!px-9">
 
         {/* ── TAB 1: LIVE MATCHES ── */}
         {tab === 'matches' && (
