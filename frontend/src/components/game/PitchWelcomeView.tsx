@@ -46,16 +46,26 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     if (selected.length > 0) {
       const newSlots: (SquadPlayer | null)[] = new Array(11).fill(null);
       const newPowers: number[] = new Array(11).fill(DEF_B);
+      const newMobileSelected = new Set<string>();
       selected.forEach((pw, i) => {
         if (i >= 11) return;
         const player = allP.find(p => p.player_id === pw.player_id);
-        if (player) { newSlots[i] = player; newPowers[i] = pw.weightage || DEF_B; }
+        if (player) {
+          newSlots[i] = player;
+          newPowers[i] = pw.weightage || DEF_B;
+          newMobileSelected.add(player.player_id);
+        }
       });
       setSlots(newSlots);
       setPowers(newPowers);
+      setMobileSelected(newMobileSelected);
+      // If already has 11 players, go straight to power step on mobile
+      if (isMobile && newMobileSelected.size === 11) {
+        setMobileStep('power');
+      }
       setInitialized(true);
     }
-  }, [game, availableSquads, initialized]);
+  }, [game, availableSquads, initialized, isMobile]);
 
   const allPlayers: SquadPlayer[] = Object.values(availableSquads || {}).flat();
   const placedIds = new Set(slots.filter(Boolean).map(p => p!.player_id));
