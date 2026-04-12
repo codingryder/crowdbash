@@ -11,10 +11,16 @@ router = APIRouter()
 @router.get("/live")
 async def get_live_matches():
     """
-    Get all live + upcoming matches from sport APIs.
-    CricketData already returns curated current matches.
-    Football-Data returns matches from major leagues only.
+    Get all live + upcoming matches. Cached 60s for fast loading.
     """
+    from app.core.redis import redis_get_json, redis_set_json
+
+    # Serve from cache for fast page loads
+    cache_key = "matches:live:all"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
     all_live = []
     all_upcoming = []
 
@@ -128,10 +134,14 @@ async def get_live_matches():
         except Exception as e:
             print(f"Error fetching {sport} matches: {e}")
 
-    return {
+    result = {
         "live": all_live,
         "upcoming": all_upcoming,
     }
+
+    # Cache for 60s — fast page loads, refreshed by next request
+    await redis_set_json(cache_key, result, ex=60)
+    return result
 
 
 @router.get("/debug/cricket")

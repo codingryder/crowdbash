@@ -282,20 +282,26 @@ def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
     t1_name = t1_data.get("team", {}).get("displayName", "Team 1")
     t2_name = t2_data.get("team", {}).get("displayName", "Team 2")
 
-    # Build scores from linescores
+    # Build scores from linescores — only batting innings (runs > 0 or isBatting)
     t1_score = ""
     t2_score = ""
     for team_data in competitors:
         team_name = team_data.get("team", {}).get("displayName", "")
         linescores = team_data.get("linescores", [])
         if linescores:
-            parts = []
-            for ls in linescores:
-                runs = ls.get("runs", ls.get("value", 0))
-                wickets = ls.get("wickets", 0)
-                overs = ls.get("overs", 0)
-                parts.append(f"{runs}/{wickets} ({overs} ov)")
-            score_str = " & ".join(parts)
+            # Use the team's `score` field if available (most accurate)
+            raw_score = team_data.get("score", "")
+            if raw_score:
+                score_str = raw_score
+            else:
+                parts = []
+                for ls in linescores:
+                    runs = ls.get("runs", 0)
+                    if runs > 0 or ls.get("isBatting", False):
+                        wickets = ls.get("wickets", 0)
+                        overs = ls.get("overs", 0)
+                        parts.append(f"{runs}/{wickets} ({overs} ov)")
+                score_str = " & ".join(parts) if parts else ""
             if team_name == t1_name:
                 t1_score = score_str
             elif team_name == t2_name:
