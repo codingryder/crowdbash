@@ -10,6 +10,12 @@ router = APIRouter()
 
 
 def _room_to_dict(r: Room) -> dict:
+    from app.api.routes.game import is_late_join_open, LATE_JOIN_ROOMS
+    late_join = is_late_join_open(r)
+    cfg = LATE_JOIN_ROOMS.get(str(r.id))
+    progress = r.match_progress or {}
+    over = float(progress.get("over", 0) or 0)
+    overs_remaining = (cfg["max_over"] - over) if (cfg and late_join) else 0
     return {
         "id": str(r.id),
         "match_id": r.match_id,
@@ -26,6 +32,8 @@ def _room_to_dict(r: Room) -> dict:
         "match_date": r.match_date.isoformat() if r.match_date else None,
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "completed_at": r.completed_at.isoformat() if r.completed_at else None,
+        "late_join_open": late_join,
+        "late_join_overs_remaining": round(max(overs_remaining, 0), 1),
     }
 
 

@@ -18,6 +18,30 @@ router = APIRouter()
 TOTAL_BUDGET = 33
 MAX_SQUAD_SIZE = 11
 
+# Late-join windows: allow team building after match starts for specific rooms.
+# Map of room_id -> { "max_innings": int, "max_over": float }
+# Window is open while current innings <= max_innings AND current over < max_over.
+LATE_JOIN_ROOMS: dict[str, dict] = {
+    # RR v SRH (one-off): allow joining and team building up to over 10 of innings 1
+    "1b07c88d-6547-43f5-a72c-254864b0689d": {"max_innings": 1, "max_over": 10.0},
+}
+
+
+def is_late_join_open(room: Room | None) -> bool:
+    """True if the room has an active late-join window based on current match progress."""
+    if not room:
+        return False
+    cfg = LATE_JOIN_ROOMS.get(str(room.id))
+    if not cfg:
+        return False
+    progress = room.match_progress or {}
+    innings = int(progress.get("innings", 0) or 0)
+    over = float(progress.get("over", 0) or 0)
+    if innings == 0:
+        # Match not started yet — treat as open (room.status == 'open' covers this normally)
+        return True
+    return innings <= cfg["max_innings"] and over < cfg["max_over"]
+
 
 class SelectSquadRequest(BaseModel):
     player_ids: List[str]
@@ -118,10 +142,11 @@ async def select_squad(
     if len(body.player_ids) != MAX_SQUAD_SIZE:
         raise HTTPException(status_code=400, detail=f"Must select exactly {MAX_SQUAD_SIZE} players.")
 
-    # Check room status — player changes only before match
+    # Check room status — player changes only before match (or during late-join window)
     room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
     room = room_result.scalar_one_or_none()
-    if room and room.status == "locked":
+    late_join = is_late_join_open(room)
+    if room and room.status == "locked" and not late_join:
         raise HTTPException(status_code=400, detail="Match has started. Player changes are no longer allowed.")
 
     game_result = await db.execute(
@@ -131,12 +156,12 @@ async def select_squad(
     if not game:
         raise HTTPException(status_code=404, detail="Join the room first")
 
-    # Allow re-selection if room is still open (match hasn't started)
-    if game.squad_locked and room and room.status != "open":
+    # Allow re-selection if room is still open OR the late-join window is active
+    if game.squad_locked and room and room.status != "open" and not late_join:
         raise HTTPException(status_code=400, detail="Match has started. Squad is locked.")
 
-    # Unlock squad if room is still open (user is re-editing)
-    if game.squad_locked and room and room.status == "open":
+    # Unlock squad if room is still open or late-join active (user is re-editing)
+    if game.squad_locked and room and (room.status == "open" or late_join):
         game.squad_locked = False
         game.squad_locked_at = None
 
@@ -226,7 +251,8 @@ async def get_game_state(
 
     # Determine if editing is allowed
     match_started = room and room.status == "locked"
-    can_edit_players = not match_started and not game.squad_locked
+    late_join = is_late_join_open(room)
+    can_edit_players = (not match_started or late_join) and not game.squad_locked
     can_edit_weightages = not match_started or False  # During match: only in edit window (handled by frontend)
 
     return {
@@ -241,6 +267,7 @@ async def get_game_state(
         "squad_locked": game.squad_locked,
         "total_budget": game.total_budget,
         "match_started": match_started,
+        "late_join_open": late_join,
         "can_edit_players": can_edit_players,
         "can_edit_weightages": can_edit_weightages,
         "player_weightages": [

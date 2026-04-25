@@ -25,6 +25,8 @@ export interface Room {
   match_date?: string;
   created_at?: string;
   completed_at?: string;
+  late_join_open?: boolean;
+  late_join_overs_remaining?: number;
 }
 
 /** Split match name into two team names. Handles "vs", "v", "VS" separators. */

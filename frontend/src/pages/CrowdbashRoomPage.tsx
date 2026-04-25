@@ -104,8 +104,9 @@ export function CrowdbashRoomPage() {
     </div>
   );
 
-  // ── PITCH VIEW (shown when room is open — user can edit team anytime before match) ──
-  const canEditTeam = room.status === 'open';
+  // ── PITCH VIEW (shown when room is open — user can edit team anytime before match,
+  // or during a late-join window granted by the backend for specific rooms) ──
+  const canEditTeam = room.status === 'open' || !!room.late_join_open;
   if (pitchView && canEditTeam) {
     return (
       <PitchWelcomeView
@@ -161,6 +162,14 @@ export function CrowdbashRoomPage() {
           <div className="flex flex-col overflow-hidden" style={{ flex: 1, display: (isMobile && showMatchInfo) ? 'none' : 'flex' }}>
             {/* Header */}
             <div style={{ padding: isMobile ? '10px 12px' : '14px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              {room.late_join_open && room.status === 'locked' && (
+                <div className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded" style={{ background: 'rgba(244,185,64,0.08)', border: '1px solid rgba(244,185,64,0.3)' }}>
+                  <span style={{ fontSize: 12 }}>⚡</span>
+                  <span className="text-[11px] font-semibold" style={{ color: 'var(--amber)' }}>
+                    Late-join open · {(room.late_join_overs_remaining ?? 0).toFixed(1)} overs left to build your XI
+                  </span>
+                </div>
+              )}
               <div className="flex items-center justify-between">
                 <div>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>{room.match_name}</div>
