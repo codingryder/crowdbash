@@ -263,7 +263,21 @@ export function CrowdbashRoomPage() {
           </div>
 
           {/* ═══ RIGHT: MATCH INFO PANEL ═══ */}
-          <div className="flex flex-col overflow-hidden" style={{ borderLeft: isMobile ? 'none' : '1px solid var(--border)', background: 'var(--bg2)', display: (isMobile && !showMatchInfo) ? 'none' : 'flex', flex: isMobile ? 1 : undefined }}>
+          <div className="flex flex-col overflow-y-auto" style={{ borderLeft: isMobile ? 'none' : '1px solid var(--border)', background: 'var(--bg2)', display: (isMobile && !showMatchInfo) ? 'none' : 'flex', flex: isMobile ? 1 : undefined }}>
+
+            {/* Mobile back bar */}
+            {isMobile && (
+              <div className="flex items-center justify-between" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg)' }}>
+                <button
+                  onClick={() => setShowMatchInfo(false)}
+                  className="flex items-center gap-1.5"
+                  style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: "'Cabinet Grotesk', sans-serif" }}
+                >
+                  ← Back to room
+                </button>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: '1.5px', color: 'var(--muted)' }}>SCORE</div>
+              </div>
+            )}
 
             {/* Scoreboard + CRR inline */}
             <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
