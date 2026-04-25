@@ -19,6 +19,7 @@ interface LeaderboardEntry {
   first_name?: string;
   points: number;
   strategy?: string;
+  team_built?: boolean;
 }
 
 interface OpponentPlayer {
@@ -125,7 +126,7 @@ export function LeaderboardTab({ roomId }: LeaderboardTabProps) {
                   {i === 0 && entry.points > 0 && <span className="text-[9px] px-1.5 py-px rounded-full" style={{ background: 'rgba(244,185,64,0.12)', color: 'var(--amber)', fontWeight: 700 }}>Leader</span>}
                 </div>
                 <div className="text-[10px]" style={{ color: 'var(--muted)' }}>
-                  {entry.strategy || (margin > 0 ? `${margin} pts behind` : '')}
+                  {entry.strategy || (entry.team_built === false ? 'Building team…' : (margin > 0 ? `${margin} pts behind` : ''))}
                 </div>
               </div>
 

@@ -55,10 +55,6 @@ async def get_room_leaderboard(
 
     enriched = []
     for game, user, selected_count in rows:
-        # Only include users who finished building their team
-        if (selected_count or 0) < 11:
-            continue
-
         username = (
             user.username
             or (f"{user.first_name}_{user.last_name[0]}" if user.first_name and user.last_name else user.first_name)
@@ -91,6 +87,7 @@ async def get_room_leaderboard(
             "first_name": user.first_name or "",
             "points": game.total_points or 0,
             "strategy": strategy,
+            "team_built": (selected_count or 0) >= 11,
             "joined_at": game.created_at.isoformat() if game.created_at else None,
         })
 
