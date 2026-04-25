@@ -205,6 +205,97 @@ If no matches, return []"""
     return result
 
 
+@router.get("/info/{sport}/{match_id}")
+async def get_match_info(sport: str, match_id: str):
+    """
+    Detailed match info: series, match number, date/time, toss, venue, umpires.
+    Used by the room right-panel "Match Info" card.
+    Currently supports ESPN cricket events (espn_*).
+    """
+    if sport != "cricket" or not match_id.startswith("espn_"):
+        return {"info": None}
+
+    event_id = match_id.replace("espn_", "")
+    info = await _get_espn_match_info(event_id)
+    return {"info": info}
+
+
+async def _get_espn_match_info(event_id: str) -> dict | None:
+    """Fetch enriched match metadata from ESPN summary endpoint."""
+    import httpx
+    from app.services.espn_service import ESPN_SUMMARY_URL, HEADERS, CRICKET_LIVE_SERIES
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"espn:info:{event_id}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    for series_id in CRICKET_LIVE_SERIES:
+        try:
+            async with httpx.AsyncClient() as client:
+                res = await client.get(
+                    f"{ESPN_SUMMARY_URL}/{series_id}/summary",
+                    params={"event": event_id},
+                    headers=HEADERS, timeout=10,
+                )
+                if res.status_code != 200:
+                    continue
+                data = res.json()
+                header = data.get("header", {})
+                comp = (header.get("competitions") or [{}])[0]
+                game_info = data.get("gameInfo", {})
+                officials = game_info.get("officials", [])
+
+                umpires = []
+                tv_umpire = ""
+                referee = ""
+                reserve_umpire = ""
+                for o in officials:
+                    pos = (o.get("position", {}).get("name") or "").lower()
+                    name = o.get("displayName") or o.get("fullName") or ""
+                    if not name:
+                        continue
+                    if pos == "umpire":
+                        umpires.append(name)
+                    elif "tv" in pos or "third" in pos:
+                        tv_umpire = name
+                    elif pos == "referee":
+                        referee = name
+                    elif "reserve" in pos:
+                        reserve_umpire = name
+
+                league = header.get("league", {}) or {}
+                season = header.get("season", {}) or {}
+                series_name = league.get("name", "")
+                season_year = season.get("year", "")
+                series_label = f"{series_name} {season_year}".strip() if series_name else ""
+
+                status_obj = comp.get("status", {}) or {}
+                toss_text = status_obj.get("summary", "")
+
+                info = {
+                    "match_name": header.get("name", ""),
+                    "match_short": header.get("shortName", ""),
+                    "match_number": comp.get("description", ""),
+                    "series": series_label,
+                    "match_date_gmt": comp.get("date", ""),
+                    "venue": (game_info.get("venue") or {}).get("fullName", ""),
+                    "toss": toss_text,
+                    "umpires": umpires,
+                    "tv_umpire": tv_umpire,
+                    "referee": referee,
+                    "reserve_umpire": reserve_umpire,
+                }
+                if any(v for v in info.values()):
+                    await redis_set_json(cache_key, info, ex=600)
+                    return info
+        except Exception as e:
+            print(f"ESPN match info error: {e}")
+
+    return None
+
+
 @router.get("/scorecard/{sport}/{match_id}")
 async def get_match_scorecard(
     sport: str,

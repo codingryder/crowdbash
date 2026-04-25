@@ -334,17 +334,18 @@ export function CrowdbashRoomPage() {
             </div>
 
             {/* Scorecard button */}
-            {isLive && (
-              <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                <button
-                  onClick={() => setShowScorecard(true)}
-                  className="w-full flex items-center justify-center gap-2"
-                  style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 9, padding: '10px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}
-                >
-                  📊 Full Scorecard
-                </button>
-              </div>
-            )}
+            <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+              <button
+                onClick={() => setShowScorecard(true)}
+                className="w-full flex items-center justify-center gap-2"
+                style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 9, padding: '10px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}
+              >
+                📊 Full Scorecard
+              </button>
+            </div>
+
+            {/* Match Info: series, toss, venue, umpires */}
+            <MatchInfoCard roomId={room.id} matchDateGmt={room.match_date} />
 
             {/* Top 3 Leaders */}
             <MiniLeaderboard roomId={room.id} />
@@ -359,6 +360,89 @@ export function CrowdbashRoomPage() {
         </div>
       </div>
     </>
+  );
+}
+
+/* ── Match Info card (series, toss, venue, umpires, multi-tz time) ── */
+interface MatchInfo {
+  match_name: string;
+  match_short: string;
+  match_number: string;
+  series: string;
+  match_date_gmt: string;
+  venue: string;
+  toss: string;
+  umpires: string[];
+  tv_umpire: string;
+  referee: string;
+  reserve_umpire: string;
+}
+
+function MatchInfoCard({ roomId, matchDateGmt }: { roomId: string; matchDateGmt?: string }) {
+  const [info, setInfo] = useState<MatchInfo | null>(null);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/api/rooms/info/${roomId}`);
+        if (!cancelled) setInfo(data?.info || null);
+      } catch { /* */ }
+      finally { if (!cancelled) setLoading(false); }
+    })();
+    return () => { cancelled = true; };
+  }, [roomId]);
+
+  if (loading || !info) return null;
+
+  // Multi-timezone display from the GMT match date
+  const dateStr = info.match_date_gmt || matchDateGmt || '';
+  let dateLabel = '';
+  let timeLine = '';
+  if (dateStr) {
+    const d = new Date(dateStr);
+    const today = new Date();
+    const tomorrow = new Date(); tomorrow.setDate(today.getDate() + 1);
+    const sameDay = (a: Date, b: Date) => a.toDateString() === b.toDateString();
+    if (sameDay(d, today)) dateLabel = 'Today';
+    else if (sameDay(d, tomorrow)) dateLabel = 'Tomorrow';
+    else dateLabel = d.toLocaleDateString([], { weekday: 'short', month: 'short', day: 'numeric' });
+
+    const hm = (tz: string, label: string) => {
+      const t = new Intl.DateTimeFormat('en-US', { hour: 'numeric', minute: '2-digit', timeZone: tz }).format(d);
+      return `${t} ${label}`;
+    };
+    const local = new Intl.DateTimeFormat([], { hour: 'numeric', minute: '2-digit' }).format(d);
+    timeLine = `${local} LOCAL · ${hm('UTC', 'GMT')} · ${hm('America/Los_Angeles', 'PT')} · ${hm('America/New_York', 'ET')}`;
+  }
+
+  const rows: Array<{ label: string; value: string }> = [];
+  const matchLine = [info.match_short || info.match_name, info.match_number, info.series].filter(Boolean).join(' · ');
+  if (matchLine) rows.push({ label: 'Match', value: matchLine });
+  if (info.series) rows.push({ label: 'Series', value: info.series });
+  if (dateLabel) rows.push({ label: 'Date', value: dateLabel });
+  if (timeLine) rows.push({ label: 'Time', value: timeLine });
+  if (info.toss) rows.push({ label: 'Toss', value: info.toss });
+  if (info.venue) rows.push({ label: 'Venue', value: info.venue });
+  if (info.umpires.length) rows.push({ label: 'Umpires', value: info.umpires.join(', ') });
+  if (info.tv_umpire) rows.push({ label: '3rd Umpire', value: info.tv_umpire });
+  if (info.referee) rows.push({ label: 'Referee', value: info.referee });
+
+  if (!rows.length) return null;
+
+  return (
+    <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+      <div className="text-[9px] font-bold tracking-wider mb-3" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>MATCH INFO</div>
+      <div className="space-y-2">
+        {rows.map((r, i) => (
+          <div key={i} className="grid" style={{ gridTemplateColumns: '78px 1fr', gap: 8 }}>
+            <div className="text-[10px] font-bold tracking-wide" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{r.label.toUpperCase()}</div>
+            <div className="text-[11px]" style={{ color: 'var(--text)', lineHeight: 1.5 }}>{r.value}</div>
+          </div>
+        ))}
+      </div>
+    </div>
   );
 }
 
