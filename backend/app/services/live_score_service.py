@@ -52,10 +52,10 @@ async def _ask_gemini(prompt: str, grounded: bool = False) -> dict | None:
 
     try:
         if grounded:
-            # Gemini 2.5 grounding tool (renamed from google_search_retrieval in 1.5)
+            # Gemini 2.5 grounding tool — must be passed as dict, not string
             response = await asyncio.to_thread(
                 model.generate_content, prompt,
-                tools="google_search",
+                tools=[{"google_search": {}}],
             )
         else:
             response = await asyncio.to_thread(model.generate_content, prompt)
