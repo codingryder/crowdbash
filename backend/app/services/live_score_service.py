@@ -52,10 +52,10 @@ async def _ask_gemini(prompt: str, grounded: bool = False) -> dict | None:
 
     try:
         if grounded:
-            # Pass google_search_retrieval as tool to generate_content for real-time data
+            # Gemini 2.5 grounding tool (renamed from google_search_retrieval in 1.5)
             response = await asyncio.to_thread(
                 model.generate_content, prompt,
-                tools="google_search_retrieval",
+                tools="google_search",
             )
         else:
             response = await asyncio.to_thread(model.generate_content, prompt)
