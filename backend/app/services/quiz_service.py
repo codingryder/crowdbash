@@ -1,17 +1,17 @@
 from app.core.config import settings
 import json
 
-_model = None
+_client = None
+MODEL_NAME = "gemini-2.5-flash"
 
 
-def _get_model():
+def _get_client():
     """Lazy init Gemini to avoid crash when API key is missing."""
-    global _model
-    if _model is None:
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        _model = genai.GenerativeModel("gemini-2.5-flash")
-    return _model
+    global _client
+    if _client is None:
+        from google import genai
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
 
 async def generate_quiz_question(match_context: dict, sport: str = "cricket") -> dict:
@@ -27,7 +27,7 @@ async def generate_quiz_question(match_context: dict, sport: str = "cricket") ->
             "explanation": "Gemini API key not configured."
         }
 
-    model = _get_model()
+    client = _get_client()
 
     if sport == "football":
         prompt = f"""
@@ -74,7 +74,7 @@ Return ONLY valid JSON in this exact format, no other text:
 }}
 """
 
-    response = model.generate_content(prompt)
+    response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
     text = response.text.strip()
 
     if text.startswith("```"):

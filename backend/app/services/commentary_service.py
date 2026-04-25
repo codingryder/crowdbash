@@ -6,18 +6,18 @@ from app.core.config import settings
 import json
 import uuid
 
-_model = None
+_client = None
+MODEL_NAME = "gemini-2.5-flash"
 
 
-def _get_model():
-    global _model
-    if _model is None:
+def _get_client():
+    global _client
+    if _client is None:
         if not settings.GEMINI_API_KEY:
             return None
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        _model = genai.GenerativeModel("gemini-2.5-flash")
-    return _model
+        from google import genai
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
 
 def detect_cricket_changes(old_score: dict, new_score: dict) -> list[dict]:
@@ -109,8 +109,8 @@ async def generate_commentary(
     Use Gemini to generate commentary for detected events.
     Returns list of match_event dicts ready for WebSocket broadcast.
     """
-    model = _get_model()
-    if not model or not events:
+    client = _get_client()
+    if not client or not events:
         return []
 
     # Build context
@@ -140,7 +140,10 @@ Just the commentary line, nothing else. Be energetic and natural like a real cri
 
         try:
             import asyncio
-            response = await asyncio.to_thread(model.generate_content, prompt)
+            response = await asyncio.to_thread(
+                client.models.generate_content,
+                model=MODEL_NAME, contents=prompt,
+            )
             text = response.text.strip().strip('"').strip("'")
 
             # Determine chip type for frontend

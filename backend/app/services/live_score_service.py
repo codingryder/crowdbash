@@ -6,29 +6,21 @@ from app.core.config import settings
 import json
 import asyncio
 
-_model = None
-_genai = None
+_client = None
+_genai_types = None
+MODEL_NAME = "gemini-2.5-flash"
 
 
-def _init_genai():
-    global _genai
-    if _genai is None:
+def _get_client():
+    global _client, _genai_types
+    if _client is None:
         if not settings.GEMINI_API_KEY:
-            return None
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        _genai = genai
-    return _genai
-
-
-def _get_model():
-    global _model
-    if _model is None:
-        genai = _init_genai()
-        if not genai:
-            return None
-        _model = genai.GenerativeModel("gemini-2.5-flash")
-    return _model
+            return None, None
+        from google import genai
+        from google.genai import types
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+        _genai_types = types
+    return _client, _genai_types
 
 
 def _parse_json_response(text: str) -> dict | list | None:
@@ -46,19 +38,24 @@ async def _ask_gemini(prompt: str, grounded: bool = False) -> dict | None:
     """Send prompt to Gemini and parse JSON response.
     When grounded=True, uses Google Search grounding for real-time data.
     """
-    model = _get_model()
-    if not model:
+    client, types = _get_client()
+    if not client:
         return None
 
+    config = None
+    if grounded:
+        config = types.GenerateContentConfig(
+            tools=[types.Tool(google_search=types.GoogleSearch())]
+        )
+
+    response = None
     try:
-        if grounded:
-            # Gemini 2.5 grounding tool — must be passed as dict, not string
-            response = await asyncio.to_thread(
-                model.generate_content, prompt,
-                tools=[{"google_search": {}}],
-            )
-        else:
-            response = await asyncio.to_thread(model.generate_content, prompt)
+        response = await asyncio.to_thread(
+            client.models.generate_content,
+            model=MODEL_NAME,
+            contents=prompt,
+            config=config,
+        )
 
         if not response or not response.text:
             print(f"Gemini returned empty response (grounded={grounded})")

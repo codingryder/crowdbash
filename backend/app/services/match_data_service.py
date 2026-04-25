@@ -16,16 +16,16 @@ HEADERS = {
     "Accept": "text/html,application/xhtml+xml",
 }
 
-_model = None
+_client = None
+MODEL_NAME = "gemini-2.5-flash"
 
 
-def _get_model():
-    global _model
-    if _model is None:
-        import google.generativeai as genai
-        genai.configure(api_key=settings.GEMINI_API_KEY)
-        _model = genai.GenerativeModel("gemini-2.5-flash")
-    return _model
+def _get_client():
+    global _client
+    if _client is None:
+        from google import genai
+        _client = genai.Client(api_key=settings.GEMINI_API_KEY)
+    return _client
 
 
 async def _google_search_snippets(query: str) -> str:
@@ -114,8 +114,8 @@ Rules:
 """
 
     try:
-        model = _get_model()
-        response = model.generate_content(prompt)
+        client = _get_client()
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         text = response.text.strip()
 
         # Strip markdown fences
@@ -208,8 +208,8 @@ Rules:
 """
 
     try:
-        model = _get_model()
-        response = model.generate_content(prompt)
+        client = _get_client()
+        response = client.models.generate_content(model=MODEL_NAME, contents=prompt)
         text = response.text.strip()
 
         if text.startswith("```"):
