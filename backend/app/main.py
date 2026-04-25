@@ -82,21 +82,53 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                 msg_id = _uuid.uuid4()
                 created_at = datetime.now(timezone.utc)
 
-                # Persist so the chat tab can show history (room not yet closed)
+                # Persist so the chat tab can show history (room not yet closed).
+                # Use raw SQL + lazy CREATE TABLE so a missing chat_messages table
+                # heals itself instead of swallowing every insert silently.
                 if room_uuid is not None:
+                    from sqlalchemy import text as _text
+                    insert_sql = _text("""
+                        INSERT INTO chat_messages (id, room_id, user_id, username, message, created_at)
+                        VALUES (:id, :room_id, :user_id, :username, :message, :created_at)
+                    """)
+                    params = {
+                        "id": msg_id,
+                        "room_id": room_uuid,
+                        "user_id": user_uuid,
+                        "username": username[:100],
+                        "message": text,
+                        "created_at": created_at,
+                    }
                     try:
                         async with AsyncSessionLocal() as db:
-                            db.add(ChatMessage(
-                                id=msg_id,
-                                room_id=room_uuid,
-                                user_id=user_uuid,
-                                username=username[:100],
-                                message=text,
-                                created_at=created_at,
-                            ))
-                            await db.commit()
+                            try:
+                                await db.execute(insert_sql, params)
+                                await db.commit()
+                            except Exception as inner:
+                                # Likely table missing — create it and retry once
+                                print(f"Chat insert failed, attempting table heal: {inner}")
+                                await db.rollback()
+                                await db.execute(_text("""
+                                    CREATE TABLE IF NOT EXISTS chat_messages (
+                                        id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                                        room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                                        user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                                        username VARCHAR(100) NOT NULL DEFAULT 'Anonymous',
+                                        message TEXT NOT NULL,
+                                        created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                                    )
+                                """))
+                                await db.execute(_text("""
+                                    CREATE INDEX IF NOT EXISTS idx_chat_messages_room_created
+                                        ON chat_messages (room_id, created_at)
+                                """))
+                                await db.commit()
+                                async with AsyncSessionLocal() as db2:
+                                    await db2.execute(insert_sql, params)
+                                    await db2.commit()
+                                    print("Chat insert succeeded after table heal")
                     except Exception as e:
-                        print(f"Chat persist failed: {e}")
+                        print(f"Chat persist failed (final): {e}")
 
                 chat_msg = {
                     "id": str(msg_id),
