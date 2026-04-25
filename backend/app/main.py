@@ -4,7 +4,7 @@ from app.core.config import settings
 from app.api.websocket import room_manager
 from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, cricket
 from app.api.routes import sports, admin, matches
-from app.services.game_service import calculate_and_update_points
+from app.services.game_service import calculate_and_update_points, finalize_room_results
 from app.services.sport_service import get_adapter
 from app.core.database import AsyncSessionLocal
 import asyncio
@@ -219,6 +219,7 @@ async def score_poller():
                                 })
                             else:
                                 room.match_progress = {"status": "closed"}
+                            await finalize_room_results(db, room.id)
                             continue
                     except Exception as e:
                         print(f"ESPN check error for {room.match_name}: {e}")
@@ -265,6 +266,7 @@ async def score_poller():
                         except Exception as e:
                             print(f"Failed to format summary for {room.match_name}: {e}")
                             room.match_progress = {"status": "closed"}
+                        await finalize_room_results(db, room.id)
                         await room_manager.broadcast(str(room.id), {
                             "type": "score_update",
                             "payload": {"sport": room.sport, "data": match_data}
@@ -385,6 +387,7 @@ async def room_sync():
                             if espn.get("is_finished"):
                                 room.status = "closed"
                                 room.completed_at = now
+                                await finalize_room_results(db, room.id)
                                 closed_early += 1
                                 continue
                             elif espn.get("is_live"):
@@ -433,6 +436,7 @@ async def auto_close_past_rooms():
                 for room in stale_rooms:
                     room.status = "closed"
                     room.completed_at = datetime.now(timezone.utc)
+                    await finalize_room_results(db, room.id)
 
                 if stale_rooms:
                     await db.commit()

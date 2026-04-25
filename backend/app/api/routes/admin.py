@@ -451,6 +451,41 @@ async def cleanup_rooms(db: AsyncSession = Depends(get_db)):
     return {"cricket_rooms_kept": kept, "cricket_rooms_removed": removed}
 
 
+@router.post("/backfill-stats")
+async def backfill_user_stats(db: AsyncSession = Depends(get_db)):
+    """
+    One-shot: walk every closed/completed room and apply rank + win
+    finalization. Idempotent — rooms already finalized are skipped.
+    Use this once after deploying the finalization fix to retro-credit
+    users whose past games closed before stats tracking existed.
+    """
+    from app.services.game_service import finalize_room_results
+
+    result = await db.execute(
+        select(Room).where(Room.status.in_(["closed", "completed"]))
+    )
+    rooms = result.scalars().all()
+
+    finalized = 0
+    skipped = 0
+    total_winners = 0
+    for room in rooms:
+        outcome = await finalize_room_results(db, room.id)
+        if outcome.get("ranked", 0) > 0:
+            finalized += 1
+            total_winners += outcome.get("winners", 0)
+        else:
+            skipped += 1
+
+    await db.commit()
+    return {
+        "rooms_scanned": len(rooms),
+        "rooms_finalized": finalized,
+        "rooms_skipped": skipped,
+        "winners_credited": total_winners,
+    }
+
+
 @router.post("/check-finished")
 async def check_finished_rooms(db: AsyncSession = Depends(get_db)):
     """
