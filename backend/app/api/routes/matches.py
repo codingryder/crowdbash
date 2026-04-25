@@ -313,7 +313,25 @@ async def get_match_scorecard(
         raise HTTPException(status_code=400, detail=f"Unknown sport: {sport}")
 
     try:
-        # ESPN-sourced matches: fetch scorecard from ESPN
+        # ESPN-sourced cricket matches: prefer the adapter so we get the
+        # batting/bowling detail from the summary endpoint, not just the
+        # scoreboard summary that lacks per-player rows.
+        if match_id.startswith("espn_") and sport == "cricket":
+            if hasattr(adapter, "set_match_context"):
+                adapter.set_match_context(match_name)
+            match_data = await adapter.get_match_score(match_id)
+            if match_data:
+                normalized = adapter.normalize_score(match_data, match_name)
+                if normalized and (normalized.get("innings") or normalized.get("team1", {}).get("score")):
+                    return {"scorecard": normalized}
+            # Fallback: scoreboard-only stub (pre-match / toss done)
+            espn_event_id = match_id.replace("espn_", "")
+            scorecard = await _get_espn_scorecard(sport, espn_event_id, match_name)
+            if scorecard:
+                return {"scorecard": scorecard}
+            return {"scorecard": None}
+
+        # ESPN-sourced non-cricket matches: stick with the scoreboard stub.
         if match_id.startswith("espn_"):
             espn_event_id = match_id.replace("espn_", "")
             scorecard = await _get_espn_scorecard(sport, espn_event_id, match_name)
