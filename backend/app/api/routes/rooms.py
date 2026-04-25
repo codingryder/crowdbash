@@ -181,19 +181,23 @@ async def get_room_chat(
     if room.status == "closed":
         return []
 
-    result = await db.execute(
-        select(ChatMessage)
-        .where(ChatMessage.room_id == rid)
-        .order_by(ChatMessage.created_at.asc())
-        .limit(limit)
-    )
-    return [
-        {
-            "id": str(m.id),
-            "user_id": str(m.user_id) if m.user_id else "",
-            "username": m.username,
-            "message": m.message,
-            "timestamp": m.created_at.isoformat() if m.created_at else None,
-        }
-        for m in result.scalars().all()
-    ]
+    try:
+        result = await db.execute(
+            select(ChatMessage)
+            .where(ChatMessage.room_id == rid)
+            .order_by(ChatMessage.created_at.asc())
+            .limit(limit)
+        )
+        return [
+            {
+                "id": str(m.id),
+                "user_id": str(m.user_id) if m.user_id else "",
+                "username": m.username,
+                "message": m.message,
+                "timestamp": m.created_at.isoformat() if m.created_at else None,
+            }
+            for m in result.scalars().all()
+        ]
+    except Exception as e:
+        print(f"Chat history fetch failed: {e}")
+        return []

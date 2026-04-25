@@ -401,6 +401,29 @@ async def startup():
     except Exception as e:
         print(f"DB warmup failed: {e}")
 
+    # Self-heal: ensure chat_messages table exists (idempotent)
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS chat_messages (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    room_id UUID NOT NULL REFERENCES rooms(id) ON DELETE CASCADE,
+                    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    username VARCHAR(100) NOT NULL DEFAULT 'Anonymous',
+                    message TEXT NOT NULL,
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """))
+            await db.execute(text("""
+                CREATE INDEX IF NOT EXISTS idx_chat_messages_room_created
+                    ON chat_messages (room_id, created_at)
+            """))
+            await db.commit()
+            print("chat_messages table ensured")
+    except Exception as e:
+        print(f"chat_messages migration failed: {e}")
+
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
     asyncio.create_task(auto_close_past_rooms())
