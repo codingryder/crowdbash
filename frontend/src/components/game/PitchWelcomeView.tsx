@@ -361,6 +361,22 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>Tap a player on the pitch to adjust power · <b style={{ color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}/33</b> used · <b>{availablePower}</b> available</div>
                 <button onClick={() => setMobileStep('pick')} style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>← Change players</button>
               </div>
+
+              {/* Go to room CTA — only when team is already locked */}
+              {game?.squad_locked && (
+                <div style={{ padding: '12px 14px 18px' }}>
+                  <button
+                    onClick={onComplete}
+                    style={{
+                      width: '100%', background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 12,
+                      padding: '14px 20px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800,
+                      cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    }}
+                  >
+                    Go to room →
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
