@@ -166,8 +166,8 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                                 await db.execute(insert_sql, params)
                                 await db.commit()
                             except Exception as inner:
-                                # Likely table missing — create it and retry once
-                                print(f"Chat insert failed, attempting table heal: {inner}")
+                                # Table missing OR missing columns — heal and retry once
+                                print(f"Chat insert failed, attempting heal: {inner}")
                                 await db.rollback()
                                 await db.execute(_text("""
                                     CREATE TABLE IF NOT EXISTS chat_messages (
@@ -179,6 +179,18 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                                         created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                                     )
                                 """))
+                                await db.execute(_text(
+                                    "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS username VARCHAR(100) NOT NULL DEFAULT 'Anonymous'"
+                                ))
+                                await db.execute(_text(
+                                    "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message TEXT"
+                                ))
+                                await db.execute(_text(
+                                    "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL"
+                                ))
+                                await db.execute(_text(
+                                    "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+                                ))
                                 await db.execute(_text("""
                                     CREATE INDEX IF NOT EXISTS idx_chat_messages_room_created
                                         ON chat_messages (room_id, created_at)
@@ -187,7 +199,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
                                 async with AsyncSessionLocal() as db2:
                                     await db2.execute(insert_sql, params)
                                     await db2.commit()
-                                    print("Chat insert succeeded after table heal")
+                                    print("Chat insert succeeded after heal")
                     except Exception as e:
                         print(f"Chat persist failed (final): {e}")
 
@@ -494,7 +506,9 @@ async def startup():
     except Exception as e:
         print(f"DB warmup failed: {e}")
 
-    # Self-heal: ensure chat_messages table exists (idempotent)
+    # Self-heal: ensure chat_messages table exists with the right columns.
+    # An older schema version is missing some columns, so use ALTER TABLE
+    # ADD COLUMN IF NOT EXISTS to fill the gaps without dropping data.
     try:
         async with AsyncSessionLocal() as db:
             from sqlalchemy import text
@@ -508,12 +522,25 @@ async def startup():
                     created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
                 )
             """))
+            # Heal older schemas that may be missing columns
+            await db.execute(text(
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS username VARCHAR(100) NOT NULL DEFAULT 'Anonymous'"
+            ))
+            await db.execute(text(
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS message TEXT"
+            ))
+            await db.execute(text(
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS user_id UUID REFERENCES users(id) ON DELETE SET NULL"
+            ))
+            await db.execute(text(
+                "ALTER TABLE chat_messages ADD COLUMN IF NOT EXISTS created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()"
+            ))
             await db.execute(text("""
                 CREATE INDEX IF NOT EXISTS idx_chat_messages_room_created
                     ON chat_messages (room_id, created_at)
             """))
             await db.commit()
-            print("chat_messages table ensured")
+            print("chat_messages table ensured (with column heal)")
     except Exception as e:
         print(f"chat_messages migration failed: {e}")
 
