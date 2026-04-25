@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useRoom } from '../hooks/useRoom';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -61,40 +61,42 @@ export function CrowdbashRoomPage() {
     }
   }, [game?.squad_locked]);
 
-  // Load chat history when entering the room and on every visibility/focus change.
-  // Mobile browsers suspend WS in background, so messages sent while the tab was
-  // hidden never arrive — refetching on visibilitychange fills the gap.
-  // Always merge with the in-store messages (de-duped by id) so a live WS message
-  // that arrived during the REST round-trip isn't dropped.
+  // Load chat history when entering the room, on visibility/focus changes,
+  // and whenever the user opens the Chat tab. Mobile browsers suspend WS in
+  // background, so messages sent while the tab was hidden never arrive —
+  // refetching on these events fills the gap.
+  // Always merge with the in-store messages (de-duped by id) so a live WS
+  // message that arrived during the REST round-trip isn't dropped.
+  const loadChatHistory = useCallback(async () => {
+    if (!roomId) return;
+    try {
+      const { data } = await api.get(`/api/rooms/${roomId}/chat`);
+      if (!Array.isArray(data)) return;
+      const existing = useRoomStore.getState().messages;
+      const seen = new Set(data.map((m: { id: string }) => m.id));
+      const merged = [...data, ...existing.filter((m) => !seen.has(m.id))];
+      setMessages(merged);
+    } catch { /* */ }
+  }, [roomId, setMessages]);
+
   useEffect(() => {
     if (!roomId) return;
-    let cancelled = false;
-
-    async function loadHistory() {
-      try {
-        const { data } = await api.get(`/api/rooms/${roomId}/chat`);
-        if (cancelled || !Array.isArray(data)) return;
-        const existing = useRoomStore.getState().messages;
-        const seen = new Set(data.map((m: { id: string }) => m.id));
-        const merged = [...data, ...existing.filter((m) => !seen.has(m.id))];
-        setMessages(merged);
-      } catch { /* */ }
-    }
-
-    loadHistory();
-
+    loadChatHistory();
     function onVisible() {
-      if (document.visibilityState === 'visible') loadHistory();
+      if (document.visibilityState === 'visible') loadChatHistory();
     }
     document.addEventListener('visibilitychange', onVisible);
-    window.addEventListener('focus', loadHistory);
-
+    window.addEventListener('focus', loadChatHistory);
     return () => {
-      cancelled = true;
       document.removeEventListener('visibilitychange', onVisible);
-      window.removeEventListener('focus', loadHistory);
+      window.removeEventListener('focus', loadChatHistory);
     };
-  }, [roomId, setMessages]);
+  }, [roomId, loadChatHistory]);
+
+  // Refresh chat every time the Chat tab is opened
+  useEffect(() => {
+    if (activeTab === 'chat') loadChatHistory();
+  }, [activeTab, loadChatHistory]);
 
   // Fetch score on mount + poll (regardless of room status — match may be live)
   useEffect(() => {
