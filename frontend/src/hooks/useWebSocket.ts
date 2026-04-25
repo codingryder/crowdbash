@@ -7,6 +7,7 @@ import type { WSMessage, ChatMessage, ScoreData, QuizQuestion, LeaderboardEntry,
 
 export function useWebSocket(roomId: string | undefined) {
   const wsRef = useRef<CrowdbashWebSocket | null>(null);
+  const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     setScore, setFanCount, addMessage, setActiveQuiz,
     setMatchProgress, setEditWindow, addMatchEvent,
@@ -44,19 +45,31 @@ export function useWebSocket(roomId: string | undefined) {
           break;
         case 'edit_window': {
           const p = msg.payload as {
-            sport: Sport;
-            progress: Record<string, unknown>;
+            sport?: Sport;
+            progress?: Record<string, unknown>;
             edit_window_open: boolean;
+            closes_at?: number; // backend epoch seconds
+            duration_seconds?: number;
           };
-          setMatchProgress(p.progress);
+          if (p.progress) setMatchProgress(p.progress);
+          // Cancel any prior close timer so a stale one can't shut a fresh window.
+          if (closeTimerRef.current) {
+            clearTimeout(closeTimerRef.current);
+            closeTimerRef.current = null;
+          }
           if (p.edit_window_open) {
             setEditWindow(true);
             setGameEditWindow(true);
-            // Auto-close edit window after 2 minutes (120 seconds)
-            setTimeout(() => {
+            // Prefer absolute close time from backend; fall back to duration.
+            const nowSec = Date.now() / 1000;
+            const remainingSec = p.closes_at
+              ? Math.max(p.closes_at - nowSec, 0)
+              : (p.duration_seconds ?? 120);
+            closeTimerRef.current = setTimeout(() => {
               setEditWindow(false);
               setGameEditWindow(false);
-            }, 120000);
+              closeTimerRef.current = null;
+            }, remainingSec * 1000);
           } else {
             setEditWindow(false);
             setGameEditWindow(false);
@@ -73,6 +86,10 @@ export function useWebSocket(roomId: string | undefined) {
 
     return () => {
       ws.disconnect();
+      if (closeTimerRef.current) {
+        clearTimeout(closeTimerRef.current);
+        closeTimerRef.current = null;
+      }
     };
   }, [roomId]);
 
