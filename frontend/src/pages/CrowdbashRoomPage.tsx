@@ -61,13 +61,16 @@ export function CrowdbashRoomPage() {
     }
   }, [game?.squad_locked]);
 
-  // Load chat history once when entering the room (closed rooms return [])
-  // Merge with any messages already received via WS to avoid race conditions
-  // where a live message arrives before the history fetch completes.
+  // Load chat history when entering the room and on every visibility/focus change.
+  // Mobile browsers suspend WS in background, so messages sent while the tab was
+  // hidden never arrive — refetching on visibilitychange fills the gap.
+  // Always merge with the in-store messages (de-duped by id) so a live WS message
+  // that arrived during the REST round-trip isn't dropped.
   useEffect(() => {
     if (!roomId) return;
     let cancelled = false;
-    (async () => {
+
+    async function loadHistory() {
       try {
         const { data } = await api.get(`/api/rooms/${roomId}/chat`);
         if (cancelled || !Array.isArray(data)) return;
@@ -76,8 +79,21 @@ export function CrowdbashRoomPage() {
         const merged = [...data, ...existing.filter((m) => !seen.has(m.id))];
         setMessages(merged);
       } catch { /* */ }
-    })();
-    return () => { cancelled = true; };
+    }
+
+    loadHistory();
+
+    function onVisible() {
+      if (document.visibilityState === 'visible') loadHistory();
+    }
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', loadHistory);
+
+    return () => {
+      cancelled = true;
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', loadHistory);
+    };
   }, [roomId, setMessages]);
 
   // Fetch score on mount + poll (regardless of room status — match may be live)
@@ -242,14 +258,10 @@ export function CrowdbashRoomPage() {
               {activeTab === 'myteam' && <MyTeamTab roomId={room.id} />}
               {activeTab === 'leaderboard' && <LeaderboardTab roomId={room.id} />}
               {activeTab === 'chat' && (
-                <>
-                  <div className="flex-1 overflow-y-auto" style={{ padding: '20px 24px' }}>
-                    <ChatPanel onSendChat={sendChat} />
-                  </div>
-                  <div style={{ padding: '0 24px 12px' }}>
-                    <ChatInput onSendChat={sendChat} />
-                  </div>
-                </>
+                <div className="flex-1 flex flex-col min-h-0">
+                  <ChatPanel onSendChat={sendChat} />
+                  <ChatInput onSendChat={sendChat} />
+                </div>
               )}
               {activeTab === 'rules' && (
                 <div style={{ padding: '20px 24px' }}>
