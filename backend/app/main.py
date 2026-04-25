@@ -38,6 +38,67 @@ async def health():
     return {"status": "ok", "version": "2.0.0", "sports": ["cricket", "football"]}
 
 
+@app.get("/_debug/chat")
+async def _debug_chat():
+    """Diagnostic: check chat_messages table existence and try a write.
+    Returns counts and any errors so we can see why prod persistence is failing.
+    """
+    import uuid as _uuid
+    from datetime import datetime, timezone
+    from sqlalchemy import text as _text
+    out = {"steps": []}
+    try:
+        async with AsyncSessionLocal() as db:
+            # 1. Does the table exist?
+            try:
+                r = await db.execute(_text(
+                    "SELECT to_regclass('public.chat_messages') AS t"
+                ))
+                exists = r.scalar()
+                out["steps"].append({"check_table": str(exists)})
+            except Exception as e:
+                out["steps"].append({"check_table_error": str(e)})
+
+            # 2. Row count?
+            try:
+                r = await db.execute(_text("SELECT COUNT(*) FROM chat_messages"))
+                out["steps"].append({"row_count": r.scalar()})
+            except Exception as e:
+                out["steps"].append({"count_error": str(e)})
+
+            # 3. Try a test insert (using a real room id if one exists)
+            try:
+                r = await db.execute(_text("SELECT id FROM rooms LIMIT 1"))
+                room_row = r.first()
+                if room_row:
+                    test_id = _uuid.uuid4()
+                    await db.execute(
+                        _text("""
+                            INSERT INTO chat_messages (id, room_id, user_id, username, message, created_at)
+                            VALUES (:id, :room_id, NULL, :username, :message, :created_at)
+                        """),
+                        {
+                            "id": test_id,
+                            "room_id": room_row[0],
+                            "username": "DEBUG",
+                            "message": "debug-insert",
+                            "created_at": datetime.now(timezone.utc),
+                        },
+                    )
+                    await db.commit()
+                    out["steps"].append({"test_insert": "ok", "test_id": str(test_id)})
+                    # Cleanup
+                    await db.execute(_text("DELETE FROM chat_messages WHERE id = :id"), {"id": test_id})
+                    await db.commit()
+                else:
+                    out["steps"].append({"test_insert": "skipped (no rooms)"})
+            except Exception as e:
+                out["steps"].append({"insert_error": str(e)})
+    except Exception as e:
+        out["fatal"] = str(e)
+    return out
+
+
 @app.websocket("/ws/{room_id}")
 async def websocket_endpoint(websocket: WebSocket, room_id: str):
     await room_manager.connect(websocket, room_id)
