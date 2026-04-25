@@ -1,9 +1,11 @@
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy import select
+from sqlalchemy import select, func
 from app.core.database import get_db
 from app.core.security import create_jwt, get_current_user_id
 from app.models.user import User
+from app.models.room import Room
+from app.models.game import Game
 from app.services.email_service import generate_otp, send_otp_email
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
@@ -204,3 +206,43 @@ async def update_profile(
         "username": user.username,
         "message": "Profile updated",
     }
+
+
+@router.get("/me/past-games")
+async def get_my_past_games(
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Past games the current user took part in. One row per match,
+    most-recent first. Includes the user's own rank/points and the
+    total number of players in that game so the UI can show
+    "You came 2nd of 5".
+    """
+    rows = await db.execute(
+        select(Game, Room)
+        .join(Room, Room.id == Game.room_id)
+        .where(
+            Game.user_id == user_id,
+            Room.status.in_(["closed", "completed"]),
+        )
+        .order_by(Room.completed_at.desc().nullslast(), Room.created_at.desc())
+    )
+    history = []
+    for game, room in rows.all():
+        total_players_q = await db.execute(
+            select(func.count(Game.id)).where(Game.room_id == room.id)
+        )
+        total_players = total_players_q.scalar() or 0
+        history.append({
+            "room_id": str(room.id),
+            "match_name": room.match_name,
+            "league": room.league,
+            "sport": room.sport,
+            "completed_at": room.completed_at.isoformat() if room.completed_at else None,
+            "your_rank": game.rank,
+            "your_points": game.total_points or 0,
+            "total_players": total_players,
+            "you_won": game.rank == 1 and (game.total_points or 0) > 0,
+        })
+    return history

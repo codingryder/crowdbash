@@ -1,7 +1,146 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
 import api from '../lib/api';
 import { useAuthStore } from '../store/authStore';
+
+type PastGame = {
+  room_id: string;
+  match_name: string;
+  league: string | null;
+  sport: string;
+  completed_at: string | null;
+  your_rank: number | null;
+  your_points: number;
+  total_players: number;
+  you_won: boolean;
+};
+
+type LeaderboardEntry = {
+  user_id: string;
+  username: string;
+  first_name: string;
+  points: number;
+  strategy: string;
+  team_built: boolean;
+};
+
+function rankSuffix(n: number): string {
+  const j = n % 10, k = n % 100;
+  if (k >= 11 && k <= 13) return `${n}th`;
+  if (j === 1) return `${n}st`;
+  if (j === 2) return `${n}nd`;
+  if (j === 3) return `${n}rd`;
+  return `${n}th`;
+}
+
+function formatDate(iso: string | null): string {
+  if (!iso) return '';
+  try {
+    const d = new Date(iso);
+    return d.toLocaleDateString(undefined, { day: 'numeric', month: 'short', year: 'numeric' });
+  } catch { return ''; }
+}
+
+function PastGamesSection({ currentUserId }: { currentUserId: string }) {
+  const [games, setGames] = useState<PastGame[] | null>(null);
+  const [error, setError] = useState('');
+  const [expandedRoom, setExpandedRoom] = useState<string | null>(null);
+  const [boardCache, setBoardCache] = useState<Record<string, LeaderboardEntry[] | 'loading' | 'error'>>({});
+
+  useEffect(() => {
+    api.get('/api/auth/me/past-games')
+      .then(({ data }) => setGames(data))
+      .catch(() => setError('Could not load past games'));
+  }, []);
+
+  async function toggleExpand(roomId: string) {
+    if (expandedRoom === roomId) { setExpandedRoom(null); return; }
+    setExpandedRoom(roomId);
+    if (boardCache[roomId]) return;
+    setBoardCache(prev => ({ ...prev, [roomId]: 'loading' }));
+    try {
+      const { data } = await api.get(`/api/leaderboard/${roomId}`);
+      setBoardCache(prev => ({ ...prev, [roomId]: data }));
+    } catch {
+      setBoardCache(prev => ({ ...prev, [roomId]: 'error' }));
+    }
+  }
+
+  if (error) {
+    return <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{error}</div>;
+  }
+  if (games === null) {
+    return <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Loading past games...</div>;
+  }
+  if (games.length === 0) {
+    return <div className="text-[12px]" style={{ color: 'var(--muted)' }}>You haven't finished any games yet.</div>;
+  }
+
+  return (
+    <div className="space-y-2">
+      {games.map(g => {
+        const expanded = expandedRoom === g.room_id;
+        const board = boardCache[g.room_id];
+        return (
+          <div key={g.room_id} className="rounded-lg" style={{ background: 'var(--surface2)', border: '1px solid var(--border)' }}>
+            <button
+              onClick={() => toggleExpand(g.room_id)}
+              className="w-full text-left px-3 py-2.5 flex items-center justify-between gap-2 cursor-pointer"
+              style={{ background: 'transparent', border: 'none', color: 'var(--text)' }}
+            >
+              <div className="min-w-0 flex-1">
+                <div className="text-[13px] font-semibold truncate flex items-center gap-2">
+                  {g.you_won && <span aria-label="winner" title="You won this game" style={{ color: 'var(--gold)' }}>🏆</span>}
+                  {g.match_name}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                  {[g.league, formatDate(g.completed_at)].filter(Boolean).join(' • ')}
+                </div>
+              </div>
+              <div className="text-right shrink-0">
+                <div className="text-[13px] font-bold" style={{ color: g.you_won ? 'var(--gold)' : 'var(--text)' }}>
+                  {g.your_rank ? `${rankSuffix(g.your_rank)} / ${g.total_players}` : '—'}
+                </div>
+                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{g.your_points} pts</div>
+              </div>
+            </button>
+            {expanded && (
+              <div style={{ borderTop: '1px solid var(--border)', padding: '8px 12px' }}>
+                {board === 'loading' && <div className="text-[12px] py-2" style={{ color: 'var(--muted)' }}>Loading leaderboard...</div>}
+                {board === 'error' && <div className="text-[12px] py-2" style={{ color: 'var(--red)' }}>Couldn't load leaderboard.</div>}
+                {Array.isArray(board) && board.length === 0 && <div className="text-[12px] py-2" style={{ color: 'var(--muted)' }}>No players to show.</div>}
+                {Array.isArray(board) && board.length > 0 && (
+                  <div className="space-y-1">
+                    {board.map((row, idx) => {
+                      const isYou = row.user_id === currentUserId;
+                      const rank = idx + 1;
+                      const rankColor = rank === 1 ? 'var(--gold)' : rank === 2 ? '#A8B4C0' : rank === 3 ? '#CD8F5A' : 'var(--muted)';
+                      return (
+                        <div
+                          key={row.user_id}
+                          className="flex items-center justify-between text-[12px] px-2 py-1.5 rounded"
+                          style={{ background: isYou ? 'rgba(45,214,122,0.08)' : 'transparent' }}
+                        >
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span style={{ color: rankColor, fontWeight: 700, minWidth: 18 }}>{rank}</span>
+                            <span className={isYou ? 'font-semibold' : ''} style={{ color: isYou ? 'var(--green)' : 'var(--text)' }}>
+                              {isYou ? 'You' : (row.first_name || row.username)}
+                            </span>
+                          </div>
+                          <span style={{ fontVariantNumeric: 'tabular-nums' }}>{row.points} pts</span>
+                        </div>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        );
+      })}
+    </div>
+  );
+}
 
 export function ProfilePage() {
   const { user, isLoading, logout } = useAuth();
@@ -137,6 +276,13 @@ export function ProfilePage() {
         <button onClick={logout} className="w-full py-2.5 rounded-lg text-[13px] font-semibold cursor-pointer border-none" style={{ background: 'rgba(240,90,90,0.08)', color: 'var(--red)', border: '1px solid rgba(240,90,90,0.15)' }}>
           Sign Out
         </button>
+      </div>
+
+      <div className="rounded-2xl p-5 md:p-6 mt-4" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+        <div className="text-[11px] font-bold mb-3" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif", letterSpacing: 1 }}>
+          PAST GAMES
+        </div>
+        <PastGamesSection currentUserId={user.id} />
       </div>
     </main>
   );
