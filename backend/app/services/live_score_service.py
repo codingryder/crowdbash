@@ -243,8 +243,13 @@ RULES:
         for m in data:
             if "id" not in m:
                 m["id"] = f"gemini_{data.index(m)}"
-            if "ms" not in m:
+            ms_val = str(m.get("ms", "")).lower()
+            if ms_val in ("scheduled", "not started", "fixture", ""):
                 m["ms"] = "upcoming"
+            elif ms_val in ("in progress", "live"):
+                m["ms"] = "live"
+            elif ms_val in ("completed", "finished", "result"):
+                m["ms"] = "result"
             if "score" not in m:
                 m["score"] = []
             if "t1" not in m and "teams" in m and len(m["teams"]) > 0:
