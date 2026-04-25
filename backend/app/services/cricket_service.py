@@ -327,29 +327,28 @@ class CricketAdapter(SportAdapter):
     def is_edit_window(self, current_progress: dict, last_edit_progress: dict) -> bool:
         """
         T20 reshuffle windows:
-        - 1st innings: after 5, 10, 15, 20 overs
+        - 1st innings: after 5, 10, 15 overs
+        - Innings break (transition from 1 → 2): always fires (covers the
+          end of innings 1, including the 20-over boundary that can be
+          missed when ESPN jumps straight to innings 2 between polls)
         - 2nd innings: after 5, 10, 15 overs
-        Triggers when we cross a 5-over boundary in either innings.
         """
         curr_innings = current_progress.get("innings", 1)
         curr_over = float(current_progress.get("over", 0))
         last_innings = last_edit_progress.get("innings", 1)
         last_over = float(last_edit_progress.get("over", 0))
 
-        # New innings started (2nd innings just began at over 0)
-        if curr_innings > last_innings and curr_innings == 2 and curr_over < 1:
-            return False  # Don't trigger at start of 2nd innings
+        # Innings transition: always treat as a reshuffle window so we
+        # never miss the innings break, regardless of where in innings 2
+        # the first poll lands.
+        if curr_innings > last_innings:
+            return True
 
         # Same innings: check 5-over boundary crossing
         if curr_innings == last_innings:
             curr_window = int(curr_over / 5)
             last_window = int(last_over / 5)
             return curr_window > last_window and curr_window > 0
-
-        # Different innings: if we jumped to innings 2, check 2nd innings windows
-        if curr_innings > last_innings:
-            curr_window = int(curr_over / 5)
-            return curr_window > 0
 
         return False
 
