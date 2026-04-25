@@ -572,6 +572,43 @@ async def get_espn_match_detail(match_name: str, series_id: str = "8048") -> Opt
                         if batting:
                             scorecard.append({"inning": f"{team_name} Inning 1", "batting": batting, "bowling": []})
 
+                    # Fill bowling for each inning from the OTHER team's roster
+                    # (period 0 of the fielding side corresponds to inning 1 of the batting side)
+                    for inning in scorecard:
+                        bat_team = inning["inning"].replace(" Inning 1", "").strip()
+                        other_roster = next(
+                            (r for r in rosters if r.get("team", {}).get("displayName", "") != bat_team),
+                            None,
+                        )
+                        if not other_roster:
+                            continue
+                        bowlers = []
+                        for p in other_roster.get("roster", []):
+                            athlete = p.get("athlete", {})
+                            pid = str(athlete.get("id", ""))
+                            pname = athlete.get("displayName", "")
+                            for pls in p.get("linescores", []):
+                                cats = pls.get("statistics", {}).get("categories", [])
+                                if not cats:
+                                    continue
+                                stat_map = {s.get("name"): s.get("value") for s in cats[0].get("stats", [])}
+                                balls = stat_map.get("balls", 0) or 0
+                                if balls and balls > 0:
+                                    bowlers.append({
+                                        "bowler": {"id": pid, "name": pname},
+                                        "o": stat_map.get("overs", 0) or 0,
+                                        "m": int(stat_map.get("maidens", 0) or 0),
+                                        "r": int(stat_map.get("conceded", 0) or 0),
+                                        "w": int(stat_map.get("wickets", 0) or 0),
+                                        "econ": stat_map.get("economyRate", 0) or 0,
+                                        "_pos": stat_map.get("bowlingPosition", 99) or 99,
+                                    })
+                                    break  # only first bowled period (inning 1)
+                        bowlers.sort(key=lambda b: b["_pos"])
+                        for b in bowlers:
+                            b.pop("_pos", None)
+                        inning["bowling"] = bowlers
+
                     await redis_set_json(detail_cache, scorecard, ex=20)
         except Exception as e:
             print(f"ESPN summary error: {e}")

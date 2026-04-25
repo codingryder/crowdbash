@@ -62,13 +62,19 @@ export function CrowdbashRoomPage() {
   }, [game?.squad_locked]);
 
   // Load chat history once when entering the room (closed rooms return [])
+  // Merge with any messages already received via WS to avoid race conditions
+  // where a live message arrives before the history fetch completes.
   useEffect(() => {
     if (!roomId) return;
     let cancelled = false;
     (async () => {
       try {
         const { data } = await api.get(`/api/rooms/${roomId}/chat`);
-        if (!cancelled && Array.isArray(data)) setMessages(data);
+        if (cancelled || !Array.isArray(data)) return;
+        const existing = useRoomStore.getState().messages;
+        const seen = new Set(data.map((m: { id: string }) => m.id));
+        const merged = [...data, ...existing.filter((m) => !seen.has(m.id))];
+        setMessages(merged);
       } catch { /* */ }
     })();
     return () => { cancelled = true; };
