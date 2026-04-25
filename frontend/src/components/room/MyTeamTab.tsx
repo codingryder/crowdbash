@@ -1,12 +1,5 @@
 import { useGameStore } from '../../store/gameStore';
-
-const AVATAR_COLORS = [
-  { bg: 'rgba(74,158,255,0.15)', color: 'var(--blue)' },
-  { bg: 'rgba(244,185,64,0.12)', color: 'var(--gold)' },
-  { bg: 'rgba(61,214,140,0.1)', color: 'var(--green)' },
-  { bg: 'rgba(139,111,255,0.12)', color: 'var(--purple)' },
-  { bg: 'rgba(240,90,90,0.1)', color: 'var(--red)' },
-];
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 
 const ROLE_BADGES: Record<string, { label: string; color: string }> = {
   batsman: { label: 'BAT', color: 'var(--blue)' },
@@ -61,8 +54,6 @@ export function MyTeamTab({ roomId: _roomId }: MyTeamTabProps) {
       {/* Player list */}
       <div className="space-y-2">
         {sortedPlayers.map((player, i) => {
-          const avStyle = AVATAR_COLORS[i % AVATAR_COLORS.length];
-          const initials = player.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase();
           const badge = ROLE_BADGES[(player.player_role || '').toLowerCase()];
           const breakdown = player.scoring_breakdown || {};
           const fantasyPts = (breakdown.fantasy_points as number) || 0;
@@ -77,13 +68,14 @@ export function MyTeamTab({ roomId: _roomId }: MyTeamTabProps) {
               }}
             >
               <div className="flex items-center gap-3">
-                {/* Avatar */}
-                <div
-                  className="w-9 h-9 rounded-full flex items-center justify-center text-[11px] font-bold shrink-0"
-                  style={{ background: avStyle.bg, color: avStyle.color }}
-                >
-                  {initials}
-                </div>
+                <PlayerAvatar
+                  name={player.player_name}
+                  imageUrl={player.image_url}
+                  seed={String.fromCharCode(65 + (i % 5))}
+                  size={36}
+                  radius={18}
+                  fontSize={11}
+                />
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">

@@ -8,6 +8,7 @@ from app.models.room import Room
 from app.models.match_squad import MatchSquad
 from app.services.game_service import update_weightages
 from app.services.sport_service import get_adapter
+from app.services.player_image_service import attach_image_urls
 from pydantic import BaseModel
 import uuid
 from typing import List
@@ -118,15 +119,27 @@ async def get_available_squads(
                 print(f"Failed to fetch squads from API: {e}")
 
     teams: dict = {}
+    flat: list[dict] = []
     for s in squads:
         if s.team not in teams:
             teams[s.team] = []
-        teams[s.team].append({
+        rec = {
             "player_id": s.player_id,
             "player_name": s.player_name,
             "team": s.team,
             "player_role": s.player_role or "",
-        })
+        }
+        teams[s.team].append(rec)
+        flat.append(rec)
+
+    # Enrich with Wikipedia thumbnails (cached). Missing images are fine —
+    # the frontend falls back to initials.
+    room_for_sport = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
+    _r = room_for_sport.scalar_one_or_none()
+    try:
+        await attach_image_urls(db, flat, sport=(_r.sport if _r else "cricket"))
+    except Exception as e:
+        print(f"player image enrich (squads) failed: {e}")
 
     return {"teams": teams, "total_players": len(squads)}
 
@@ -255,6 +268,24 @@ async def get_game_state(
     can_edit_players = (not match_started or late_join) and not game.squad_locked
     can_edit_weightages = not match_started or False  # During match: only in edit window (handled by frontend)
 
+    player_weightages = [
+        {
+            "player_id": pw.player_id,
+            "player_name": pw.player_name,
+            "team": pw.team,
+            "weightage": pw.weightage,
+            "points_earned": pw.points_earned,
+            "player_role": pw.player_role,
+            "scoring_breakdown": pw.scoring_breakdown or {},
+            "selected": pw.selected,
+        }
+        for pw in weightages
+    ]
+    try:
+        await attach_image_urls(db, player_weightages, sport=(room.sport if room else "cricket"))
+    except Exception as e:
+        print(f"player image enrich (game state) failed: {e}")
+
     return {
         "id": str(game.id),
         "room_id": str(game.room_id),
@@ -270,19 +301,7 @@ async def get_game_state(
         "late_join_open": late_join,
         "can_edit_players": can_edit_players,
         "can_edit_weightages": can_edit_weightages,
-        "player_weightages": [
-            {
-                "player_id": pw.player_id,
-                "player_name": pw.player_name,
-                "team": pw.team,
-                "weightage": pw.weightage,
-                "points_earned": pw.points_earned,
-                "player_role": pw.player_role,
-                "scoring_breakdown": pw.scoring_breakdown or {},
-                "selected": pw.selected,
-            }
-            for pw in weightages
-        ],
+        "player_weightages": player_weightages,
     }
 
 
@@ -349,19 +368,25 @@ async def get_user_team(
     wt_result = await db.execute(select(PlayerWeightage).where(PlayerWeightage.game_id == game.id))
     weightages = wt_result.scalars().all()
 
+    selected_weightages = [
+        {
+            "player_id": pw.player_id,
+            "player_name": pw.player_name,
+            "team": pw.team,
+            "weightage": pw.weightage,
+            "points_earned": pw.points_earned,
+            "player_role": pw.player_role,
+            "selected": pw.selected,
+        }
+        for pw in weightages if pw.selected
+    ]
+    try:
+        await attach_image_urls(db, selected_weightages, sport=(room.sport if room else "cricket"))
+    except Exception as e:
+        print(f"player image enrich (other team) failed: {e}")
+
     return {
         "user_id": target_user_id,
         "total_points": game.total_points,
-        "player_weightages": [
-            {
-                "player_id": pw.player_id,
-                "player_name": pw.player_name,
-                "team": pw.team,
-                "weightage": pw.weightage,
-                "points_earned": pw.points_earned,
-                "player_role": pw.player_role,
-                "selected": pw.selected,
-            }
-            for pw in weightages if pw.selected
-        ],
+        "player_weightages": selected_weightages,
     }

@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import type { SquadPlayer } from '../../types';
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 
 const ROLE_COLORS: Record<string, { label: string; color: string }> = {
   'batsman': { label: 'BAT', color: 'var(--blue)' },
@@ -148,15 +149,13 @@ export function PlayerSelectorSheet({
                       borderBottom: '1px solid var(--border)',
                     }}
                   >
-                    {/* Avatar */}
-                    <div style={{
-                      width: 32, height: 32, borderRadius: '50%',
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: 'var(--surface2)', color: rc.color,
-                      fontSize: 10, fontWeight: 800, fontFamily: "'Cabinet Grotesk', sans-serif",
-                    }}>
-                      {player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()}
-                    </div>
+                    <PlayerAvatar
+                      name={player.player_name}
+                      imageUrl={player.image_url}
+                      size={32}
+                      radius={16}
+                      fontSize={10}
+                    />
 
                     {/* Name + role */}
                     <div className="flex-1 min-w-0">

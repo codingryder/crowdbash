@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import type { SquadPlayer } from '../../types';
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 
 const TOTAL_POWER = 33;
 const MAX_POWER = 6;
@@ -15,14 +16,6 @@ const ROLE_TAGS: Record<string, { label: string; color: string; bg: string }> = 
   'all-rounder': { label: 'AR', color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)' },
   'wicket-keeper': { label: 'WK', color: 'var(--mu)', bg: 'rgba(192,194,200,0.08)' },
 };
-
-const AV_COLORS = [
-  { bg: 'rgba(45,214,122,0.15)', color: '#2dd67a' },
-  { bg: 'rgba(245,158,11,0.15)', color: '#f59e0b' },
-  { bg: 'rgba(139,92,246,0.15)', color: '#8b5cf6' },
-  { bg: 'rgba(59,130,246,0.15)', color: '#3b82f6' },
-  { bg: 'rgba(240,82,82,0.15)', color: '#f05252' },
-];
 
 interface Props {
   roomName: string;
@@ -258,7 +251,6 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                   const isSelected = selectedPlayerIds.includes(p.player_id);
                   const canAdd = count < 11;
                   const role = ROLE_TAGS[(p.player_role || '').toLowerCase()] || { label: '?', color: 'var(--mu)', bg: 'var(--faint)' };
-                  const avStyle = AV_COLORS[p.player_name.charCodeAt(0) % AV_COLORS.length];
 
                   return (
                     <button
@@ -272,12 +264,12 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                         padding: '8px 10px',
                       }}
                     >
-                      <div
-                        className="w-[30px] h-[30px] rounded-[7px] flex items-center justify-center font-cabinet text-[9px] font-bold shrink-0"
-                        style={{ background: avStyle.bg, color: avStyle.color }}
-                      >
-                        {p.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
+                      <PlayerAvatar
+                        name={p.player_name}
+                        imageUrl={p.image_url}
+                        size={30}
+                        radius={7}
+                      />
                       <div className="flex-1 min-w-0">
                         <div className="text-[12px] font-medium truncate" style={{ color: isSelected ? 'var(--tx)' : 'var(--tx2)' }}>
                           {p.player_name}
@@ -305,19 +297,19 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                 {selectedPlayerIds.map((id, i) => {
                   const p = allPlayers.find((x) => x.player_id === id);
                   if (!p) return null;
-                  const avStyle = AV_COLORS[i % AV_COLORS.length];
                   return (
                     <div
                       key={id}
                       className="flex items-center gap-2 rounded-btn px-3 py-2"
                       style={{ background: 'var(--surface)', border: '1px solid var(--b1)' }}
                     >
-                      <div
-                        className="w-7 h-7 rounded-[6px] flex items-center justify-center font-cabinet text-[8px] font-bold shrink-0"
-                        style={{ background: avStyle.bg, color: avStyle.color }}
-                      >
-                        {p.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
+                      <PlayerAvatar
+                        name={p.player_name}
+                        imageUrl={p.image_url}
+                        seed={String.fromCharCode(65 + (i % 5))}
+                        size={28}
+                        radius={6}
+                      />
                       <span className="text-[11px] font-medium truncate">{p.player_name.split(' ').pop()}</span>
                     </div>
                   );
@@ -376,7 +368,6 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
             <div className="flex-1 overflow-y-auto px-4 md:px-6 py-3">
               {selectedPlayers.map((player, i) => {
                 const pw = powers[player.player_id] || DEFAULT_POWER;
-                const avStyle = AV_COLORS[i % AV_COLORS.length];
                 const pct = ((pw - MIN_POWER) / (MAX_POWER - MIN_POWER) * 100).toFixed(1);
                 const isMax = pw >= MAX_POWER;
                 const isMin = pw <= MIN_POWER;
@@ -393,13 +384,14 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                     }}
                   >
                     <div className="flex items-center gap-3">
-                      {/* Avatar */}
-                      <div
-                        className="w-9 h-9 rounded-btn flex items-center justify-center font-cabinet text-[11px] font-bold shrink-0"
-                        style={{ background: avStyle.bg, color: avStyle.color }}
-                      >
-                        {player.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-                      </div>
+                      <PlayerAvatar
+                        name={player.player_name}
+                        imageUrl={player.image_url}
+                        seed={String.fromCharCode(65 + (i % 5))}
+                        size={36}
+                        radius={9}
+                        fontSize={11}
+                      />
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">

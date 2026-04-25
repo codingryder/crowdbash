@@ -1,4 +1,5 @@
 import type { SquadPlayer } from '../../types';
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 
 interface PosCoord {
   top?: number | string;
@@ -91,22 +92,20 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
           if ('right' in pos && pos.right !== undefined) style.right = pos.right;
           if ('tx' in pos) style.transform = `translateX(${pos.tx})`;
 
-          const roleColor = player ? getRoleColor(player.player_role) : { bg: '', color: '' };
-          const initials = player ? player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase() : '';
           const lastName = player ? player.player_name.split(' ').pop() || '' : '';
 
           return (
             <div key={i} style={style} onClick={() => onSlotClick(i)} title={filled ? 'Click to remove' : pos.label}>
-              {filled ? (
+              {filled && player ? (
                 <>
-                  <div style={{
-                    width: 34, height: 34, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700,
-                    background: roleColor.bg, color: roleColor.color,
-                    position: 'relative',
-                  }}>
-                    {initials}
+                  <div style={{ position: 'relative', width: 34, height: 34 }}>
+                    <PlayerAvatar
+                      name={player.player_name}
+                      imageUrl={player.image_url}
+                      size={34}
+                      radius={17}
+                      fontSize={10}
+                    />
                     <div style={{
                       position: 'absolute', top: -4, right: -4, width: 17, height: 17,
                       borderRadius: '50%', background: 'var(--amber)', color: '#000',
@@ -134,13 +133,5 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
   );
 }
 
-function getRoleColor(role: string): { bg: string; color: string } {
-  const r = role.toLowerCase();
-  if (r.includes('bat') || r === 'batsman') return { bg: 'rgba(45,214,122,0.15)', color: '#2dd67a' };
-  if (r.includes('bowl') || r === 'bowler') return { bg: 'rgba(139,92,246,0.12)', color: '#8b5cf6' };
-  if (r.includes('all') || r === 'all-rounder') return { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' };
-  if (r.includes('keep') || r.includes('wk') || r === 'wicket-keeper') return { bg: 'rgba(192,194,200,0.08)', color: 'rgba(192,194,200,0.8)' };
-  return { bg: 'rgba(45,214,122,0.1)', color: '#2dd67a' };
-}
 
 export { POS_COORDS };

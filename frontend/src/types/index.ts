@@ -76,6 +76,7 @@ export interface SquadPlayer {
   player_name: string;
   team: string;
   player_role: string;
+  image_url?: string | null;
 }
 
 export interface PlayerWeightage {
@@ -87,6 +88,7 @@ export interface PlayerWeightage {
   player_role?: string;
   scoring_breakdown?: Record<string, number>;
   selected?: boolean;
+  image_url?: string | null;
 }
 
 export interface Game {

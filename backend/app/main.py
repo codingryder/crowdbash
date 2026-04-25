@@ -506,6 +506,27 @@ async def startup():
     except Exception as e:
         print(f"chat_messages migration failed: {e}")
 
+    # Self-heal: player_images cache (global, deduped by lowercased name).
+    # Stores Wikipedia thumbnail URL per cricket/football player so we don't
+    # re-hit Wikipedia for the same player across rooms.
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS player_images (
+                    name_key VARCHAR(160) PRIMARY KEY,
+                    display_name VARCHAR(160) NOT NULL,
+                    image_url TEXT NULL,
+                    source VARCHAR(20) NULL,
+                    not_found BOOLEAN NOT NULL DEFAULT FALSE,
+                    fetched_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """))
+            await db.commit()
+            print("player_images table ensured")
+    except Exception as e:
+        print(f"player_images migration failed: {e}")
+
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
     asyncio.create_task(auto_close_past_rooms())

@@ -1,15 +1,8 @@
 import { useGameStore } from '../../store/gameStore';
 import { useAuthStore } from '../../store/authStore';
 import { useGame } from '../../hooks/useGame';
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 import type { Room } from '../../types';
-
-const AV_COLORS = [
-  { bg: 'rgba(45,214,122,0.12)', color: '#2dd67a' },
-  { bg: 'rgba(245,158,11,0.12)', color: '#f59e0b' },
-  { bg: 'rgba(139,92,246,0.12)', color: '#8b5cf6' },
-  { bg: 'rgba(59,130,246,0.12)', color: '#3b82f6' },
-  { bg: 'rgba(240,82,82,0.12)', color: '#f05252' },
-];
 
 interface Props {
   room: Room;
@@ -128,19 +121,20 @@ export function RightGamePanel({ room }: Props) {
           YOUR SQUAD
         </div>
         {selectedPlayers.map((pw, i) => {
-          const avStyle = AV_COLORS[i % AV_COLORS.length];
           return (
             <div
               key={pw.player_id}
               className="flex items-center gap-2 rounded-btn px-2.5 py-2 mb-1.5"
               style={{ background: 'var(--surface)', border: '1px solid var(--b1)' }}
             >
-              <div
-                className="w-7 h-7 rounded-[7px] flex items-center justify-center font-cabinet text-[8px] font-bold shrink-0"
-                style={{ background: avStyle.bg, color: avStyle.color }}
-              >
-                {pw.player_name.split(' ').map((n) => n[0]).join('').slice(0, 2).toUpperCase()}
-              </div>
+              <PlayerAvatar
+                name={pw.player_name}
+                imageUrl={pw.image_url}
+                seed={String.fromCharCode(65 + (i % 5))}
+                size={28}
+                radius={7}
+                fontSize={8}
+              />
               <div className="flex-1 text-[12px] font-medium truncate">{pw.player_name.split(' ').pop()}</div>
               <div className="font-cabinet text-[13px] font-extrabold shrink-0" style={{ color: 'var(--amber)' }}>
                 {pw.weightage}x
