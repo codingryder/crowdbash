@@ -57,13 +57,53 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             elif msg["type"] == "chat":
                 import uuid as _uuid
                 from datetime import datetime, timezone
+                from app.models.chat import ChatMessage
+
                 payload = msg.get("payload", {})
+                text = (payload.get("message") or "").strip()
+                if not text:
+                    continue
+
+                username = payload.get("username") or "Anonymous"
+                raw_user_id = payload.get("user_id") or ""
+
+                user_uuid = None
+                try:
+                    if raw_user_id:
+                        user_uuid = _uuid.UUID(raw_user_id)
+                except (ValueError, TypeError):
+                    user_uuid = None
+
+                try:
+                    room_uuid = _uuid.UUID(room_id)
+                except (ValueError, TypeError):
+                    room_uuid = None
+
+                msg_id = _uuid.uuid4()
+                created_at = datetime.now(timezone.utc)
+
+                # Persist so the chat tab can show history (room not yet closed)
+                if room_uuid is not None:
+                    try:
+                        async with AsyncSessionLocal() as db:
+                            db.add(ChatMessage(
+                                id=msg_id,
+                                room_id=room_uuid,
+                                user_id=user_uuid,
+                                username=username[:100],
+                                message=text,
+                                created_at=created_at,
+                            ))
+                            await db.commit()
+                    except Exception as e:
+                        print(f"Chat persist failed: {e}")
+
                 chat_msg = {
-                    "id": str(_uuid.uuid4()),
-                    "user_id": payload.get("user_id", ""),
-                    "username": payload.get("username", "Anonymous"),
-                    "message": payload.get("message", ""),
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "id": str(msg_id),
+                    "user_id": raw_user_id,
+                    "username": username,
+                    "message": text,
+                    "timestamp": created_at.isoformat(),
                 }
                 await room_manager.broadcast(room_id, {
                     "type": "chat",

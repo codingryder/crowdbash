@@ -16,6 +16,7 @@ interface RoomStore {
   setScore: (score: ScoreData) => void;
   setFanCount: (count: number) => void;
   addMessage: (msg: ChatMessage) => void;
+  setMessages: (msgs: ChatMessage[]) => void;
   setActiveQuiz: (quiz: QuizQuestion | null) => void;
   setCurrentOver: (over: number) => void;
   setMatchProgress: (progress: Record<string, unknown>) => void;
@@ -38,9 +39,11 @@ export const useRoomStore = create<RoomStore>((set) => ({
   setScore: (score) => set({ score }),
   setFanCount: (count) => set({ fanCount: count }),
   addMessage: (msg) =>
-    set((state) => ({
-      messages: [...state.messages.slice(-200), msg],
-    })),
+    set((state) => {
+      if (state.messages.some((m) => m.id === msg.id)) return state;
+      return { messages: [...state.messages.slice(-200), msg] };
+    }),
+  setMessages: (msgs) => set({ messages: msgs.slice(-200) }),
   setActiveQuiz: (quiz) => set({ activeQuiz: quiz }),
   setCurrentOver: (over) => set({ currentOver: over }),
   setMatchProgress: (progress) => set({ matchProgress: progress }),

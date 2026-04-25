@@ -28,6 +28,7 @@ export function CrowdbashRoomPage() {
   const score = useRoomStore((s) => s.score);
   const setSport = useRoomStore((s) => s.setSport);
   const setScore = useRoomStore((s) => s.setScore);
+  const setMessages = useRoomStore((s) => s.setMessages);
   const showTeamBuilder = useGameStore((s) => s.showTeamBuilder);
   const setShowTeamBuilder = useGameStore((s) => s.setShowTeamBuilder);
   const game = useGameStore((s) => s.game);
@@ -59,6 +60,19 @@ export function CrowdbashRoomPage() {
       setPitchView(false);
     }
   }, [game?.squad_locked]);
+
+  // Load chat history once when entering the room (closed rooms return [])
+  useEffect(() => {
+    if (!roomId) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const { data } = await api.get(`/api/rooms/${roomId}/chat`);
+        if (!cancelled && Array.isArray(data)) setMessages(data);
+      } catch { /* */ }
+    })();
+    return () => { cancelled = true; };
+  }, [roomId, setMessages]);
 
   // Fetch score on mount + poll (regardless of room status — match may be live)
   useEffect(() => {

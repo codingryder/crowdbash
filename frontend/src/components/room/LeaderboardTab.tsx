@@ -75,8 +75,8 @@ export function LeaderboardTab({ roomId }: LeaderboardTabProps) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
         <div className="text-2xl mb-3">🏆</div>
-        <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4 }}>No rankings yet</div>
-        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Rankings appear once the match starts</div>
+        <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 4 }}>No players yet</div>
+        <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Players appear here as they build their team. Rankings reorder by points once the match starts.</div>
       </div>
     );
   }

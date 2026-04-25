@@ -124,3 +124,45 @@ async def get_room(room_id: str, db: AsyncSession = Depends(get_db)):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
     return _room_to_dict(room)
+
+
+@router.get("/{room_id}/chat")
+async def get_room_chat(
+    room_id: str,
+    limit: int = Query(200, ge=1, le=500),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Chat history for a room. Returned only while the room is active
+    (open or locked); closed rooms return an empty list.
+    """
+    from app.models.chat import ChatMessage
+
+    try:
+        rid = uuid.UUID(room_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Invalid room ID")
+
+    room_result = await db.execute(select(Room).where(Room.id == rid))
+    room = room_result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.status == "closed":
+        return []
+
+    result = await db.execute(
+        select(ChatMessage)
+        .where(ChatMessage.room_id == rid)
+        .order_by(ChatMessage.created_at.asc())
+        .limit(limit)
+    )
+    return [
+        {
+            "id": str(m.id),
+            "user_id": str(m.user_id) if m.user_id else "",
+            "username": m.username,
+            "message": m.message,
+            "timestamp": m.created_at.isoformat() if m.created_at else None,
+        }
+        for m in result.scalars().all()
+    ]
