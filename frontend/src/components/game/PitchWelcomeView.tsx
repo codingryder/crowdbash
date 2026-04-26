@@ -371,7 +371,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
               {/* Sticky bottom bar */}
               {mobileSelected.size > 0 && (
-                <div style={{ position: 'sticky', bottom: 0, padding: '10px 14px', background: 'var(--bg)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                <div style={{ position: 'sticky', bottom: 0, padding: '10px 14px', paddingBottom: 'max(10px, env(safe-area-inset-bottom))', background: 'var(--bg)', borderTop: '1px solid var(--border)', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                   <div style={{ fontSize: 13, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif" }}>
                     <span style={{ color: mobileSelected.size === 11 ? 'var(--green)' : 'var(--amber)' }}>{mobileSelected.size}</span>/11 selected
                   </div>

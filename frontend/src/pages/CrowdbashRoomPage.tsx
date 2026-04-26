@@ -180,10 +180,22 @@ export function CrowdbashRoomPage() {
         />
       )}
 
+      {/* Mobile bottom-sheet backdrop */}
+      {isMobile && showMatchInfo && (
+        <div
+          onClick={() => setShowMatchInfo(false)}
+          style={{
+            position: 'fixed', inset: 0, zIndex: 40,
+            background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)',
+            transition: 'opacity 200ms ease',
+          }}
+        />
+      )}
+
       <div style={{ paddingTop: 60, height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: isMobile ? undefined : '1fr 300px', overflow: 'hidden' }}>
           {/* ═══ LEFT: Main content ═══ */}
-          <div className="flex flex-col overflow-hidden" style={{ flex: 1, display: (isMobile && showMatchInfo) ? 'none' : 'flex' }}>
+          <div className="flex flex-col overflow-hidden" style={{ flex: 1, display: 'flex' }}>
             {/* Header */}
             <div style={{ padding: isMobile ? '10px 12px' : '14px 24px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               {room.late_join_open && room.status === 'locked' && (
@@ -204,8 +216,11 @@ export function CrowdbashRoomPage() {
                 <div className="flex items-center gap-2">
                   {isLive && <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>}
                   {isMobile && (
-                    <button onClick={() => setShowMatchInfo(!showMatchInfo)} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 10, fontWeight: 700, color: showMatchInfo ? 'var(--green)' : 'var(--muted)', cursor: 'pointer' }}>
-                      {showMatchInfo ? 'My Team' : 'Score'}
+                    <button
+                      onClick={() => setShowMatchInfo(true)}
+                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                    >
+                      📊 Score
                     </button>
                   )}
                   {canEditTeam && game && (
@@ -304,20 +319,42 @@ export function CrowdbashRoomPage() {
             </div>
           </div>
 
-          {/* ═══ RIGHT: MATCH INFO PANEL ═══ */}
-          <div className="flex flex-col overflow-y-auto" style={{ borderLeft: isMobile ? 'none' : '1px solid var(--border)', background: 'var(--bg2)', display: (isMobile && !showMatchInfo) ? 'none' : 'flex', flex: isMobile ? 1 : undefined }}>
+          {/* ═══ RIGHT: MATCH INFO PANEL — desktop side panel / mobile bottom sheet ═══ */}
+          <div
+            className="flex flex-col overflow-y-auto"
+            style={
+              isMobile
+                ? {
+                    position: 'fixed', left: 0, right: 0, bottom: 0, zIndex: 50,
+                    height: '85vh', maxHeight: '85vh',
+                    background: 'var(--bg2)',
+                    borderTop: '1px solid var(--border)',
+                    borderTopLeftRadius: 16, borderTopRightRadius: 16,
+                    boxShadow: '0 -10px 30px rgba(0,0,0,0.45)',
+                    transform: showMatchInfo ? 'translateY(0)' : 'translateY(100%)',
+                    transition: 'transform 240ms cubic-bezier(0.32,0.72,0,1)',
+                    visibility: showMatchInfo ? 'visible' : 'hidden',
+                  }
+                : { borderLeft: '1px solid var(--border)', background: 'var(--bg2)', display: 'flex' }
+            }
+          >
 
-            {/* Mobile back bar */}
+            {/* Mobile sheet header with drag handle */}
             {isMobile && (
-              <div className="flex items-center justify-between" style={{ padding: '10px 14px', borderBottom: '1px solid var(--border)', flexShrink: 0, background: 'var(--bg)' }}>
-                <button
-                  onClick={() => setShowMatchInfo(false)}
-                  className="flex items-center gap-1.5"
-                  style={{ background: 'transparent', border: 'none', color: 'var(--green)', fontSize: 13, fontWeight: 700, cursor: 'pointer', padding: 0, fontFamily: "'Cabinet Grotesk', sans-serif" }}
-                >
-                  ← Back to room
-                </button>
-                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: '1.5px', color: 'var(--muted)' }}>SCORE</div>
+              <div style={{ flexShrink: 0, background: 'var(--bg2)', borderBottom: '1px solid var(--border)' }}>
+                <div style={{ display: 'flex', justifyContent: 'center', padding: '8px 0 4px' }}>
+                  <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)' }} />
+                </div>
+                <div className="flex items-center justify-between" style={{ padding: '4px 14px 10px' }}>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 800, letterSpacing: '1.5px', color: 'var(--muted)' }}>SCORE</div>
+                  <button
+                    onClick={() => setShowMatchInfo(false)}
+                    style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 18, lineHeight: 1, cursor: 'pointer', padding: 0, fontFamily: "'Cabinet Grotesk', sans-serif" }}
+                    aria-label="Close score sheet"
+                  >
+                    ✕
+                  </button>
+                </div>
               </div>
             )}
 
@@ -408,7 +445,16 @@ export function CrowdbashRoomPage() {
 
             {/* Spacer + fan count */}
             <div style={{ flex: 1 }} />
-            <div className="shrink-0 flex items-center gap-1.5 px-4 py-2.5" style={{ borderTop: '1px solid var(--border)', fontSize: 11, color: 'var(--muted)' }}>
+            <div
+              className="shrink-0 flex items-center gap-1.5 px-4"
+              style={{
+                borderTop: '1px solid var(--border)',
+                fontSize: 11,
+                color: 'var(--muted)',
+                paddingTop: 10,
+                paddingBottom: isMobile ? 'max(10px, env(safe-area-inset-bottom))' : 10,
+              }}
+            >
               <div className="w-1.5 h-1.5 rounded-full" style={{ background: 'var(--green)' }} />
               {fanCount > 0 ? fanCount : room.fan_count || 0} fans watching
             </div>

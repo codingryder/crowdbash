@@ -116,6 +116,7 @@ export function ChatInput({ onSendChat }: { onSendChat: (msg: string) => void })
       style={{
         borderTop: '0.5px solid var(--b1)',
         padding: '10px 18px',
+        paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
         background: 'var(--bg)',
       }}
     >
