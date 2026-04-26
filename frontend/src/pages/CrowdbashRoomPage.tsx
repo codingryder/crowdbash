@@ -335,7 +335,7 @@ export function CrowdbashRoomPage() {
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto flex flex-col">
-              {activeTab === 'myteam' && <MyTeamTab roomId={room.id} />}
+              {activeTab === 'myteam' && <MyTeamTab roomId={room.id} matchStarted={room.status === 'locked'} />}
               {activeTab === 'leaderboard' && <LeaderboardTab roomId={room.id} />}
               {activeTab === 'chat' && (
                 <div className="flex-1 flex flex-col min-h-0">

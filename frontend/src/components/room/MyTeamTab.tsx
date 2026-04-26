@@ -10,9 +10,10 @@ const ROLE_BADGES: Record<string, { label: string; color: string }> = {
 
 interface MyTeamTabProps {
   roomId: string;
+  matchStarted?: boolean;
 }
 
-export function MyTeamTab({ roomId: _roomId }: MyTeamTabProps) {
+export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabProps) {
   const game = useGameStore((s) => s.game);
 
   if (!game) {
@@ -21,6 +22,24 @@ export function MyTeamTab({ roomId: _roomId }: MyTeamTabProps) {
         <div className="text-2xl mb-3">🎮</div>
         <div className="text-[13px] font-medium mb-1" style={{ color: 'var(--tx)' }}>No team yet</div>
         <div className="text-[11px]" style={{ color: 'var(--mu)' }}>Join the game and build your XI to see your team here</div>
+      </div>
+    );
+  }
+
+  // Match started before the user locked their squad — they become a
+  // spectator: can chat and watch the score, but their incomplete XI
+  // is not scored and they don't appear on the leaderboard.
+  if (matchStarted && !game.squad_locked) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+        <div className="text-3xl mb-3">👀</div>
+        <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 900, marginBottom: 6, color: 'var(--tx)' }}>
+          You're a spectator
+        </div>
+        <div className="text-[12px] mb-1" style={{ color: 'var(--mu)', maxWidth: 320, lineHeight: 1.6 }}>
+          The match started before you locked in your XI. You can chat with the room and follow the live score, but you won't be scored for this game.
+        </div>
+        <div className="text-[11px] mt-3" style={{ color: 'var(--mu)' }}>Catch the next room earlier — lock before first ball!</div>
       </div>
     );
   }

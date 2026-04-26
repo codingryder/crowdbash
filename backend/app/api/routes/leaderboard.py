@@ -44,13 +44,19 @@ async def get_room_leaderboard(
         .subquery()
     )
 
-    games_result = await db.execute(
+    games_query = (
         select(Game, User, selected_counts_subq.c.selected_count)
         .join(User, User.id == Game.user_id)
         .outerjoin(selected_counts_subq, selected_counts_subq.c.game_id == Game.id)
         .where(Game.room_id == room_uuid)
         .order_by(Game.created_at.asc())
     )
+    # Once the match has started, anyone who didn't lock their squad is a
+    # spectator — exclude them from the leaderboard so the rankings reflect
+    # only people actually playing the game.
+    if not pre_match:
+        games_query = games_query.where(Game.squad_locked == True)
+    games_result = await db.execute(games_query)
     rows = games_result.all()
 
     enriched = []
