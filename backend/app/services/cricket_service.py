@@ -158,19 +158,43 @@ class CricketAdapter(SportAdapter):
         return []
 
     def _match_player(self, api_player: dict, player_id: str, player_name: str) -> bool:
-        if isinstance(api_player, dict):
-            if api_player.get("id") == player_id:
-                return True
-            api_name = (api_player.get("name") or "").lower().strip()
-            our_name = player_name.lower().strip()
-            if api_name and our_name:
-                if api_name == our_name:
-                    return True
-                api_parts = api_name.split()
-                our_parts = our_name.split()
-                if len(api_parts) > 0 and len(our_parts) > 0:
-                    if api_parts[-1] == our_parts[-1]:
-                        return True
+        if not isinstance(api_player, dict):
+            return False
+        # ID equality only counts when BOTH ids are non-empty. Otherwise a
+        # squad row with player_id="" (cricketdata leaves it blank when the
+        # upstream API omits the field) silently matches every scorecard
+        # entry whose own id is missing — leaking another player's stats.
+        api_id = api_player.get("id")
+        if api_id and player_id and api_id == player_id:
+            return True
+        api_name = (api_player.get("name") or "").lower().strip()
+        our_name = (player_name or "").lower().strip()
+        if not api_name or not our_name:
+            return False
+        if api_name == our_name:
+            return True
+        api_parts = api_name.split()
+        our_parts = our_name.split()
+        if not api_parts or not our_parts:
+            return False
+        # Surnames must match.
+        if api_parts[-1] != our_parts[-1]:
+            return False
+        # Surname-only used to be sufficient, but that silently credited
+        # one player's stats to another with the same last name (e.g.
+        # Mohit Sharma's bowling getting attributed to Ishant Sharma).
+        # Require first-name compatibility too: exact match, or one is the
+        # initial of the other (handles ESPN's "M Siraj" vs squad's
+        # "Mohammed Siraj"). If either side has only the surname (single
+        # token), accept — rare but a legitimate truncation pattern.
+        if len(api_parts) == 1 or len(our_parts) == 1:
+            return True
+        api_first = api_parts[0]
+        our_first = our_parts[0]
+        if api_first == our_first:
+            return True
+        if api_first[0] == our_first[0]:
+            return True
         return False
 
     def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
