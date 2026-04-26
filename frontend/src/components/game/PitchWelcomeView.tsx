@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { CricketPitch } from './CricketPitch';
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 import { useGameStore } from '../../store/gameStore';
 import { useGame } from '../../hooks/useGame';
 import { useIsMobile } from '../../hooks/useIsMobile';
@@ -284,7 +285,6 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                       {benchPlayers.filter(p => p.team === team).map(player => {
                         const isSel = mobileSelected.has(player.player_id);
                         const rcBg = getRoleBg(player.player_role);
-                        const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
                         const canSelect = mobileSelected.size < 11 || isSel;
                         return (
                           <div key={player.player_id} onClick={() => canSelect && mobileTogglePlayer(player.player_id)} style={{
@@ -297,7 +297,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                             <div style={{ width: 20, height: 20, borderRadius: 5, border: isSel ? '2px solid var(--green)' : '1.5px solid var(--border)', background: isSel ? 'var(--green)' : 'transparent', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0, fontSize: 12, color: '#071a0e', fontWeight: 900 }}>
                               {isSel ? '✓' : ''}
                             </div>
-                            <div style={{ width: 24, height: 24, borderRadius: 6, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 8, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
+                            <PlayerAvatar name={player.player_name} imageUrl={player.image_url} size={24} radius={6} fontSize={8} />
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{player.player_name}</div>
                               <div style={{ fontSize: 9, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
@@ -409,7 +409,6 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                     const isPlaced = placedIds.has(player.player_id);
                     const isSel = selectedPlayer?.player_id === player.player_id;
                     const rcBg = getRoleBg(player.player_role);
-                    const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
                     const fullName = player.player_name;
                     return (
                       <div key={player.player_id} onClick={() => !isPlaced && handleBenchClick(player)} style={{
@@ -422,7 +421,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                         pointerEvents: isPlaced ? 'none' : 'auto',
                         transition: 'all 0.15s',
                       }}>
-                        <div style={{ width: 28, height: 28, borderRadius: 7, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, flexShrink: 0, ...rcBg }}>{initials}</div>
+                        <PlayerAvatar name={player.player_name} imageUrl={player.image_url} size={28} radius={7} fontSize={10} />
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <div style={{ fontSize: 12, fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{fullName}</div>
                           <div style={{ fontSize: 10, fontWeight: 700, color: rcBg.color, fontFamily: "'Cabinet Grotesk', sans-serif" }}>{roleTag(player.player_role)}</div>
@@ -484,8 +483,6 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
             const minned = pw <= MIN_B;
             const canIncrease = pw < MAX_B && availablePower > 0;
             const canDecrease = pw > MIN_B;
-            const rcBg = getRoleBg(player.player_role);
-            const initials = player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase();
 
             return (
               <div style={{
@@ -503,9 +500,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                 }}>×</button>
 
                 {/* Player avatar */}
-                <div style={{ width: 40, height: 40, borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 700, ...rcBg }}>
-                  {initials}
-                </div>
+                <PlayerAvatar name={player.player_name} imageUrl={player.image_url} size={40} radius={10} fontSize={12} />
 
                 {/* Player name */}
                 <div style={{ fontSize: 13, fontWeight: 700, color: 'var(--text)', textAlign: 'center', lineHeight: 1.2, fontFamily: "'Cabinet Grotesk', sans-serif" }}>
