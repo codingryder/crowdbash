@@ -247,7 +247,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
   if (allPlayers.length === 0) {
     return (
-      <div className="flex items-center justify-center" style={{ height: '100vh', paddingTop: 60 }}>
+      <div className="flex items-center justify-center" style={{ height: '100dvh', paddingTop: 60 }}>
         <div className="text-center">
           <div className="text-3xl mb-3 animate-pulse">🏏</div>
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Loading squads...</div>
@@ -258,7 +258,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   }
 
   return (
-    <div style={{ paddingTop: 60, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
+    <div style={{ paddingTop: 60, height: '100dvh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── TOP BAR ── */}
       {(() => {
         const roleChips = (

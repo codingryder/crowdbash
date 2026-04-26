@@ -192,7 +192,7 @@ export function CrowdbashRoomPage() {
         />
       )}
 
-      <div style={{ paddingTop: 60, height: '100vh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
+      <div style={{ paddingTop: 60, height: '100dvh', overflow: 'hidden', display: 'flex', flexDirection: 'column' }}>
         <div style={{ flex: 1, display: isMobile ? 'flex' : 'grid', flexDirection: 'column', gridTemplateColumns: isMobile ? undefined : '1fr 300px', overflow: 'hidden' }}>
           {/* ═══ LEFT: Main content ═══ */}
           <div className="flex flex-col overflow-hidden" style={{ flex: 1, display: 'flex' }}>
