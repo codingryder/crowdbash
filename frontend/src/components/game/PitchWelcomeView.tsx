@@ -256,18 +256,9 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   return (
     <div style={{ paddingTop: 60, height: '100vh', display: 'flex', flexDirection: 'column', overflow: 'hidden' }}>
       {/* ── TOP BAR ── */}
-      <div style={{ minHeight: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '6px 12px' : '0 24px', borderBottom: '1px solid var(--border)', background: 'var(--bg2)', flexShrink: 0, flexWrap: isMobile ? 'wrap' : 'nowrap', gap: isMobile ? 6 : 0 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 13 : 15, fontWeight: 800 }}>Build Your XI</div>
-          {!isMobile && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t1} vs {t2}</div>}
-        </div>
-        <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 14 }}>
-          <div style={{ fontSize: isMobile ? 11 : 12, color: 'var(--muted)' }}>
-            <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: pickCount === 11 ? 'var(--green)' : 'var(--amber)' }}>{pickCount}</b>/11
-            <span style={{ margin: '0 4px', color: 'var(--faint)' }}>·</span>
-            <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33
-          </div>
-          <div style={{ fontSize: isMobile ? 10 : 11, color: 'var(--muted)', display: 'flex', gap: isMobile ? 5 : 8, fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700 }}>
+      {(() => {
+        const roleChips = (
+          <div style={{ fontSize: isMobile ? 10 : 11, color: 'var(--muted)', display: 'flex', gap: isMobile ? 6 : 8, fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, flexWrap: 'wrap' }}>
             {(['BAT', 'AR', 'BOWL'] as RoleKey[]).map(k => {
               const at = activeRoleCounts[k];
               const cap = ROLE_CAPS[k];
@@ -281,18 +272,41 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
             })}
             <span style={{ color: wkValid ? 'var(--green)' : 'var(--red)' }}>WK {activeRoleCounts.WK}{wkValid ? '' : ` (need ${MIN_WK})`}</span>
           </div>
-          <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: isMobile ? '5px 10px' : '7px 16px', fontSize: isMobile ? 11 : 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
-            {isMobile ? 'Room' : 'Back to room'}
-          </button>
-          <button onClick={handleLockTeam} disabled={!canLock || locking} style={{
-            background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
-            padding: isMobile ? '6px 14px' : '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 12 : 13, fontWeight: 800,
-            cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
-          }}>
-            {locking ? '...' : 'Lock ✓'}
-          </button>
-        </div>
-      </div>
+        );
+        return (
+          <div style={{ borderBottom: '1px solid var(--border)', background: 'var(--bg2)', flexShrink: 0 }}>
+            {/* Row 1: title + counts + buttons */}
+            <div style={{ minHeight: isMobile ? 44 : 52, display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: isMobile ? '6px 12px' : '0 24px', gap: isMobile ? 6 : 0 }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 13 : 15, fontWeight: 800 }}>Build Your XI</div>
+                {!isMobile && <div style={{ fontSize: 12, color: 'var(--muted)' }}>{t1} vs {t2}</div>}
+              </div>
+              <div style={{ display: 'flex', alignItems: 'center', gap: isMobile ? 6 : 14, flexShrink: 0 }}>
+                <div style={{ fontSize: isMobile ? 11 : 12, color: 'var(--muted)' }}>
+                  <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: pickCount === 11 ? 'var(--green)' : 'var(--amber)' }}>{pickCount}</b>/11
+                  <span style={{ margin: '0 4px', color: 'var(--faint)' }}>·</span>
+                  <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33
+                </div>
+                {!isMobile && roleChips}
+                <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: isMobile ? '5px 10px' : '7px 16px', fontSize: isMobile ? 11 : 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
+                  {isMobile ? 'Room' : 'Back to room'}
+                </button>
+                <button onClick={handleLockTeam} disabled={!canLock || locking} style={{
+                  background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
+                  padding: isMobile ? '6px 14px' : '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 12 : 13, fontWeight: 800,
+                  cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
+                }}>
+                  {locking ? '...' : 'Lock ✓'}
+                </button>
+              </div>
+            </div>
+            {/* Row 2 (mobile only): role chips on their own line so the Lock button never gets pushed */}
+            {isMobile && (
+              <div style={{ padding: '4px 12px 6px' }}>{roleChips}</div>
+            )}
+          </div>
+        );
+      })()}
 
       {error && <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', padding: '8px 24px', fontSize: 12, color: 'var(--red)' }}>{error}</div>}
 

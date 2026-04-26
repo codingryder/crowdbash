@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import api from '../../lib/api';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface ScorecardModalProps {
   /** Provide roomId for room-based scorecard */
@@ -44,6 +45,7 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
   const [loading, setLoading] = useState(true);
   const [activeInnings, setActiveInnings] = useState(0);
   const [scorecard, setScorecard] = useState<ScorecardData | null>(null);
+  const isMobile = useIsMobile();
 
   useEffect(() => {
     async function fetchScorecard() {
@@ -95,8 +97,8 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
       onClick={onClose}
     >
       <div
-        className="rounded-2xl w-full max-w-3xl mx-4 max-h-[80vh] flex flex-col"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}
+        className="rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col"
+        style={{ background: 'var(--surface)', border: '1px solid var(--border)', margin: isMobile ? '0 8px' : '0 16px' }}
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
@@ -181,37 +183,37 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                     {innings[activeInnings].batting.length > 0 && (
                       <>
                         <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--muted)' }}>Batting</div>
-                        <div style={{ overflowX: 'auto' }}><table className="w-full mb-6" style={{ borderCollapse: 'collapse', minWidth: 400 }}>
+                        <table className="w-full mb-6" style={{ borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                               <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--muted)' }}>Batter</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>R</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>B</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>4s</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>6s</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>SR</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>R</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>B</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>4s</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>6s</th>
+                              {!isMobile && <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>SR</th>}
                             </tr>
                           </thead>
                           <tbody>
                             {innings[activeInnings].batting.map((b, i) => (
                               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
-                                <td className="py-2">
+                                <td className="py-2" style={{ minWidth: 0 }}>
                                   <div className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>{b.name}</div>
                                   {b.dismissal && b.dismissal !== 'not out' && b.dismissal !== 'batting' ? (
-                                    <div className="text-[10px]" style={{ color: 'var(--faint)' }}>{b.dismissal}</div>
+                                    <div className="text-[10px]" style={{ color: 'var(--faint)' }}>{b.dismissal}{isMobile ? ` · SR ${b.sr}` : ''}</div>
                                   ) : (
-                                    <div className="text-[10px]" style={{ color: 'var(--green)' }}>not out</div>
+                                    <div className="text-[10px]" style={{ color: 'var(--green)' }}>not out{isMobile ? ` · SR ${b.sr}` : ''}</div>
                                   )}
                                 </td>
-                                <td className="text-right px-2 text-[13px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--text)' }}>{b.runs}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.balls}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--blue)' }}>{b.fours}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--amber)' }}>{b.sixes}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.sr}</td>
+                                <td className="text-right text-[13px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--text)', padding: isMobile ? '8px 4px' : '8px' }}>{b.runs}</td>
+                                <td className="text-right text-[12px]" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>{b.balls}</td>
+                                <td className="text-right text-[12px]" style={{ color: 'var(--blue)', padding: isMobile ? '8px 4px' : '8px' }}>{b.fours}</td>
+                                <td className="text-right text-[12px]" style={{ color: 'var(--amber)', padding: isMobile ? '8px 4px' : '8px' }}>{b.sixes}</td>
+                                {!isMobile && <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.sr}</td>}
                               </tr>
                             ))}
                           </tbody>
-                        </table></div>
+                        </table>
                       </>
                     )}
 
@@ -219,30 +221,30 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                     {innings[activeInnings].bowling.length > 0 && (
                       <>
                         <div className="text-[10px] uppercase tracking-[1px] mb-2" style={{ color: 'var(--muted)' }}>Bowling</div>
-                        <div style={{ overflowX: 'auto' }}><table className="w-full" style={{ borderCollapse: 'collapse', minWidth: 400 }}>
+                        <table className="w-full" style={{ borderCollapse: 'collapse' }}>
                           <thead>
                             <tr style={{ borderBottom: '1px solid var(--border)' }}>
                               <th className="text-left py-2 text-[10px] font-normal" style={{ color: 'var(--muted)' }}>Bowler</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>O</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>M</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>R</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>W</th>
-                              <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>Econ</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>O</th>
+                              {!isMobile && <th className="text-right py-2 text-[10px] font-normal px-2" style={{ color: 'var(--muted)' }}>M</th>}
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>R</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>W</th>
+                              <th className="text-right py-2 text-[10px] font-normal" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>Econ</th>
                             </tr>
                           </thead>
                           <tbody>
                             {innings[activeInnings].bowling.map((b, i) => (
                               <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
                                 <td className="py-2 text-[12px] font-medium" style={{ color: 'var(--text)' }}>{b.name}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.overs}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.maidens}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.runs}</td>
-                                <td className="text-right px-2 text-[13px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--green)' }}>{b.wickets}</td>
-                                <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.economy}</td>
+                                <td className="text-right text-[12px]" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>{b.overs}</td>
+                                {!isMobile && <td className="text-right px-2 text-[12px]" style={{ color: 'var(--muted)' }}>{b.maidens}</td>}
+                                <td className="text-right text-[12px]" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>{b.runs}</td>
+                                <td className="text-right text-[13px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--green)', padding: isMobile ? '8px 4px' : '8px' }}>{b.wickets}</td>
+                                <td className="text-right text-[12px]" style={{ color: 'var(--muted)', padding: isMobile ? '8px 4px' : '8px' }}>{b.economy}</td>
                               </tr>
                             ))}
                           </tbody>
-                        </table></div>
+                        </table>
                       </>
                     )}
                   </>

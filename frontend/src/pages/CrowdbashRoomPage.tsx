@@ -216,7 +216,15 @@ export function CrowdbashRoomPage() {
             </div>
 
             {/* Tabs */}
-            <div className="flex shrink-0" style={{ padding: isMobile ? '0 12px' : '0 24px', borderBottom: '1px solid var(--border)' }}>
+            <div
+              className="flex shrink-0"
+              style={{
+                padding: isMobile ? '0 8px' : '0 24px',
+                borderBottom: '1px solid var(--border)',
+                overflowX: isMobile ? 'auto' : 'visible',
+                scrollbarWidth: 'none',
+              }}
+            >
               {([
                 { key: 'myteam' as const, label: 'My Team' },
                 { key: 'leaderboard' as const, label: 'Leaderboard' },
@@ -226,12 +234,17 @@ export function CrowdbashRoomPage() {
                 <div
                   key={tab.key}
                   onClick={() => setActiveTab(tab.key)}
-                  className="px-4 py-3 text-[13px] font-semibold"
                   style={{
+                    padding: isMobile ? '10px 12px' : '12px 16px',
+                    fontSize: isMobile ? 12 : 13,
+                    fontWeight: 600,
                     fontFamily: "'Cabinet Grotesk', sans-serif",
                     color: activeTab === tab.key ? 'var(--green)' : 'var(--muted)',
                     borderBottom: activeTab === tab.key ? '2px solid var(--green)' : '2px solid transparent',
-                    cursor: 'pointer', transition: 'all 0.15s',
+                    cursor: 'pointer',
+                    transition: 'all 0.15s',
+                    whiteSpace: 'nowrap',
+                    flexShrink: 0,
                   }}
                 >
                   {tab.label}
