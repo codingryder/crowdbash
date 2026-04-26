@@ -396,9 +396,12 @@ async def room_sync():
                                 continue
                     except Exception:
                         pass
-                    # Default: time-based lock
-                    room.status = "locked"
-                    locked += 1
+                    # Default: only lock once the scheduled match_date has actually
+                    # passed. Locking earlier (e.g. 30 min before) wrongly flips the
+                    # room to "live", hiding Edit XI for users joining in that window.
+                    if room.match_date and now >= room.match_date:
+                        room.status = "locked"
+                        locked += 1
 
                 if locked or closed_early:
                     await db.commit()
