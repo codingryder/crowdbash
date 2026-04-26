@@ -362,7 +362,7 @@ async def update_game_weightages(
     """
     Update weightages.
     Before match: free to change anytime.
-    During match: only in 2-min edit window after every 5 overs.
+    During match: only inside the 5-min reshuffle window.
     """
     game_result = await db.execute(
         select(Game).where(Game.room_id == uuid.UUID(room_id), Game.user_id == user_id)

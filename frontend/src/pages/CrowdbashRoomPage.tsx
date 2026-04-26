@@ -85,6 +85,33 @@ export function CrowdbashRoomPage() {
     }
   }, [game?.squad_locked]);
 
+  // Hydrate the reshuffle window from persisted room state.
+  // The WS open broadcast is one-shot, so any client that reloaded /
+  // reconnected mid-window would otherwise miss it entirely. This effect
+  // reads room.edit_window_closes_at (refreshed by useRoom on poll/focus)
+  // and flips editWindowOpen on with a timer that auto-closes when the
+  // remaining time elapses.
+  useEffect(() => {
+    const closesAtIso = room?.edit_window_closes_at;
+    const setRoomEdit = useRoomStore.getState().setEditWindow;
+    const setGameEdit = useGameStore.getState().setEditWindow;
+    if (!closesAtIso) return;
+    const closesAtMs = new Date(closesAtIso).getTime();
+    const remainingMs = closesAtMs - Date.now();
+    if (remainingMs <= 0) {
+      setRoomEdit(false);
+      setGameEdit(false);
+      return;
+    }
+    setRoomEdit(true);
+    setGameEdit(true);
+    const t = setTimeout(() => {
+      setRoomEdit(false);
+      setGameEdit(false);
+    }, remainingMs);
+    return () => clearTimeout(t);
+  }, [room?.edit_window_closes_at]);
+
   // Load chat history when entering the room, on visibility/focus changes,
   // and whenever the user opens the Chat tab. Mobile browsers suspend WS in
   // background, so messages sent while the tab was hidden never arrive —
@@ -324,7 +351,7 @@ export function CrowdbashRoomPage() {
                   <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px]" style={{ background: 'rgba(139,92,246,0.12)' }}>🔄</div>
                   <div>
                     <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Power reshuffle window open!</div>
-                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>2 min to redistribute power · changes are blind · auto-locks when time is up</div>
+                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>5 min to redistribute power · changes are blind · auto-locks when time is up</div>
                   </div>
                 </div>
                 <button onClick={() => setPitchView(true)} className="btn" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
@@ -352,7 +379,7 @@ export function CrowdbashRoomPage() {
                       { icon: '⚡', title: 'Assign Power (33 pts)', desc: 'Distribute 33 power points across your 11 players. Min 1x, max 6x per player. Higher power = more points when that player performs.' },
                       { icon: '🏏', title: 'Scoring', desc: 'Batting: 1pt/run + 4pt/four + 6pt/six + milestones. Bowling: 25pt/wicket + 10pt/maiden. Fielding: 10pt/catch + 15pt/stumping. Your score = fantasy points × power.' },
                       { icon: '🔒', title: 'Lock & Play', desc: 'Lock your XI before the match starts. Once the match begins, late arrivals can chat and follow the score in spectator mode but can\'t join the game.' },
-                      { icon: '🔄', title: 'Power Reshuffle', desc: 'A 2-minute reshuffle window opens three times per match: after 10 overs of the 1st innings, at the innings break (end of 1st innings), and after 10 overs of the 2nd innings. You can only change power, not players. Changes are blind.' },
+                      { icon: '🔄', title: 'Power Reshuffle', desc: 'A 5-minute reshuffle window opens three times per match: after 10 overs of the 1st innings, at the innings break (end of 1st innings), and after 10 overs of the 2nd innings. You can only change power, not players. Changes are blind.' },
                       { icon: '🏆', title: 'Win', desc: 'The player with the highest total points at the end of the match wins. Points update live as the match progresses.' },
                     ].map((rule, i) => (
                       <div key={i} className="flex gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>

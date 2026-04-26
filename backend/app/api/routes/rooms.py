@@ -34,6 +34,10 @@ def _room_to_dict(r: Room) -> dict:
         "completed_at": r.completed_at.isoformat() if r.completed_at else None,
         "late_join_open": late_join,
         "late_join_overs_remaining": round(max(overs_remaining, 0), 1),
+        "edit_window_closes_at": (
+            r.edit_window_closes_at.isoformat()
+            if getattr(r, "edit_window_closes_at", None) else None
+        ),
     }
 
 

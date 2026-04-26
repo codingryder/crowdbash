@@ -24,3 +24,7 @@ class Room(Base):
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     completed_at = Column(DateTime(timezone=True), nullable=True)
     admin_created = Column(Boolean, default=False)
+    # Persisted reshuffle window state so reload/reconnect users still see
+    # the active window with correct remaining time. NULL when no window is
+    # active. Set on open, cleared on close.
+    edit_window_closes_at = Column(DateTime(timezone=True), nullable=True)

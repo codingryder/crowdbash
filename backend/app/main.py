@@ -47,6 +47,21 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             "payload": {"count": room_manager.get_fan_count(room_id)}
         })
 
+        # If a reshuffle window is active, replay it to this freshly-connected
+        # client so reload/late-arrivals don't miss the open broadcast.
+        import time as _time
+        active_until = ACTIVE_EDIT_WINDOWS.get(room_id, 0)
+        if active_until > _time.time():
+            await room_manager.send_to_user(websocket, {
+                "type": "edit_window",
+                "payload": {
+                    "edit_window_open": True,
+                    "closes_at": active_until,
+                    "duration_seconds": EDIT_WINDOW_DURATION,
+                    "replay": True,
+                }
+            })
+
         while True:
             data = await websocket.receive_text()
             msg = json.loads(data)
@@ -162,7 +177,7 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         })
 
 
-EDIT_WINDOW_DURATION = 120  # seconds
+EDIT_WINDOW_DURATION = 300  # seconds (5 minutes)
 # room_id -> epoch seconds when current edit window closes
 ACTIVE_EDIT_WINDOWS: dict[str, float] = {}
 
@@ -176,7 +191,7 @@ async def score_poller():
     from app.models.room import Room
 
     while True:
-        await asyncio.sleep(30)  # Poll every 30 seconds for faster live updates
+        await asyncio.sleep(15)  # Poll every 15 seconds — keeps reshuffle-window detection lag low
         try:
             async with AsyncSessionLocal() as db:
                 result = await db.execute(
@@ -316,6 +331,11 @@ async def score_poller():
                             over = int(float(new_progress.get("over", 0)))
                             closes_at = now_epoch + EDIT_WINDOW_DURATION
                             ACTIVE_EDIT_WINDOWS[rid_str] = closes_at
+                            # Persist on the Room so reload/reconnect clients
+                            # can hydrate the active window with correct
+                            # remaining time without depending on the live WS.
+                            from datetime import datetime as _dt, timezone as _tz
+                            room.edit_window_closes_at = _dt.fromtimestamp(closes_at, tz=_tz.utc)
                             print(f"EDIT WINDOW OPEN: {room.match_name} — Inn {innings}, Over {over}")
                             await room_manager.broadcast(rid_str, {
                                 "type": "edit_window",
@@ -337,6 +357,21 @@ async def score_poller():
                                 # (avoids closing a window that was reopened by a later trigger).
                                 if ACTIVE_EDIT_WINDOWS.get(rid) == expected_close:
                                     ACTIVE_EDIT_WINDOWS.pop(rid, None)
+                                    # Clear persisted state so reconnecting
+                                    # clients no longer think the window is open.
+                                    try:
+                                        from sqlalchemy import update as _update
+                                        from app.models.room import Room as _Room
+                                        import uuid as _uuid
+                                        async with AsyncSessionLocal() as _db:
+                                            await _db.execute(
+                                                _update(_Room)
+                                                .where(_Room.id == _uuid.UUID(rid))
+                                                .values(edit_window_closes_at=None)
+                                            )
+                                            await _db.commit()
+                                    except Exception as _e:
+                                        print(f"Edit window clear failed: {_e}")
                                     await room_manager.broadcast(rid, {
                                         "type": "edit_window",
                                         "payload": {
@@ -541,6 +576,20 @@ async def startup():
             print("player_images table ensured")
     except Exception as e:
         print(f"player_images migration failed: {e}")
+
+    # Self-heal: rooms.edit_window_closes_at column for persisted reshuffle
+    # window state. Lets reconnect/reload clients see the active window with
+    # correct remaining time instead of relying on a one-shot WS broadcast.
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text(
+                "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS edit_window_closes_at TIMESTAMPTZ NULL"
+            ))
+            await db.commit()
+            print("rooms.edit_window_closes_at ensured")
+    except Exception as e:
+        print(f"rooms.edit_window_closes_at migration failed: {e}")
 
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())

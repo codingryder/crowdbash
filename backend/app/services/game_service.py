@@ -7,7 +7,7 @@ import uuid
 from datetime import datetime
 
 TOTAL_WEIGHTAGE_BUDGET = 33
-EDIT_WINDOW_DURATION_SECONDS = 120  # 2 minutes
+EDIT_WINDOW_DURATION_SECONDS = 300  # 5 minutes
 QUIZ_CORRECT_POINTS = 50
 
 

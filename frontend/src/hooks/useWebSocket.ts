@@ -64,7 +64,7 @@ export function useWebSocket(roomId: string | undefined) {
             const nowSec = Date.now() / 1000;
             const remainingSec = p.closes_at
               ? Math.max(p.closes_at - nowSec, 0)
-              : (p.duration_seconds ?? 120);
+              : (p.duration_seconds ?? 300);
             closeTimerRef.current = setTimeout(() => {
               setEditWindow(false);
               setGameEditWindow(false);
