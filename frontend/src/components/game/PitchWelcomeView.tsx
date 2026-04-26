@@ -421,13 +421,32 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                     <button key={p.key} onClick={() => applyPreset(p.key)} style={{ padding: '5px 12px', borderRadius: 100, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{p.icon} {p.label}</button>
                   ))}
                 </div>
-                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 8 }}>Tap a player on the pitch to adjust power · <b style={{ color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}/33</b> used · <b>{availablePower}</b> available</div>
-                <button onClick={() => setMobileStep('pick')} style={{ fontSize: 12, color: 'var(--muted)', background: 'none', border: 'none', cursor: 'pointer', padding: 0, textDecoration: 'underline' }}>← Change players</button>
+                <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>Tap a player on the pitch to adjust power · <b style={{ color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}/33</b> used · <b>{availablePower}</b> available</div>
+                <button onClick={() => setMobileStep('pick')} style={{
+                  width: '100%', padding: '10px 16px', borderRadius: 9,
+                  border: '1px solid var(--border)', background: 'var(--surface)',
+                  color: 'var(--text)', fontSize: 13, fontWeight: 700,
+                  fontFamily: "'Cabinet Grotesk', sans-serif", cursor: 'pointer',
+                  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                }}>
+                  ← Back to player selection
+                </button>
               </div>
 
-              {/* Go to room CTA — only when team is already locked */}
+              {/* Locked confirmation + Go to room CTA */}
               {game?.squad_locked && (
                 <div style={{ padding: '12px 14px 18px' }}>
+                  <div style={{
+                    background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.3)',
+                    borderRadius: 10, padding: '10px 14px', marginBottom: 10,
+                    display: 'flex', alignItems: 'center', gap: 8,
+                  }}>
+                    <div style={{ fontSize: 18 }}>🔒</div>
+                    <div>
+                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, color: 'var(--green)' }}>Your team is now locked</div>
+                      <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 2 }}>Head to the room to start playing</div>
+                    </div>
+                  </div>
                   <button
                     onClick={onComplete}
                     style={{
@@ -540,14 +559,24 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
               activeSlot={activeSlot}
             />
 
-            {/* Go to room CTA — floating below pitch when team is already locked */}
+            {/* Locked confirmation + Go to room CTA — floating below pitch when team is already locked */}
             {game?.squad_locked && (
-              <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 25 }}>
+              <div style={{
+                position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 25,
+                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                background: 'rgba(26,27,30,0.95)', backdropFilter: 'blur(8px)',
+                border: '1px solid rgba(45,214,122,0.3)', borderRadius: 14, padding: 14,
+                boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                  <div style={{ fontSize: 18 }}>🔒</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800, color: 'var(--green)' }}>Your team is now locked</div>
+                </div>
                 <button
                   onClick={onComplete}
                   style={{
                     background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 12,
-                    padding: '14px 28px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800,
+                    padding: '12px 28px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800,
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     boxShadow: '0 8px 24px rgba(45,214,122,0.35)',
                   }}
