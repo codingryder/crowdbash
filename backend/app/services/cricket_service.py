@@ -327,11 +327,11 @@ class CricketAdapter(SportAdapter):
     def is_edit_window(self, current_progress: dict, last_edit_progress: dict) -> bool:
         """
         T20 reshuffle windows:
-        - 1st innings: after 5, 10, 15 overs
-        - Innings break (transition from 1 → 2): always fires (covers the
-          end of innings 1, including the 20-over boundary that can be
-          missed when ESPN jumps straight to innings 2 between polls)
-        - 2nd innings: after 5, 10, 15 overs
+        - 1st innings: after 10 overs
+        - Innings break (transition from 1 → 2): always fires — covers the
+          end of innings 1 (the "after 20 overs" boundary), including cases
+          where ESPN jumps straight into innings 2 between polls.
+        - 2nd innings: after 10 overs
         """
         curr_innings = current_progress.get("innings", 1)
         curr_over = float(current_progress.get("over", 0))
@@ -344,11 +344,9 @@ class CricketAdapter(SportAdapter):
         if curr_innings > last_innings:
             return True
 
-        # Same innings: check 5-over boundary crossing
-        if curr_innings == last_innings:
-            curr_window = int(curr_over / 5)
-            last_window = int(last_over / 5)
-            return curr_window > last_window and curr_window > 0
+        # Same innings: fire once when over 10 is crossed.
+        if curr_innings == last_innings and last_over < 10 <= curr_over:
+            return True
 
         return False
 

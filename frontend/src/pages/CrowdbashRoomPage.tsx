@@ -270,11 +270,11 @@ export function CrowdbashRoomPage() {
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 16 }}>How to Play</div>
                   <div className="space-y-4">
                     {[
-                      { icon: '🎯', title: 'Pick 11 Players', desc: 'Select 11 players from both teams to form your fantasy XI. You can pick any combination of batters, bowlers, all-rounders, and wicket-keepers.' },
+                      { icon: '🎯', title: 'Pick 11 Players', desc: 'Build your fantasy XI from both teams. Role caps apply: max 6 batters, max 3 all-rounders, max 5 bowlers, and at least 1 wicket-keeper.' },
                       { icon: '⚡', title: 'Assign Power (33 pts)', desc: 'Distribute 33 power points across your 11 players. Min 1x, max 6x per player. Higher power = more points when that player performs.' },
                       { icon: '🏏', title: 'Scoring', desc: 'Batting: 1pt/run + 4pt/four + 6pt/six + milestones. Bowling: 25pt/wicket + 10pt/maiden. Fielding: 10pt/catch + 15pt/stumping. Your score = fantasy points × power.' },
-                      { icon: '🔒', title: 'Lock & Play', desc: 'Lock your team before the match starts. Once the room is locked, no more player changes. Your power distribution is final.' },
-                      { icon: '🔄', title: 'Power Reshuffle', desc: 'Every 5 overs, a 2-minute reshuffle window opens. Redistribute your 33 power points — but you can\'t change players, only power. Changes are blind.' },
+                      { icon: '🔒', title: 'Lock & Play', desc: 'Lock your XI before the match starts. Once the match begins, late arrivals can chat and follow the score in spectator mode but can\'t join the game.' },
+                      { icon: '🔄', title: 'Power Reshuffle', desc: 'A 2-minute reshuffle window opens three times per match: after 10 overs of the 1st innings, at the innings break (end of 1st innings), and after 10 overs of the 2nd innings. You can only change power, not players. Changes are blind.' },
                       { icon: '🏆', title: 'Win', desc: 'The player with the highest total points at the end of the match wins. Points update live as the match progresses.' },
                     ].map((rule, i) => (
                       <div key={i} className="flex gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
