@@ -19,6 +19,40 @@ router = APIRouter()
 TOTAL_BUDGET = 33
 MAX_SQUAD_SIZE = 11
 
+# Per-team role caps. WK has no upper cap; the minimum of 1 is enforced separately.
+ROLE_CAPS = {"batsman": 6, "all-rounder": 3, "bowler": 5}
+MIN_WICKET_KEEPERS = 1
+
+
+def _role_key(role: str) -> str:
+    """Normalize player_role to a canonical key matching ROLE_CAPS."""
+    r = (role or "").lower()
+    if "keep" in r or r == "wk":
+        return "wicket-keeper"
+    if "all" in r:
+        return "all-rounder"
+    if "bowl" in r:
+        return "bowler"
+    if "bat" in r:
+        return "batsman"
+    return r
+
+
+def _validate_role_composition(roles: list[str]) -> str | None:
+    """Return an error message if the role mix violates caps; None if valid."""
+    counts: dict[str, int] = {}
+    for r in roles:
+        k = _role_key(r)
+        counts[k] = counts.get(k, 0) + 1
+    for role, cap in ROLE_CAPS.items():
+        if counts.get(role, 0) > cap:
+            label = {"batsman": "batsmen", "all-rounder": "all-rounders", "bowler": "bowlers"}[role]
+            return f"Too many {label}: max {cap} allowed."
+    if counts.get("wicket-keeper", 0) < MIN_WICKET_KEEPERS:
+        return f"Pick at least {MIN_WICKET_KEEPERS} wicket-keeper."
+    return None
+
+
 # Late-join windows: allow team building after match starts for specific rooms.
 # Map of room_id -> { "max_innings": int, "max_over": float }
 # Window is open while current innings <= max_innings AND current over < max_over.
@@ -74,6 +108,14 @@ async def join_game(
     )
     if existing.scalar_one_or_none():
         raise HTTPException(status_code=400, detail="Already joined this room")
+
+    # Block joining once the match is locked or finished. Late-join window is the
+    # only escape hatch (currently configured per-room in LATE_JOIN_ROOMS).
+    if room.status != "open" and not is_late_join_open(room):
+        raise HTTPException(
+            status_code=403,
+            detail="Match has started. You can spectate but can't join the game.",
+        )
 
     game = Game(room_id=uuid.UUID(room_id), user_id=user_id, total_budget=TOTAL_BUDGET)
     db.add(game)
@@ -186,6 +228,11 @@ async def select_squad(
     for pid in body.player_ids:
         if pid not in available:
             raise HTTPException(status_code=400, detail=f"Player {pid} not in match squads")
+
+    # Enforce role caps (max 6 BAT / 5 BOWL / 3 AR) and minimum 1 WK
+    role_error = _validate_role_composition([available[pid].player_role or "" for pid in body.player_ids])
+    if role_error:
+        raise HTTPException(status_code=400, detail=role_error)
 
     # Clear previous selections using bulk DELETE
     from sqlalchemy import delete

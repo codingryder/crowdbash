@@ -20,6 +20,8 @@ export function RightGamePanel({ room }: Props) {
   const selectedPlayers = game?.player_weightages.filter((pw) => pw.selected) || [];
   const hasSquad = selectedPlayers.length === 11;
   const matchStarted = game?.match_started || false;
+  // Spectator mode: room is locked or closed and the user never joined.
+  const roomClosedToJoin = room.status !== 'open';
 
   if (!user) {
     return (
@@ -32,6 +34,18 @@ export function RightGamePanel({ room }: Props) {
   }
 
   if (!hasJoined) {
+    if (roomClosedToJoin) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+          <div className="text-3xl mb-4">👀</div>
+          <div className="font-cabinet text-[15px] font-extrabold mb-2">Spectator mode</div>
+          <div className="text-[12px]" style={{ color: 'var(--mu)' }}>
+            The match has already started. You can chat and follow the score, but the
+            game window is closed for new players. Catch the next one!
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center">
         <div className="text-3xl mb-4">🎮</div>
@@ -51,6 +65,19 @@ export function RightGamePanel({ room }: Props) {
   }
 
   if (!hasSquad && !isLocked) {
+    // Joined the room but never finished an XI before the match started.
+    if (matchStarted) {
+      return (
+        <div className="flex flex-col items-center justify-center h-full px-6 text-center">
+          <div className="text-3xl mb-4">⏰</div>
+          <div className="font-cabinet text-[15px] font-extrabold mb-2">Missed the deadline</div>
+          <div className="text-[12px]" style={{ color: 'var(--mu)' }}>
+            The match has started before you finished your XI. You can still chat
+            and follow the score in spectator mode.
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex flex-col items-center justify-center h-full px-6 text-center">
         <div className="text-3xl mb-4">🏏</div>

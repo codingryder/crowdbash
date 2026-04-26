@@ -9,6 +9,20 @@ import { splitTeams } from '../../types';
 
 const TOTAL_B = 33, MAX_B = 6, MIN_B = 1, DEF_B = 3;
 
+type RoleKey = 'BAT' | 'AR' | 'BOWL' | 'WK';
+// Per-team role caps. Mirrors backend ROLE_CAPS in app/api/routes/game.py.
+const ROLE_CAPS: Record<RoleKey, number> = { BAT: 6, AR: 3, BOWL: 5, WK: 11 };
+const MIN_WK = 1;
+
+function roleKeyOf(role: string): RoleKey | null {
+  const r = (role || '').toLowerCase();
+  if (r.includes('keep') || r === 'wk') return 'WK';
+  if (r.includes('all')) return 'AR';
+  if (r.includes('bowl')) return 'BOWL';
+  if (r.includes('bat')) return 'BAT';
+  return null;
+}
+
 interface PitchWelcomeViewProps {
   roomId: string;
   roomName: string;
@@ -73,7 +87,18 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const pickCount = slots.filter(Boolean).length;
   const totalUsed = powers.reduce((s, v, i) => slots[i] ? s + v : s, 0);
   const isBalanced = totalUsed === TOTAL_B;
-  const canLock = pickCount === 11 && isBalanced;
+
+  // Role composition counts — desktop uses slots, mobile step 1 uses mobileSelected
+  const roleCounts: Record<RoleKey, number> = { BAT: 0, AR: 0, BOWL: 0, WK: 0 };
+  slots.forEach(p => { if (p) { const k = roleKeyOf(p.player_role); if (k) roleCounts[k]++; } });
+  const mobileRoleCounts: Record<RoleKey, number> = { BAT: 0, AR: 0, BOWL: 0, WK: 0 };
+  mobileSelected.forEach(pid => {
+    const pl = allPlayers.find(p => p.player_id === pid);
+    if (pl) { const k = roleKeyOf(pl.player_role); if (k) mobileRoleCounts[k]++; }
+  });
+  const activeRoleCounts = isMobile && mobileStep === 'pick' ? mobileRoleCounts : roleCounts;
+  const wkValid = activeRoleCounts.WK >= MIN_WK;
+  const canLock = pickCount === 11 && isBalanced && roleCounts.WK >= MIN_WK;
 
   const benchPlayers = allPlayers.filter(p => {
     if (roleFilter !== 'all') {
@@ -154,7 +179,11 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   }
 
   async function handleLockTeam() {
-    if (!canLock) return;
+    if (pickCount !== 11 || !isBalanced) return;
+    if (roleCounts.WK < MIN_WK) {
+      setError(`Pick at least ${MIN_WK} wicket-keeper.`);
+      return;
+    }
     setLocking(true); setError('');
     try {
       const playerIds = slots.filter(Boolean).map(p => p!.player_id);
@@ -238,6 +267,20 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
             <span style={{ margin: '0 4px', color: 'var(--faint)' }}>·</span>
             <b style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}</b>/33
           </div>
+          <div style={{ fontSize: isMobile ? 10 : 11, color: 'var(--muted)', display: 'flex', gap: isMobile ? 5 : 8, fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700 }}>
+            {(['BAT', 'AR', 'BOWL'] as RoleKey[]).map(k => {
+              const at = activeRoleCounts[k];
+              const cap = ROLE_CAPS[k];
+              const over = at > cap;
+              const full = at === cap;
+              return (
+                <span key={k} style={{ color: over ? 'var(--red)' : full ? 'var(--amber)' : 'var(--muted)' }}>
+                  {k} {at}/{cap}
+                </span>
+              );
+            })}
+            <span style={{ color: wkValid ? 'var(--green)' : 'var(--red)' }}>WK {activeRoleCounts.WK}{wkValid ? '' : ` (need ${MIN_WK})`}</span>
+          </div>
           <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: isMobile ? '5px 10px' : '7px 16px', fontSize: isMobile ? 11 : 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
             {isMobile ? 'Room' : 'Back to room'}
           </button>
@@ -285,7 +328,9 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                       {benchPlayers.filter(p => p.team === team).map(player => {
                         const isSel = mobileSelected.has(player.player_id);
                         const rcBg = getRoleBg(player.player_role);
-                        const canSelect = mobileSelected.size < 11 || isSel;
+                        const pRole = roleKeyOf(player.player_role);
+                        const capExceeded = !isSel && pRole !== null && mobileRoleCounts[pRole] >= ROLE_CAPS[pRole];
+                        const canSelect = (mobileSelected.size < 11 || isSel) && !capExceeded;
                         return (
                           <div key={player.player_id} onClick={() => canSelect && mobileTogglePlayer(player.player_id)} style={{
                             display: 'flex', alignItems: 'center', gap: 6, padding: '7px 8px', borderRadius: 8,
@@ -410,15 +455,18 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                     const isSel = selectedPlayer?.player_id === player.player_id;
                     const rcBg = getRoleBg(player.player_role);
                     const fullName = player.player_name;
+                    const pRole = roleKeyOf(player.player_role);
+                    const capExceeded = !isPlaced && pRole !== null && roleCounts[pRole] >= ROLE_CAPS[pRole];
+                    const disabled = isPlaced || capExceeded;
                     return (
-                      <div key={player.player_id} onClick={() => !isPlaced && handleBenchClick(player)} style={{
+                      <div key={player.player_id} onClick={() => !disabled && handleBenchClick(player)} title={capExceeded ? `Max ${ROLE_CAPS[pRole!]} ${pRole} allowed` : undefined} style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '6px 8px', borderRadius: 8,
                         border: isSel ? '1px solid var(--green)' : '1px solid var(--border)',
                         background: isSel ? 'rgba(45,214,122,0.05)' : 'var(--surface)',
-                        cursor: isPlaced ? 'default' : 'pointer',
-                        opacity: isPlaced ? 0.25 : 1,
-                        pointerEvents: isPlaced ? 'none' : 'auto',
+                        cursor: disabled ? 'default' : 'pointer',
+                        opacity: isPlaced ? 0.25 : capExceeded ? 0.4 : 1,
+                        pointerEvents: disabled ? 'none' : 'auto',
                         transition: 'all 0.15s',
                       }}>
                         <PlayerAvatar name={player.player_name} imageUrl={player.image_url} size={28} radius={7} fontSize={10} />
