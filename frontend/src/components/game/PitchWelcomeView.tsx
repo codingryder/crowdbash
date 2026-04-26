@@ -31,7 +31,7 @@ interface PitchWelcomeViewProps {
 }
 
 export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }: PitchWelcomeViewProps) {
-  const { selectSquad, saveWeightages, lockSquad, fetchSquads } = useGame(roomId);
+  const { selectSquad, saveWeightages, lockSquad, fetchSquads, fetchGameState } = useGame(roomId);
   const availableSquads = useGameStore(s => s.availableSquads);
   const game = useGameStore(s => s.game);
 
@@ -187,10 +187,12 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     setLocking(true); setError('');
     try {
       const playerIds = slots.filter(Boolean).map(p => p!.player_id);
-      await selectSquad(playerIds);
+      await selectSquad(playerIds, { skipRefetch: true });
       const weightages = slots.map((p, i) => p ? { player_id: p.player_id, weightage: powers[i] } : null).filter(Boolean) as Array<{ player_id: string; weightage: number }>;
-      await saveWeightages(weightages);
-      await lockSquad();
+      await saveWeightages(weightages, { skipRefetch: true });
+      await lockSquad({ skipRefetch: true });
+      // Single refetch at the end so the room view sees updated weightages immediately.
+      await fetchGameState();
       onComplete();
     } catch (e: unknown) {
       console.error('Failed to lock team', e);

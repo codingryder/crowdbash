@@ -40,38 +40,38 @@ export function useGame(roomId: string | undefined) {
     }
   }
 
-  async function selectSquad(playerIds: string[]) {
+  async function selectSquad(playerIds: string[], opts: { skipRefetch?: boolean } = {}) {
     if (!roomId) return;
     try {
       await api.post(`/api/game/${roomId}/select-squad`, { player_ids: playerIds });
-      await fetchGameState();
+      if (!opts.skipRefetch) await fetchGameState();
     } catch (err) {
       console.error('Failed to select squad', err);
       throw err;
     }
   }
 
-  async function lockSquad() {
+  async function lockSquad(opts: { skipRefetch?: boolean } = {}) {
     if (!roomId) return;
     try {
       await api.post(`/api/game/${roomId}/lock-squad`);
-      await fetchGameState();
+      if (!opts.skipRefetch) await fetchGameState();
     } catch (err) {
       console.error('Failed to lock squad', err);
       throw err;
     }
   }
 
-  async function saveWeightages(weightages: Array<{ player_id: string; weightage: number }>) {
+  async function saveWeightages(weightages: Array<{ player_id: string; weightage: number }>, opts: { skipRefetch?: boolean } = {}) {
     if (!roomId) return;
     try {
       await api.put(`/api/game/${roomId}/weightages`, { weightages });
-      await fetchGameState();
+      if (!opts.skipRefetch) await fetchGameState();
     } catch (err) {
       console.error('Failed to save weightages', err);
       throw err;
     }
   }
 
-  return { game, joinGame, selectSquad, lockSquad, saveWeightages, fetchSquads };
+  return { game, joinGame, selectSquad, lockSquad, saveWeightages, fetchSquads, fetchGameState };
 }
