@@ -192,9 +192,13 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
       await saveWeightages(weightages);
       await lockSquad();
       onComplete();
-    } catch (e) {
+    } catch (e: unknown) {
       console.error('Failed to lock team', e);
-      setError('Failed to save team. Please try again.');
+      // Surface the backend's actual error so users (and we) can debug
+      // role-cap / budget / squad-not-found cases instead of a generic message.
+      const ax = e as { response?: { data?: { detail?: string } }; message?: string };
+      const detail = ax?.response?.data?.detail || ax?.message || 'Please try again.';
+      setError(`Failed to save team — ${detail}`);
     } finally { setLocking(false); }
   }
 
@@ -535,6 +539,23 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
               hint={activeSlot !== null ? 'TAP PLAYER TO ADJUST POWER · TAP AGAIN TO REMOVE' : 'CLICK PLAYER · THEN CLICK A POSITION'}
               activeSlot={activeSlot}
             />
+
+            {/* Go to room CTA — floating below pitch when team is already locked */}
+            {game?.squad_locked && (
+              <div style={{ position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 25 }}>
+                <button
+                  onClick={onComplete}
+                  style={{
+                    background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 12,
+                    padding: '14px 28px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800,
+                    cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                    boxShadow: '0 8px 24px rgba(45,214,122,0.35)',
+                  }}
+                >
+                  Go to room →
+                </button>
+              </div>
+            )}
           </div>
 
           {/* Floating vertical power strip — between pitch and right edge */}
