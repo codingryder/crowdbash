@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useRef, useMemo } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import { useRoom } from '../hooks/useRoom';
 import { useWebSocket } from '../hooks/useWebSocket';
@@ -29,6 +29,7 @@ export function CrowdbashRoomPage() {
   const setSport = useRoomStore((s) => s.setSport);
   const setScore = useRoomStore((s) => s.setScore);
   const setMessages = useRoomStore((s) => s.setMessages);
+  const messages = useRoomStore((s) => s.messages);
   const showTeamBuilder = useGameStore((s) => s.showTeamBuilder);
   const setShowTeamBuilder = useGameStore((s) => s.setShowTeamBuilder);
   const game = useGameStore((s) => s.game);
@@ -43,6 +44,29 @@ export function CrowdbashRoomPage() {
 
   const sport: Sport = room?.sport || 'cricket';
   void game?.player_weightages; // used by MyTeamTab via gameStore
+
+  // Chat unread badge: count messages from other users that arrived
+  // since the last time this user had the Chat tab open.
+  const othersMessageCount = useMemo(
+    () => messages.filter((m) => m.user_id !== user?.id).length,
+    [messages, user?.id],
+  );
+  const [chatSeenCount, setChatSeenCount] = useState(0);
+  const chatSeenInitialized = useRef(false);
+  useEffect(() => {
+    // First time we see any messages (history load), anchor the baseline so
+    // the existing thread doesn't show up as unread.
+    if (!chatSeenInitialized.current && othersMessageCount > 0) {
+      setChatSeenCount(othersMessageCount);
+      chatSeenInitialized.current = true;
+      return;
+    }
+    if (activeTab === 'chat') {
+      setChatSeenCount(othersMessageCount);
+      chatSeenInitialized.current = true;
+    }
+  }, [activeTab, othersMessageCount]);
+  const chatUnread = activeTab === 'chat' ? 0 : Math.max(0, othersMessageCount - chatSeenCount);
 
   useEffect(() => { setSport(sport); }, [sport, setSport]);
 
@@ -260,9 +284,35 @@ export function CrowdbashRoomPage() {
                     transition: 'all 0.15s',
                     whiteSpace: 'nowrap',
                     flexShrink: 0,
+                    position: 'relative',
+                    display: 'inline-flex',
+                    alignItems: 'center',
+                    gap: 6,
                   }}
                 >
                   {tab.label}
+                  {tab.key === 'chat' && chatUnread > 0 && (
+                    <span
+                      className="animate-pulse-slow"
+                      style={{
+                        background: 'var(--red)',
+                        color: '#fff',
+                        fontSize: 9,
+                        fontWeight: 800,
+                        fontFamily: "'Cabinet Grotesk', sans-serif",
+                        borderRadius: 999,
+                        padding: '2px 6px',
+                        lineHeight: 1,
+                        minWidth: 16,
+                        height: 16,
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}
+                    >
+                      +{chatUnread > 9 ? '9+' : chatUnread}
+                    </span>
+                  )}
                 </div>
               ))}
             </div>
