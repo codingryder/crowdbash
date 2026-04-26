@@ -16,20 +16,10 @@ interface MyTeamTabProps {
 export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabProps) {
   const game = useGameStore((s) => s.game);
 
-  if (!game) {
-    return (
-      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
-        <div className="text-2xl mb-3">🎮</div>
-        <div className="text-[13px] font-medium mb-1" style={{ color: 'var(--tx)' }}>No team yet</div>
-        <div className="text-[11px]" style={{ color: 'var(--mu)' }}>Join the game and build your XI to see your team here</div>
-      </div>
-    );
-  }
-
-  // Match started before the user locked their squad — they become a
-  // spectator: can chat and watch the score, but their incomplete XI
-  // is not scored and they don't appear on the leaderboard.
-  if (matchStarted && !game.squad_locked) {
+  // Match has already started → user is a spectator if they either
+  // never joined a game (backend blocks late joins) or joined but never
+  // locked their squad. Same UX in both cases: chat + watch, no scoring.
+  if (matchStarted && (!game || !game.squad_locked)) {
     return (
       <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
         <div className="text-3xl mb-3">👀</div>
@@ -37,9 +27,19 @@ export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabPr
           You're a spectator
         </div>
         <div className="text-[12px] mb-1" style={{ color: 'var(--mu)', maxWidth: 320, lineHeight: 1.6 }}>
-          The match started before you locked in your XI. You can chat with the room and follow the live score, but you won't be scored for this game.
+          The match has already started, so you can't build a team for this room. You can still chat with everyone and follow the live score.
         </div>
-        <div className="text-[11px] mt-3" style={{ color: 'var(--mu)' }}>Catch the next room earlier — lock before first ball!</div>
+        <div className="text-[11px] mt-3" style={{ color: 'var(--mu)' }}>Join the next room before first ball to play!</div>
+      </div>
+    );
+  }
+
+  if (!game) {
+    return (
+      <div className="flex flex-col items-center justify-center py-16 px-8 text-center">
+        <div className="text-2xl mb-3">🎮</div>
+        <div className="text-[13px] font-medium mb-1" style={{ color: 'var(--tx)' }}>No team yet</div>
+        <div className="text-[11px]" style={{ color: 'var(--mu)' }}>Join the game and build your XI to see your team here</div>
       </div>
     );
   }
