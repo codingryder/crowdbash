@@ -235,7 +235,7 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
                                 <td className="py-2" style={{ minWidth: 0 }}>
                                   <div className="text-[12px] font-medium" style={{ color: 'var(--text)' }}>{b.name}</div>
                                   {b.dismissal && b.dismissal !== 'not out' && b.dismissal !== 'batting' ? (
-                                    <div className="text-[10px]" style={{ color: 'var(--faint)' }}>{b.dismissal}{isMobile ? ` · SR ${b.sr}` : ''}</div>
+                                    <div className="text-[10px]" style={{ color: 'var(--text2)' }}>{b.dismissal}{isMobile ? ` · SR ${b.sr}` : ''}</div>
                                   ) : (
                                     <div className="text-[10px]" style={{ color: 'var(--green)' }}>not out{isMobile ? ` · SR ${b.sr}` : ''}</div>
                                   )}
