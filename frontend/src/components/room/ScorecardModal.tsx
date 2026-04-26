@@ -92,8 +92,8 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)' }}
+      className="fixed inset-0 flex items-center justify-center"
+      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 60 }}
       onClick={onClose}
     >
       <div
