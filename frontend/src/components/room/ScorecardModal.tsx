@@ -90,17 +90,52 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
   const team2Overs = scorecard?.team2?.overs || '';
   const statusText = scorecard?.status || '';
 
+  // On mobile, slide up from the bottom — matches the score / match-info
+  // sheet pattern. Trigger the slide-in one frame after mount so the
+  // transform transition actually runs (instead of starting at translateY(0)).
+  const [mobileVisible, setMobileVisible] = useState(false);
+  useEffect(() => {
+    if (!isMobile) return;
+    const id = requestAnimationFrame(() => setMobileVisible(true));
+    return () => cancelAnimationFrame(id);
+  }, [isMobile]);
+
   return (
     <div
-      className="fixed inset-0 flex items-center justify-center"
-      style={{ background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 60 }}
+      className={isMobile ? '' : 'fixed inset-0 flex items-center justify-center'}
+      style={
+        isMobile
+          ? { position: 'fixed', inset: 0, zIndex: 60, background: 'rgba(0,0,0,0.55)', backdropFilter: 'blur(2px)' }
+          : { background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', zIndex: 60 }
+      }
       onClick={onClose}
     >
       <div
-        className="rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col"
-        style={{ background: 'var(--surface)', border: '1px solid var(--border)', margin: isMobile ? '0 8px' : '0 16px' }}
+        className={isMobile ? 'flex flex-col' : 'rounded-2xl w-full max-w-3xl max-h-[85vh] flex flex-col'}
+        style={
+          isMobile
+            ? {
+                position: 'fixed', left: 0, right: 0, bottom: 0,
+                height: '88vh', maxHeight: '88vh',
+                background: 'var(--bg2)',
+                borderTop: '1px solid var(--border)',
+                borderTopLeftRadius: 16, borderTopRightRadius: 16,
+                boxShadow: '0 -10px 30px rgba(0,0,0,0.45)',
+                transform: mobileVisible ? 'translateY(0)' : 'translateY(100%)',
+                transition: 'transform 240ms cubic-bezier(0.32,0.72,0,1)',
+                paddingBottom: 'env(safe-area-inset-bottom)',
+              }
+            : { background: 'var(--surface)', border: '1px solid var(--border)', margin: '0 16px' }
+        }
         onClick={(e) => e.stopPropagation()}
       >
+        {/* Mobile drag handle */}
+        {isMobile && (
+          <div style={{ flexShrink: 0, display: 'flex', justifyContent: 'center', padding: '8px 0 4px' }}>
+            <div style={{ width: 36, height: 4, borderRadius: 2, background: 'var(--border)' }} />
+          </div>
+        )}
+
         {/* Header */}
         <div className="flex items-center justify-between px-6 py-4 shrink-0" style={{ borderBottom: '1px solid var(--border)' }}>
           <div>
