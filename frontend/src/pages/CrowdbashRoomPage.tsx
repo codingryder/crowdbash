@@ -479,7 +479,13 @@ export function CrowdbashRoomPage() {
             {/* Scorecard button */}
             <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <button
-                onClick={() => setShowScorecard(true)}
+                onClick={() => {
+                  // Close the mobile score bottom sheet first so the modal
+                  // doesn't open on top of it (and so the sheet doesn't
+                  // re-appear when the user closes the modal).
+                  if (isMobile) setShowMatchInfo(false);
+                  setShowScorecard(true);
+                }}
                 className="w-full flex items-center justify-center gap-2"
                 style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 9, padding: '10px', fontSize: 12, fontWeight: 700, color: 'var(--green)', cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}
               >
