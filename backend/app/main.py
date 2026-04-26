@@ -367,48 +367,60 @@ async def room_sync():
         try:
             async with AsyncSessionLocal() as db:
                 now = datetime.now(timezone.utc)
-                # Auto-lock open rooms whose match_date is within 30 min from now
-                open_rooms = await db.execute(
+                # Lock rooms whose scheduled match start time has actually arrived.
+                # ESPN often flips state="in" early (toss / ~30 min before first ball),
+                # so we deliberately don't trust ESPN's is_live here — match_date is
+                # the source of truth for "match is live". ESPN is only consulted to
+                # close rooms early when a match is genuinely finished.
+                due_rooms = await db.execute(
                     select(Room).where(
                         Room.status == "open",
                         Room.match_date != None,
-                        Room.match_date <= now + timedelta(minutes=30),
+                        Room.match_date <= now,
                         Room.match_date >= now - timedelta(hours=4),
                     )
                 )
                 locked = 0
                 closed_early = 0
-                for room in open_rooms.scalars().all():
-                    # Verify with ESPN before locking
+                for room in due_rooms.scalars().all():
                     try:
                         from app.services.espn_service import get_espn_match_status
                         espn = await get_espn_match_status(room.match_name, room.sport, room.league or "")
-                        if espn:
-                            if espn.get("is_finished"):
-                                room.status = "closed"
-                                room.completed_at = now
-                                await finalize_room_results(db, room.id)
-                                closed_early += 1
-                                continue
-                            elif espn.get("is_live"):
-                                room.status = "locked"
-                                locked += 1
-                                continue
+                        if espn and espn.get("is_finished"):
+                            room.status = "closed"
+                            room.completed_at = now
+                            await finalize_room_results(db, room.id)
+                            closed_early += 1
+                            continue
                     except Exception:
                         pass
-                    # Default: only lock once the scheduled match_date has actually
-                    # passed. Locking earlier (e.g. 30 min before) wrongly flips the
-                    # room to "live", hiding Edit XI for users joining in that window.
-                    if room.match_date and now >= room.match_date:
-                        room.status = "locked"
-                        locked += 1
+                    room.status = "locked"
+                    locked += 1
 
-                if locked or closed_early:
+                # Self-heal: rooms previously locked too early (e.g. by the old
+                # 30-min-before rule, or an ESPN toss-time is_live flip) should
+                # come back to "open" if the scheduled match_date hasn't arrived
+                # yet. This unblocks Edit XI for late joiners.
+                stale_locked = await db.execute(
+                    select(Room).where(
+                        Room.status == "locked",
+                        Room.match_date != None,
+                        Room.match_date > now,
+                    )
+                )
+                unlocked = 0
+                for room in stale_locked.scalars().all():
+                    room.status = "open"
+                    unlocked += 1
+
+                if locked or closed_early or unlocked:
                     await db.commit()
                     if locked:
-                        print(f"Room sync: locked {locked} rooms (match started)")
+                        print(f"Room sync: locked {locked} rooms (match_date reached)")
                     if closed_early:
                         print(f"Room sync: closed {closed_early} rooms (ESPN says finished)")
+                    if unlocked:
+                        print(f"Room sync: unlocked {unlocked} rooms (match_date not yet reached)")
         except Exception as e:
             print(f"Room sync error: {e}")
 
