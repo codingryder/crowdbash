@@ -19,12 +19,12 @@ interface LiveMatch {
   match_status_text: string;
 }
 
-type Tab = 'matches' | 'rooms';
+type Tab = 'cricket' | 'football' | 'rooms';
 
 export function GamesPage() {
   const [searchParams] = useSearchParams();
-  const sport = searchParams.get('sport') || 'cricket';
-  const [tab, setTab] = useState<Tab>('matches');
+  const initialTab: Tab = searchParams.get('sport') === 'football' ? 'football' : 'cricket';
+  const [tab, setTab] = useState<Tab>(initialTab);
 
   // Live Matches state
   const [liveMatches, setLiveMatches] = useState<LiveMatch[]>([]);
@@ -67,10 +67,14 @@ export function GamesPage() {
 
   const [leagueFilter, setLeagueFilter] = useState<string>('all');
 
-  // Filter by selected sport from navbar tabs
-  const filteredLiveMatches = liveMatches.filter(m => m.sport === sport);
-  const filteredUpcomingMatches = upcomingMatches.filter(m => m.sport === sport);
-  const filteredRooms = rooms.filter(r => r.sport === sport);
+  // Reset league filter when switching between cricket and football tabs
+  useEffect(() => { setLeagueFilter('all'); }, [tab]);
+
+  // Active sport for the matches tabs (cricket or football)
+  const activeSport: 'cricket' | 'football' = tab === 'football' ? 'football' : 'cricket';
+
+  const filteredLiveMatches = liveMatches.filter(m => m.sport === activeSport);
+  const filteredUpcomingMatches = upcomingMatches.filter(m => m.sport === activeSport);
 
   // Get unique leagues from upcoming matches
   const upcomingLeagues = [...new Set(filteredUpcomingMatches.map(m => m.league).filter(Boolean))];
@@ -111,14 +115,16 @@ export function GamesPage() {
     return dateKey;
   };
 
-  const liveRooms = filteredRooms.filter(r => r.status === 'locked');
-  const upcomingRooms = filteredRooms.filter(r => r.status === 'open').sort((a, b) => {
+  const liveRooms = rooms.filter(r => r.status === 'locked');
+  const upcomingRooms = rooms.filter(r => r.status === 'open').sort((a, b) => {
     const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
     const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
     return da - db;
   });
   const allRooms = [...liveRooms, ...upcomingRooms];
 
+  const cricketLiveCount = liveMatches.filter(m => m.sport === 'cricket').length;
+  const footballLiveCount = liveMatches.filter(m => m.sport === 'football').length;
   const totalLiveMatches = filteredLiveMatches.length;
   const totalLiveRooms = allRooms.length;
 
@@ -131,7 +137,9 @@ export function GamesPage() {
             <div>
               <h1 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 38, fontWeight: 900, letterSpacing: '-1.5px', marginBottom: 4 }}>Games</h1>
               <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
-                {sport === 'cricket' ? '🏏 Cricket' : '⚽ Football'} — Live scores & fantasy rooms
+                {tab === 'cricket' && '🏏 Cricket — Live scores & upcoming matches'}
+                {tab === 'football' && '⚽ Football — Live scores & upcoming matches'}
+                {tab === 'rooms' && '🏟️ Fantasy rooms — Build your team & compete'}
               </div>
             </div>
             <div className="flex items-center gap-2.5">
@@ -142,32 +150,52 @@ export function GamesPage() {
           </div>
 
           {/* Tab switcher */}
-          <div className="flex gap-0">
+          <div className="flex gap-0 overflow-x-auto" style={{ scrollbarWidth: 'none', msOverflowStyle: 'none' }}>
             <button
-              onClick={() => setTab('matches')}
-              className="relative bg-transparent border-none cursor-pointer"
+              onClick={() => setTab('cricket')}
+              className="relative bg-transparent border-none cursor-pointer shrink-0"
               style={{
-                padding: '10px 20px',
+                padding: '10px 16px',
                 fontSize: 13,
                 fontWeight: 700,
                 fontFamily: "'Cabinet Grotesk', sans-serif",
                 letterSpacing: '0.5px',
-                color: tab === 'matches' ? 'var(--text)' : 'var(--muted)',
+                color: tab === 'cricket' ? 'var(--text)' : 'var(--muted)',
               }}
             >
-              Live Matches
-              {totalLiveMatches > 0 && (
-                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{totalLiveMatches}</span>
+              🏏 Cricket Matches
+              {cricketLiveCount > 0 && (
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{cricketLiveCount}</span>
               )}
-              {tab === 'matches' && (
+              {tab === 'cricket' && (
+                <span className="absolute bottom-0 left-[10%] right-[10%] h-[2px] rounded" style={{ background: 'var(--text)' }} />
+              )}
+            </button>
+            <button
+              onClick={() => setTab('football')}
+              className="relative bg-transparent border-none cursor-pointer shrink-0"
+              style={{
+                padding: '10px 16px',
+                fontSize: 13,
+                fontWeight: 700,
+                fontFamily: "'Cabinet Grotesk', sans-serif",
+                letterSpacing: '0.5px',
+                color: tab === 'football' ? 'var(--text)' : 'var(--muted)',
+              }}
+            >
+              ⚽ Football Matches
+              {footballLiveCount > 0 && (
+                <span className="ml-1.5 text-[10px] px-1.5 py-0.5 rounded-full" style={{ background: 'rgba(239,68,68,0.15)', color: '#ef4444' }}>{footballLiveCount}</span>
+              )}
+              {tab === 'football' && (
                 <span className="absolute bottom-0 left-[10%] right-[10%] h-[2px] rounded" style={{ background: 'var(--text)' }} />
               )}
             </button>
             <button
               onClick={() => setTab('rooms')}
-              className="relative bg-transparent border-none cursor-pointer"
+              className="relative bg-transparent border-none cursor-pointer shrink-0"
               style={{
-                padding: '10px 20px',
+                padding: '10px 16px',
                 fontSize: 13,
                 fontWeight: 700,
                 fontFamily: "'Cabinet Grotesk', sans-serif",
@@ -190,8 +218,8 @@ export function GamesPage() {
       {/* Body */}
       <div style={{ maxWidth: 1080, margin: '0 auto', padding: '16px 16px 60px' }} className="md:!px-9">
 
-        {/* ── TAB 1: LIVE MATCHES ── */}
-        {tab === 'matches' && (
+        {/* ── TAB 1 & 2: CRICKET / FOOTBALL MATCHES ── */}
+        {(tab === 'cricket' || tab === 'football') && (
           <>
             {matchesLoading && (
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
@@ -261,15 +289,15 @@ export function GamesPage() {
 
             {!matchesLoading && filteredLiveMatches.length === 0 && filteredUpcomingMatches.length === 0 && (
               <div className="text-center py-20">
-                <div className="text-3xl mb-4">📡</div>
-                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>No live matches right now</div>
-                <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Live scores appear when matches are in progress</div>
+                <div className="text-3xl mb-4">{activeSport === 'cricket' ? '🏏' : '⚽'}</div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800, marginBottom: 4 }}>No {activeSport} matches right now</div>
+                <div className="text-[13px]" style={{ color: 'var(--muted)' }}>Live scores and upcoming fixtures appear here</div>
               </div>
             )}
           </>
         )}
 
-        {/* ── TAB 2: LIVE ROOMS ── */}
+        {/* ── TAB 3: LIVE ROOMS ── */}
         {tab === 'rooms' && (
           <>
             {roomsLoading && (
