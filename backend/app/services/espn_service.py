@@ -187,6 +187,23 @@ CRICKET_LIVE_SERIES = {
 # International cricket endpoint (covers Tests, ODIs, T20Is)
 ESPN_CRICKET_ALL = "https://site.web.api.espn.com/apis/site/v2/sports/cricket/scoreboard"
 
+# Football leagues to scan for live + upcoming matches (ESPN soccer slugs)
+FOOTBALL_LIVE_LEAGUES = {
+    "eng.1": "Premier League",
+    "esp.1": "La Liga",
+    "ita.1": "Serie A",
+    "ger.1": "Bundesliga",
+    "fra.1": "Ligue 1",
+    "uefa.champions": "UEFA Champions League",
+    "uefa.europa": "UEFA Europa League",
+    "uefa.europa.conf": "UEFA Conference League",
+    "ned.1": "Eredivisie",
+    "por.1": "Primeira Liga",
+    "bra.1": "Brasileirão Série A",
+    "conmebol.libertadores": "Copa Libertadores",
+    "fifa.world": "FIFA World Cup",
+}
+
 
 async def get_espn_live_cricket_matches() -> list:
     """
@@ -336,6 +353,109 @@ def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
         "score": [],  # Raw score for compatibility
         "team1_score": t1_score,
         "team2_score": t2_score,
+        "source": "espn",
+    }
+
+
+# ── Football discovery from ESPN (free, no auth) ──
+
+async def get_espn_live_football_matches() -> list:
+    """
+    Get all live + upcoming football matches from ESPN soccer scoreboards.
+    Iterates over major leagues for today + next 3 days. Returns matches in
+    Football-Data.org-compatible shape so routes/matches.py normalization
+    handles them without special casing.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+    from datetime import timedelta
+
+    cache_key = "espn:football:all_live"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    all_matches = []
+    seen_ids = set()
+
+    today = date.today()
+    dates_to_fetch = [(today + timedelta(days=d)).strftime("%Y%m%d") for d in range(4)]
+
+    for league_slug, league_name in FOOTBALL_LIVE_LEAGUES.items():
+        for date_str in dates_to_fetch:
+            try:
+                async with httpx.AsyncClient() as client:
+                    res = await client.get(
+                        f"{ESPN_FOOTBALL_BASE}/{league_slug}/scoreboard",
+                        params={"dates": date_str},
+                        headers=HEADERS, timeout=10,
+                    )
+                    if res.status_code != 200:
+                        continue
+                    events = res.json().get("events", [])
+                    for event in events:
+                        eid = str(event.get("id", ""))
+                        if not eid or eid in seen_ids:
+                            continue
+                        seen_ids.add(eid)
+                        match = _espn_football_event_to_match(event, league_name)
+                        if match:
+                            all_matches.append(match)
+            except Exception as e:
+                print(f"ESPN football {league_slug} {date_str} error: {e}")
+
+    if all_matches:
+        await redis_set_json(cache_key, all_matches, ex=120)
+
+    return all_matches
+
+
+def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
+    """Convert ESPN soccer event → Football-Data.org-compatible shape."""
+    status_obj = event.get("status", {})
+    status_type = status_obj.get("type", {})
+    state = status_type.get("state", "pre")  # pre | in | post
+
+    if state == "in":
+        fd_status = "IN_PLAY"
+    elif state == "pre":
+        fd_status = "SCHEDULED"
+    else:
+        return None  # skip finished
+
+    competitions = event.get("competitions", [])
+    if not competitions:
+        return None
+    comp = competitions[0]
+    competitors = comp.get("competitors", [])
+    if len(competitors) < 2:
+        return None
+
+    home_data = next((c for c in competitors if c.get("homeAway") == "home"), competitors[0])
+    away_data = next((c for c in competitors if c.get("homeAway") == "away"), competitors[1])
+
+    home_name = home_data.get("team", {}).get("displayName", "") or home_data.get("team", {}).get("name", "")
+    away_name = away_data.get("team", {}).get("displayName", "") or away_data.get("team", {}).get("name", "")
+
+    def _to_int(v):
+        try:
+            return int(v) if v not in (None, "") else 0
+        except (ValueError, TypeError):
+            return 0
+
+    return {
+        "id": f"espn_{event.get('id', '')}",
+        "homeTeam": {"name": home_name},
+        "awayTeam": {"name": away_name},
+        "score": {
+            "fullTime": {
+                "home": _to_int(home_data.get("score")),
+                "away": _to_int(away_data.get("score")),
+            },
+        },
+        "status": fd_status,
+        "competition": {"name": league_name},
+        "utcDate": event.get("date", ""),
+        "venue": (comp.get("venue") or {}).get("fullName", ""),
         "source": "espn",
     }
 

@@ -21,7 +21,11 @@ class FootballAdapter(SportAdapter):
         self._current_match_name = match_name
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
-        """Get live + upcoming football matches."""
+        """
+        Get live + upcoming football matches.
+        Layer 1: ESPN soccer (free, no auth) — primary discovery source.
+        Layer 2: Football-Data.org — only if FOOTBALL_API_KEY is set.
+        """
         cached = await redis_get_json("football:live_matches")
         if cached:
             return cached
@@ -29,31 +33,38 @@ class FootballAdapter(SportAdapter):
         all_matches = []
         seen_ids = set()
 
-        # Layer 1: Live matches (IN_PLAY, PAUSED)
+        # Layer 1: ESPN — free, no API key needed
         try:
-            from app.services.footballdata_service import get_matches
+            from app.services.espn_service import get_espn_live_football_matches
+            espn_matches = await get_espn_live_football_matches()
+            if espn_matches:
+                for m in espn_matches:
+                    mid = str(m.get("id", ""))
+                    if mid and mid not in seen_ids:
+                        seen_ids.add(mid)
+                        all_matches.append(m)
+        except Exception as e:
+            print(f"ESPN football discovery error: {e}")
+
+        # Layer 2: Football-Data.org (no-op when API key is unset)
+        try:
+            from app.services.footballdata_service import get_matches, get_upcoming_matches
             live = await get_matches(status="IN_PLAY,PAUSED")
             if live:
                 for m in live:
                     mid = str(m.get("id", ""))
-                    if mid not in seen_ids:
+                    if mid and mid not in seen_ids:
                         seen_ids.add(mid)
                         all_matches.append(m)
-        except Exception as e:
-            print(f"Football-Data.org live_matches error: {e}")
-
-        # Layer 2: Upcoming matches (next 3 days)
-        try:
-            from app.services.footballdata_service import get_upcoming_matches
             upcoming = await get_upcoming_matches(days=3)
             if upcoming:
                 for m in upcoming:
                     mid = str(m.get("id", ""))
-                    if mid not in seen_ids:
+                    if mid and mid not in seen_ids:
                         seen_ids.add(mid)
                         all_matches.append(m)
         except Exception as e:
-            print(f"Football-Data.org upcoming_matches error: {e}")
+            print(f"Football-Data.org discovery error: {e}")
 
         if all_matches:
             await redis_set_json("football:live_matches", all_matches, ex=120)

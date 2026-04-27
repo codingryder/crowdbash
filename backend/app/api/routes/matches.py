@@ -369,6 +369,9 @@ async def _get_espn_scorecard(sport: str, event_id: str, match_name: str) -> dic
     """Fetch scorecard data from ESPN for a specific event."""
     import httpx
 
+    if sport == "football":
+        return await _get_espn_football_scorecard(event_id, match_name)
+
     if sport != "cricket":
         return None
 
@@ -403,6 +406,40 @@ async def _get_espn_scorecard(sport: str, event_id: str, match_name: str) -> dic
         print(f"ESPN scorecard error: {e}")
 
     return None
+
+
+async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict | None:
+    """Build a basic football scorecard from the cached ESPN football match list."""
+    from app.core.redis import redis_get_json
+
+    matches = await redis_get_json("espn:football:all_live") or []
+    target_id = f"espn_{event_id}"
+    match = next((m for m in matches if str(m.get("id", "")) == target_id), None)
+    if not match:
+        if match_name:
+            parts = match_name.split(" vs ")
+            return {
+                "sport": "football",
+                "team1": {"name": parts[0].strip() if parts else "", "score": "—"},
+                "team2": {"name": parts[1].strip() if len(parts) > 1 else "", "score": "—"},
+                "status": "Score data unavailable",
+                "innings": [],
+            }
+        return None
+
+    home = match.get("homeTeam", {}).get("name", "")
+    away = match.get("awayTeam", {}).get("name", "")
+    ft = (match.get("score") or {}).get("fullTime", {}) or {}
+    is_live = match.get("status") == "IN_PLAY"
+
+    return {
+        "sport": "football",
+        "match_name": match_name or f"{home} vs {away}",
+        "team1": {"name": home, "score": str(ft.get("home", "")) if is_live else "—"},
+        "team2": {"name": away, "score": str(ft.get("away", "")) if is_live else "—"},
+        "status": "Live" if is_live else "Scheduled",
+        "innings": [],
+    }
 
 
 def _build_espn_scorecard(event: dict) -> dict | None:
