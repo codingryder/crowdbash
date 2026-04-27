@@ -6,7 +6,7 @@ from app.core.security import create_jwt, get_current_user_id
 from app.models.user import User
 from app.models.room import Room
 from app.models.game import Game
-from app.services.email_service import generate_otp, send_otp_email
+from app.services.email_service import EmailSendError, generate_otp, send_otp_email
 from pydantic import BaseModel, EmailStr
 from datetime import datetime, timedelta, timezone
 import uuid
@@ -72,10 +72,13 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
 
     await db.commit()
 
-    # Send OTP email
-    sent = await send_otp_email(body.email, otp)
-    if not sent:
-        raise HTTPException(status_code=500, detail="Failed to send verification email")
+    try:
+        await send_otp_email(body.email, otp)
+    except EmailSendError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to send verification email: {e} ({e.provider_response or ''})".strip(),
+        )
 
     return {"message": "OTP sent to your email", "email": body.email}
 
@@ -95,9 +98,13 @@ async def signin(body: SigninRequest, db: AsyncSession = Depends(get_db)):
     user.otp_expires_at = expires
     await db.commit()
 
-    sent = await send_otp_email(body.email, otp)
-    if not sent:
-        raise HTTPException(status_code=500, detail="Failed to send verification email")
+    try:
+        await send_otp_email(body.email, otp)
+    except EmailSendError as e:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to send verification email: {e} ({e.provider_response or ''})".strip(),
+        )
 
     return {"message": "OTP sent to your email", "email": body.email}
 

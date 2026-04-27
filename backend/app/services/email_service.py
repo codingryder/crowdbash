@@ -3,8 +3,19 @@ Email OTP service using Resend (free tier: 3000 emails/month).
 https://resend.com
 """
 import httpx
+import logging
 import random
 from app.core.config import settings
+
+logger = logging.getLogger(__name__)
+
+
+class EmailSendError(Exception):
+    """Raised when the email provider rejects the send request."""
+    def __init__(self, message: str, status: int | None = None, provider_response: str | None = None):
+        super().__init__(message)
+        self.status = status
+        self.provider_response = provider_response
 
 
 def generate_otp() -> str:
@@ -12,17 +23,17 @@ def generate_otp() -> str:
     return str(random.randint(100000, 999999))
 
 
-async def send_otp_email(email: str, otp: str) -> bool:
-    """Send OTP to user's email via Resend API."""
+async def send_otp_email(email: str, otp: str) -> None:
+    """Send OTP to user's email via Resend API. Raises EmailSendError on failure."""
     if not settings.RESEND_API_KEY:
         # Dev mode: print OTP to console
         print(f"[DEV] OTP for {email}: {otp}")
-        return True
+        return
 
     from_email = "Crowdbash <noreply@codingryder.com>"
 
     try:
-        async with httpx.AsyncClient() as client:
+        async with httpx.AsyncClient(timeout=10.0) as client:
             res = await client.post(
                 "https://api.resend.com/emails",
                 headers={
@@ -45,10 +56,20 @@ async def send_otp_email(email: str, otp: str) -> bool:
                     """,
                 },
             )
-            if res.status_code != 200:
-                print(f"Resend API error: {res.status_code} - {res.text}")
-                return False
-            return True
-    except Exception as e:
-        print(f"Email send error: {e}")
-        return False
+    except httpx.HTTPError as e:
+        logger.exception("OTP email transport error to %s: %s", email, e)
+        raise EmailSendError(f"Email transport error: {e}") from e
+
+    if res.status_code >= 400:
+        logger.error("Resend API rejected send to %s: %s %s", email, res.status_code, res.text)
+        raise EmailSendError(
+            f"Resend rejected send: {res.status_code}",
+            status=res.status_code,
+            provider_response=res.text,
+        )
+
+    try:
+        resend_id = res.json().get("id")
+    except Exception:
+        resend_id = None
+    logger.info("OTP email queued to %s (resend_id=%s, status=%s)", email, resend_id, res.status_code)
