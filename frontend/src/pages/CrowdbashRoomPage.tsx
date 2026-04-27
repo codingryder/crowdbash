@@ -7,6 +7,7 @@ import { useAuth } from '../hooks/useAuth';
 import { useRoomStore } from '../store/roomStore';
 import { useGameStore } from '../store/gameStore';
 import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
+import { PlayingXiBanner } from '../components/room/PlayingXiBanner';
 import { PitchWelcomeView } from '../components/game/PitchWelcomeView';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
 import { ScorecardModal } from '../components/room/ScorecardModal';
@@ -343,6 +344,9 @@ export function CrowdbashRoomPage() {
                 </div>
               ))}
             </div>
+
+            {/* Playing XI announcement banner — sticky until user reviews/keeps */}
+            <PlayingXiBanner onReviewTeam={() => setShowTeamBuilder(true)} />
 
             {/* Edit window banner */}
             {editWindowOpen && (

@@ -496,6 +496,79 @@ async def auto_close_past_rooms():
             print(f"Auto-complete error: {e}")
 
 
+async def playing_xi_poller():
+    """
+    Poll Gemini for the announced playing XI of upcoming matches.
+
+    Targets rooms whose match_date is within the next 90 minutes (team sheets
+    typically drop ~30 min before first ball, but starting earlier covers
+    delayed-start matches and gives users time to react).
+
+    Once we get a confident XI for a fixture, the result is cached in Redis
+    (per-fixture, not per-room) and persisted on every room for that fixture.
+    """
+    from sqlalchemy import select, update as _update
+    from app.models.room import Room
+    from datetime import datetime, timezone, timedelta
+    from app.services.live_score_service import fetch_announced_xi_via_gemini
+
+    while True:
+        await asyncio.sleep(300)  # every 5 minutes
+        try:
+            async with AsyncSessionLocal() as db:
+                now = datetime.now(timezone.utc)
+                window_end = now + timedelta(minutes=90)
+                # Only rooms that are still open (pre-match) AND within the
+                # 90-min lookahead AND don't already have an announced XI.
+                result = await db.execute(
+                    select(Room).where(
+                        Room.status == "open",
+                        Room.match_date != None,
+                        Room.match_date <= window_end,
+                        Room.match_date >= now - timedelta(minutes=10),
+                        Room.playing_xi == None,
+                    )
+                )
+                pending_rooms = result.scalars().all()
+                # Dedupe by match_name so two rooms for the same fixture share
+                # one Gemini call (cache_key is per match_name).
+                by_fixture: dict[tuple[str, str], list[Room]] = {}
+                for r in pending_rooms:
+                    by_fixture.setdefault((r.sport, r.match_name), []).append(r)
+
+                announced = 0
+                for (sport, match_name), rooms in by_fixture.items():
+                    try:
+                        xi = await fetch_announced_xi_via_gemini(match_name, sport)
+                    except Exception as e:
+                        print(f"XI poll error for {match_name}: {e}")
+                        continue
+                    if not xi:
+                        continue
+                    # Persist on every room sharing this fixture.
+                    await db.execute(
+                        _update(Room)
+                        .where(Room.id.in_([r.id for r in rooms]))
+                        .values(playing_xi=xi, playing_xi_announced_at=now)
+                    )
+                    announced += len(rooms)
+                    # Notify connected clients so banner shows immediately.
+                    for r in rooms:
+                        await room_manager.broadcast(str(r.id), {
+                            "type": "playing_xi_announced",
+                            "payload": {
+                                "playing_xi": xi,
+                                "announced_at": now.isoformat(),
+                            }
+                        })
+
+                if announced:
+                    await db.commit()
+                    print(f"Playing XI announced for {announced} room(s)")
+        except Exception as e:
+            print(f"Playing XI poller error: {e}")
+
+
 async def keep_alive():
     """Ping self every 10 minutes to prevent Render free tier from sleeping."""
     import httpx
@@ -592,7 +665,24 @@ async def startup():
     except Exception as e:
         print(f"rooms.edit_window_closes_at migration failed: {e}")
 
+    # Self-heal: rooms.playing_xi_announced_at + playing_xi for tracking
+    # when the official team sheets drop (~30 min pre-match).
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text(
+                "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS playing_xi_announced_at TIMESTAMPTZ NULL"
+            ))
+            await db.execute(text(
+                "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS playing_xi JSONB NULL"
+            ))
+            await db.commit()
+            print("rooms.playing_xi columns ensured")
+    except Exception as e:
+        print(f"rooms.playing_xi migration failed: {e}")
+
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
     asyncio.create_task(auto_close_past_rooms())
+    asyncio.create_task(playing_xi_poller())
     asyncio.create_task(keep_alive())

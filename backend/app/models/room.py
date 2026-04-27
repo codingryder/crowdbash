@@ -28,3 +28,8 @@ class Room(Base):
     # the active window with correct remaining time. NULL when no window is
     # active. Set on open, cleared on close.
     edit_window_closes_at = Column(DateTime(timezone=True), nullable=True)
+    # Official playing XI tracking (set when team sheets drop, ~30 min pre-match).
+    # playing_xi shape: { team_a, team_b, xi_a: [names], xi_b: [names] }.
+    # Stays NULL until we get a confident result from Gemini.
+    playing_xi_announced_at = Column(DateTime(timezone=True), nullable=True)
+    playing_xi = Column(JSONB, nullable=True)

@@ -3,14 +3,14 @@ import { CrowdbashWebSocket } from '../lib/ws';
 import { useRoomStore } from '../store/roomStore';
 import { useGameStore } from '../store/gameStore';
 import { useAuthStore } from '../store/authStore';
-import type { WSMessage, ChatMessage, ScoreData, QuizQuestion, LeaderboardEntry, MatchEvent, Sport } from '../types';
+import type { WSMessage, ChatMessage, ScoreData, QuizQuestion, LeaderboardEntry, MatchEvent, Sport, PlayingXI } from '../types';
 
 export function useWebSocket(roomId: string | undefined) {
   const wsRef = useRef<CrowdbashWebSocket | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     setScore, setFanCount, addMessage, setActiveQuiz,
-    setMatchProgress, setEditWindow, addMatchEvent,
+    setMatchProgress, setEditWindow, addMatchEvent, setPlayingXi,
   } = useRoomStore();
   const { setLeaderboard, setEditWindow: setGameEditWindow } = useGameStore();
 
@@ -79,6 +79,11 @@ export function useWebSocket(roomId: string | undefined) {
         case 'match_event':
           addMatchEvent(msg.payload as MatchEvent);
           break;
+        case 'playing_xi_announced': {
+          const p = msg.payload as { playing_xi: PlayingXI; announced_at: string };
+          if (p?.playing_xi) setPlayingXi(p.playing_xi, p.announced_at || null);
+          break;
+        }
       }
     });
 

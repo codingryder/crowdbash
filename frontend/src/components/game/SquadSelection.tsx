@@ -1,5 +1,7 @@
 import { useGameStore } from '../../store/gameStore';
 import type { SquadPlayer } from '../../types';
+import { usePlayingXi } from '../../hooks/usePlayingXi';
+import { useIsMobile } from '../../hooks/useIsMobile';
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
   batsman: { bg: 'rgba(74,158,255,0.1)', color: 'var(--blue)' },
@@ -18,6 +20,8 @@ export function SquadSelection({ onConfirm }: SquadSelectionProps) {
   const togglePlayer = useGameStore((s) => s.togglePlayer);
   const canSelectMore = useGameStore((s) => s.canSelectMore);
   const getSelectedCount = useGameStore((s) => s.getSelectedCount);
+  const { announced, isInXi } = usePlayingXi();
+  const isMobile = useIsMobile();
 
   const count = getSelectedCount();
   const teams = Object.entries(availableSquads);
@@ -97,11 +101,27 @@ export function SquadSelection({ onConfirm }: SquadSelectionProps) {
 
                   {/* Player info */}
                   <div className="flex-1 min-w-0">
-                    <div className="text-[12px] font-medium truncate" style={{ color: 'var(--tx)' }}>
-                      {player.player_name}
+                    <div className="text-[12px] font-medium truncate flex items-center gap-1.5" style={{ color: 'var(--tx)' }}>
+                      {announced && (
+                        <span
+                          title={isInXi(player.player_name) ? 'In playing XI' : 'Not in playing XI'}
+                          style={{
+                            display: 'inline-block',
+                            width: 7,
+                            height: 7,
+                            borderRadius: '50%',
+                            background: isInXi(player.player_name) ? 'var(--green)' : 'var(--mu)',
+                            flexShrink: 0,
+                          }}
+                        />
+                      )}
+                      <span className="truncate">{player.player_name}</span>
                     </div>
                     <div className="text-[10px]" style={{ color: 'var(--mu)' }}>
                       {player.team}
+                      {announced && !isInXi(player.player_name) && !isMobile && (
+                        <span style={{ color: 'var(--mu)', marginLeft: 6 }}>· not in XI</span>
+                      )}
                     </div>
                   </div>
 

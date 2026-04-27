@@ -38,6 +38,11 @@ def _room_to_dict(r: Room) -> dict:
             r.edit_window_closes_at.isoformat()
             if getattr(r, "edit_window_closes_at", None) else None
         ),
+        "playing_xi_announced_at": (
+            r.playing_xi_announced_at.isoformat()
+            if getattr(r, "playing_xi_announced_at", None) else None
+        ),
+        "playing_xi": getattr(r, "playing_xi", None),
     }
 
 

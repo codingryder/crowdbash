@@ -28,6 +28,15 @@ export interface Room {
   late_join_open?: boolean;
   late_join_overs_remaining?: number;
   edit_window_closes_at?: string | null;
+  playing_xi_announced_at?: string | null;
+  playing_xi?: PlayingXI | null;
+}
+
+export interface PlayingXI {
+  team_a: string;
+  team_b: string;
+  xi_a: string[];
+  xi_b: string[];
 }
 
 /** Split match name into two team names. Handles "vs", "v", "VS" separators. */
@@ -183,6 +192,7 @@ export interface WSMessage {
     | 'fan_count'
     | 'edit_window'
     | 'match_event'
+    | 'playing_xi_announced'
     | 'error'
     | 'pong';
   payload: unknown;

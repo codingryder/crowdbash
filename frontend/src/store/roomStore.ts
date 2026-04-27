@@ -1,5 +1,5 @@
 import { create } from 'zustand';
-import type { ScoreData, ChatMessage, QuizQuestion, MatchEvent, Sport } from '../types';
+import type { ScoreData, ChatMessage, QuizQuestion, MatchEvent, Sport, PlayingXI } from '../types';
 
 interface RoomStore {
   sport: Sport;
@@ -11,6 +11,10 @@ interface RoomStore {
   matchProgress: Record<string, unknown>;
   editWindowOpen: boolean;
   matchEvents: MatchEvent[];
+  playingXi: PlayingXI | null;
+  playingXiAnnouncedAt: string | null;
+  // Per-session dismiss for the announcement banner. Cleared on full reload.
+  playingXiBannerDismissed: boolean;
 
   setSport: (sport: Sport) => void;
   setScore: (score: ScoreData) => void;
@@ -22,6 +26,8 @@ interface RoomStore {
   setMatchProgress: (progress: Record<string, unknown>) => void;
   setEditWindow: (open: boolean) => void;
   addMatchEvent: (event: MatchEvent) => void;
+  setPlayingXi: (xi: PlayingXI | null, announcedAt: string | null) => void;
+  dismissPlayingXiBanner: () => void;
 }
 
 export const useRoomStore = create<RoomStore>((set) => ({
@@ -34,6 +40,9 @@ export const useRoomStore = create<RoomStore>((set) => ({
   matchProgress: {},
   editWindowOpen: false,
   matchEvents: [],
+  playingXi: null,
+  playingXiAnnouncedAt: null,
+  playingXiBannerDismissed: false,
 
   setSport: (sport) => set({ sport }),
   setScore: (score) => set({ score }),
@@ -52,4 +61,16 @@ export const useRoomStore = create<RoomStore>((set) => ({
     set((state) => ({
       matchEvents: [event, ...state.matchEvents.slice(0, 99)],
     })),
+  setPlayingXi: (xi, announcedAt) =>
+    set((state) => {
+      // Reset the dismissed flag whenever we transition from "no XI" to
+      // "XI announced" — a fresh announcement deserves a fresh banner.
+      const isNew = !!xi && !state.playingXi;
+      return {
+        playingXi: xi,
+        playingXiAnnouncedAt: announcedAt,
+        playingXiBannerDismissed: isNew ? false : state.playingXiBannerDismissed,
+      };
+    }),
+  dismissPlayingXiBanner: () => set({ playingXiBannerDismissed: true }),
 }));

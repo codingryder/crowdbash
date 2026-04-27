@@ -1,5 +1,6 @@
 import { useGameStore } from '../../store/gameStore';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
+import { usePlayingXi } from '../../hooks/usePlayingXi';
 
 const ROLE_BADGES: Record<string, { label: string; color: string }> = {
   batsman: { label: 'BAT', color: 'var(--blue)' },
@@ -15,6 +16,7 @@ interface MyTeamTabProps {
 
 export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabProps) {
   const game = useGameStore((s) => s.game);
+  const { announced, isInXi } = usePlayingXi();
 
   // Match has already started → user is a spectator if they either
   // never joined a game (backend blocks late joins) or joined but never
@@ -76,6 +78,7 @@ export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabPr
           const badge = ROLE_BADGES[(player.player_role || '').toLowerCase()];
           const breakdown = player.scoring_breakdown || {};
           const fantasyPts = (breakdown.fantasy_points as number) || 0;
+          const isBenched = announced && !isInXi(player.player_name);
 
           return (
             <div
@@ -83,7 +86,12 @@ export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabPr
               className="rounded-xl p-3"
               style={{
                 background: 'var(--s1)',
-                border: player.points_earned > 0 ? '0.5px solid rgba(61,214,140,0.3)' : '0.5px solid var(--b1)',
+                border: isBenched
+                  ? '0.5px solid rgba(240,90,90,0.25)'
+                  : player.points_earned > 0
+                    ? '0.5px solid rgba(61,214,140,0.3)'
+                    : '0.5px solid var(--b1)',
+                borderLeft: isBenched ? '3px solid var(--red)' : undefined,
               }}
             >
               <div className="flex items-center gap-3">
@@ -98,11 +106,19 @@ export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabPr
 
                 {/* Info */}
                 <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-2 flex-wrap">
                     <span className="text-[15px] font-semibold">{player.player_name}</span>
                     {badge && (
                       <span className="text-[9px] font-semibold px-1.5 py-px rounded" style={{ background: 'var(--surface)', color: badge.color }}>
                         {badge.label}
+                      </span>
+                    )}
+                    {isBenched && (
+                      <span
+                        className="text-[9px] font-bold px-1.5 py-px rounded"
+                        style={{ background: 'rgba(240,90,90,0.12)', color: 'var(--red)' }}
+                      >
+                        NOT IN XI
                       </span>
                     )}
                   </div>

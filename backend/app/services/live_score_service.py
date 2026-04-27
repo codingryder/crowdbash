@@ -186,6 +186,72 @@ If you don't know the squad, return []"""
     return None
 
 
+async def fetch_announced_xi_via_gemini(match_name: str, sport: str = "cricket") -> dict | None:
+    """Get the OFFICIALLY ANNOUNCED playing XI (11 starters per team).
+
+    Distinct from fetch_squad_via_gemini, which returns the broader 15-25 player
+    squad. This one returns only the 11 confirmed starters per side, and only
+    once team sheets have actually dropped (~30 min before first ball). Returns
+    None if the XI hasn't been announced yet — caller should retry later.
+
+    Cached per fixture for 5 min so repeated polls during the announcement
+    window don't burn Gemini calls.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+
+    cache_key = f"gemini:xi:{sport}:{match_name}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    if sport != "cricket":
+        # Football XIs work the same way conceptually, but skip for now until
+        # we wire in football-side surfaces.
+        return None
+
+    prompt = f"""Has the OFFICIAL playing XI (11 starting players) been announced
+for this cricket match: {match_name}?
+
+Only return data if the team sheets have been officially confirmed (typically
+~30 min before the first ball, after the toss). Do NOT guess based on past
+matches or likely lineups.
+
+If announced, return ONLY valid JSON:
+{{
+  "announced": true,
+  "team_a": "<First Team Name>",
+  "team_b": "<Second Team Name>",
+  "xi_a": ["<Full Name>", "<Full Name>", ... 11 names],
+  "xi_b": ["<Full Name>", "<Full Name>", ... 11 names]
+}}
+
+If NOT yet announced (toss not done, or team sheets not released), return:
+{{"announced": false}}
+
+Rules:
+- Each xi_a / xi_b array MUST have exactly 11 names.
+- Use the same full name spelling that broadcasters use.
+- If unsure or data is from a different match, return {{"announced": false}}."""
+
+    data = await _ask_gemini(prompt, grounded=True)
+    if not isinstance(data, dict) or not data.get("announced"):
+        return None
+    xi_a = data.get("xi_a") or []
+    xi_b = data.get("xi_b") or []
+    if len(xi_a) != 11 or len(xi_b) != 11:
+        # Reject partial responses — only persist a confident XI.
+        return None
+
+    payload = {
+        "team_a": data.get("team_a") or "",
+        "team_b": data.get("team_b") or "",
+        "xi_a": xi_a,
+        "xi_b": xi_b,
+    }
+    await redis_set_json(cache_key, payload, ex=300)
+    return payload
+
+
 async def fetch_live_matches_via_gemini(sport: str = "cricket") -> list | None:
     """Ask Gemini for currently live + today's upcoming matches."""
     from app.core.redis import redis_get_json, redis_set_json
