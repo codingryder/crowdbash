@@ -184,7 +184,7 @@ export function ProfilePage() {
   };
 
   return (
-    <main style={{ paddingTop: 60, maxWidth: 500, margin: '0 auto', padding: '80px 16px 40px' }} className="md:!px-8">
+    <main style={{ width: '100%', maxWidth: 500, margin: '0 auto', padding: '80px 16px 40px' }} className="md:!px-8">
       <div className="rounded-2xl p-5 md:p-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
         {/* Avatar + Name */}
         <div className="flex items-center gap-4 mb-6">
