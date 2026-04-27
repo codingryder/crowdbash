@@ -21,5 +21,6 @@ class User(Base):
     total_games = Column(Integer, default=0)
     total_wins = Column(Integer, default=0)
     weightage_balance = Column(Integer, default=0)
+    lifetime_coins = Column(Integer, nullable=False, default=0)
     payment_status = Column(String(20), default="pending")
     created_at = Column(DateTime(timezone=True), server_default=func.now())

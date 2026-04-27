@@ -132,8 +132,10 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
 
     Tie handling: dense ranking by score (e.g. 100, 100, 80 → ranks 1, 1, 3).
     Wins are only awarded if the rank-1 score is > 0 (no one wins a 0-pt game).
+    Top-3 finishers (rank 1/2/3) earn coins (100/50/25) only if score > 0.
     """
     from app.models.user import User
+    from app.models.coin import CoinTransaction
 
     room_uuid = uuid.UUID(room_id) if isinstance(room_id, str) else room_id
 
@@ -160,6 +162,8 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
 
     top_score = sorted_games[0].total_points or 0
     winners = 0
+    coins_awarded = 0
+    coin_payouts = {1: 100, 2: 50, 3: 25}
     for g in games:
         u = users_by_id.get(g.user_id)
         if not u:
@@ -169,4 +173,16 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
             u.total_wins = (u.total_wins or 0) + 1
             winners += 1
 
-    return {"ranked": len(games), "winners": winners}
+        delta = coin_payouts.get(g.rank or 0)
+        if delta and (g.total_points or 0) > 0:
+            u.lifetime_coins = (u.lifetime_coins or 0) + delta
+            db.add(CoinTransaction(
+                user_id=u.id,
+                room_id=room_uuid,
+                delta=delta,
+                reason="top_finish",
+                rank=g.rank,
+            ))
+            coins_awarded += 1
+
+    return {"ranked": len(games), "winners": winners, "coins_awarded": coins_awarded}
