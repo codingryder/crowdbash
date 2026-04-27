@@ -9,6 +9,7 @@ import { CrowdbashRoomPage } from './pages/CrowdbashRoomPage';
 import { LeaderboardPage } from './pages/LeaderboardPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
+import { RewardsPage } from './pages/RewardsPage';
 
 function AppContent() {
   const location = useLocation();
@@ -27,6 +28,7 @@ function AppContent() {
           <Route path="/leaderboard" element={<LeaderboardPage />} />
           <Route path="/leaderboard/:roomId" element={<LeaderboardPage />} />
           <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/rewards" element={<RewardsPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>

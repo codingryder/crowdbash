@@ -1,8 +1,10 @@
 import { Link, useSearchParams, useLocation } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
+import { useCoinBalance } from '../../hooks/useCoins';
 
 export function TopNav() {
   const { user, openAuthModal, logout } = useAuth();
+  const { balance } = useCoinBalance();
   const [searchParams] = useSearchParams();
   const location = useLocation();
 
@@ -60,6 +62,24 @@ export function TopNav() {
         <Link to="/games" className="text-[13px] px-1 no-underline hidden md:block" style={{ color: 'var(--muted)' }}>Games</Link>
         {user ? (
           <>
+            {balance !== null && (
+              <Link
+                to="/rewards"
+                className="flex items-center gap-1 no-underline rounded-full"
+                title="View rewards"
+                style={{
+                  padding: '5px 10px',
+                  background: 'rgba(245,196,49,0.12)',
+                  border: '1px solid rgba(245,196,49,0.3)',
+                  fontSize: 12,
+                  fontWeight: 700,
+                  color: '#f5c431',
+                  fontFamily: "'Cabinet Grotesk', sans-serif",
+                }}
+              >
+                <span style={{ fontSize: 13 }}>🪙</span> {balance}
+              </Link>
+            )}
             <Link to="/profile" className="flex items-center gap-2 no-underline">
               <div className="w-8 h-8 rounded-[8px] flex items-center justify-center text-[10px] font-bold shrink-0" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'rgba(45,214,122,0.12)', color: 'var(--green)' }}>
                 {(user.first_name?.[0] || '').toUpperCase()}{(user.last_name?.[0] || '').toUpperCase()}
