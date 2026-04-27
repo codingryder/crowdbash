@@ -192,6 +192,40 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
               </div>
             )}
 
+            {/* Goal scorers — prominent right below the score */}
+            {isFootball && Array.isArray(scorecard?.events) && (() => {
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const goals = scorecard.events.filter((e: any) => e.is_goal);
+              if (goals.length === 0) return null;
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const homeGoals = goals.filter((g: any) => g.team === 'home');
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const awayGoals = goals.filter((g: any) => g.team === 'away');
+              // eslint-disable-next-line @typescript-eslint/no-explicit-any
+              const renderGoal = (g: any, i: number) => (
+                <div key={i} className="flex items-baseline gap-1.5 text-[12px]" style={{ color: 'var(--text)' }}>
+                  <span style={{ fontSize: 11 }}>⚽</span>
+                  <span style={{ fontWeight: 600 }}>{g.player || 'Goal'}</span>
+                  <span className="text-[10px]" style={{ color: 'var(--muted)' }}>
+                    {g.minute}'{g.is_own_goal ? ' (OG)' : ''}{g.is_penalty ? ' (P)' : ''}
+                  </span>
+                </div>
+              );
+              return (
+                <div className="mb-4 px-4 py-3 rounded-lg" style={{ background: 'rgba(45,214,122,0.04)', border: '1px solid rgba(45,214,122,0.18)' }}>
+                  <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--green)' }}>⚽ Goals</div>
+                  <div className="grid grid-cols-2 gap-3">
+                    <div className="flex flex-col gap-1">
+                      {homeGoals.length > 0 ? homeGoals.map(renderGoal) : <div className="text-[11px]" style={{ color: 'var(--faint)' }}>—</div>}
+                    </div>
+                    <div className="flex flex-col gap-1 items-end text-right">
+                      {awayGoals.length > 0 ? awayGoals.map(renderGoal) : <div className="text-[11px]" style={{ color: 'var(--faint)' }}>—</div>}
+                    </div>
+                  </div>
+                </div>
+              );
+            })()}
+
             {/* Football match info card */}
             {isFootball && (scorecard?.league || scorecard?.venue || scorecard?.kickoff) && (
               <div className="mb-4 px-4 py-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>

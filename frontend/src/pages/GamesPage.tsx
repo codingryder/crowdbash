@@ -14,9 +14,22 @@ interface LiveMatch {
   venue: string;
   match_date: string;
   status: string; // 'live' | 'upcoming'
-  team1: { name: string; score: string };
-  team2: { name: string; score: string };
+  team1: { name: string; score: string; abbr?: string };
+  team2: { name: string; score: string; abbr?: string };
   match_status_text: string;
+}
+
+// Build a 3-letter team abbreviation. Splits on whitespace AND hyphens so
+// "Paris Saint-Germain" → ["Paris","Saint","Germain"] → "PSG", not "PS".
+function teamAbbr(name: string): string {
+  if (!name) return 'TBD';
+  const words = name.split(/[\s-]+/).filter(Boolean);
+  if (words.length >= 3) return words.map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  if (words.length === 2) {
+    const [a, b] = words;
+    return (a[0] + b.slice(0, 2)).toUpperCase();
+  }
+  return words[0].slice(0, 3).toUpperCase();
 }
 
 type Tab = 'cricket' | 'football' | 'rooms';
@@ -357,8 +370,8 @@ export function GamesPage() {
 function MatchCard({ match, onClick }: { match: LiveMatch; onClick: () => void }) {
   const t1 = match.team1.name || 'TBD';
   const t2 = match.team2.name || 'TBD';
-  const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  const a1 = match.team1.abbr || teamAbbr(t1);
+  const a2 = match.team2.abbr || teamAbbr(t2);
   const isLive = match.status === 'live';
   const isCricket = match.sport === 'cricket';
 
@@ -421,8 +434,8 @@ function MatchCard({ match, onClick }: { match: LiveMatch; onClick: () => void }
 /* ── Room Card (for Live Rooms tab) ── */
 function RoomCard({ room }: { room: Room }) {
   const [t1, t2] = splitTeams(room.match_name);
-  const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  const a1 = teamAbbr(t1);
+  const a2 = teamAbbr(t2);
   const isLocked = room.status === 'locked';
   const isOpen = room.status === 'open';
   const isCricket = room.sport === 'cricket';

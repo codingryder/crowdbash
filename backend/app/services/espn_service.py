@@ -439,6 +439,8 @@ def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
     away_name = away_team.get("displayName", "") or away_team.get("name", "")
     home_id = str(home_team.get("id", "") or home_data.get("id", ""))
     away_id = str(away_team.get("id", "") or away_data.get("id", ""))
+    home_abbr = (home_team.get("abbreviation", "") or "").upper()
+    away_abbr = (away_team.get("abbreviation", "") or "").upper()
 
     def _to_int(v):
         try:
@@ -497,8 +499,8 @@ def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
 
     return {
         "id": f"espn_{event.get('id', '')}",
-        "homeTeam": {"name": home_name},
-        "awayTeam": {"name": away_name},
+        "homeTeam": {"name": home_name, "abbreviation": home_abbr},
+        "awayTeam": {"name": away_name, "abbreviation": away_abbr},
         "score": {
             "fullTime": {
                 "home": _to_int(home_data.get("score")),

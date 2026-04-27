@@ -117,10 +117,12 @@ async def get_live_matches():
                         "status": status,
                         "team1": {
                             "name": home.get("name", ""),
+                            "abbr": home.get("abbreviation", ""),
                             "score": str(ft.get("home", "")) if ft.get("home") is not None else "",
                         },
                         "team2": {
                             "name": away.get("name", ""),
+                            "abbr": away.get("abbreviation", ""),
                             "score": str(ft.get("away", "")) if ft.get("away") is not None else "",
                         },
                         "match_status_text": status_raw,
@@ -427,8 +429,12 @@ async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict |
             }
         return None
 
-    home = match.get("homeTeam", {}).get("name", "")
-    away = match.get("awayTeam", {}).get("name", "")
+    home_obj = match.get("homeTeam") or {}
+    away_obj = match.get("awayTeam") or {}
+    home = home_obj.get("name", "")
+    away = away_obj.get("name", "")
+    home_abbr = home_obj.get("abbreviation", "")
+    away_abbr = away_obj.get("abbreviation", "")
     ft = (match.get("score") or {}).get("fullTime", {}) or {}
     is_live = match.get("status") == "IN_PLAY"
     period = match.get("_period", 0) or 0
@@ -440,8 +446,8 @@ async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict |
     return {
         "sport": "football",
         "match_name": match_name or f"{home} vs {away}",
-        "team1": {"name": home, "score": str(ft.get("home", "")) if is_live else "—"},
-        "team2": {"name": away, "score": str(ft.get("away", "")) if is_live else "—"},
+        "team1": {"name": home, "abbr": home_abbr, "score": str(ft.get("home", "")) if is_live else "—"},
+        "team2": {"name": away, "abbr": away_abbr, "score": str(ft.get("away", "")) if is_live else "—"},
         "status": match.get("_status_detail", "") or ("Live" if is_live else "Scheduled"),
         "minute": match.get("_minute", 0),
         "half": 2 if period >= 2 else 1,
