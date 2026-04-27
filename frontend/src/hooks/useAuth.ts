@@ -13,14 +13,46 @@ export function useAuth() {
     } else {
       setLoading(false);
     }
+    // Refetch on visibility/focus so a mobile browser resume after long
+    // backgrounding refreshes user state without forcing the user to reload.
+    const onVisible = () => {
+      if (document.visibilityState === 'visible') {
+        const t = localStorage.getItem('crowdbash_token');
+        if (t && !useAuthStore.getState().user) fetchMe();
+      }
+    };
+    document.addEventListener('visibilitychange', onVisible);
+    window.addEventListener('focus', onVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', onVisible);
+      window.removeEventListener('focus', onVisible);
+    };
   }, []);
 
-  async function fetchMe() {
+  async function fetchMe(retryCount = 0): Promise<void> {
     try {
-      const { data } = await api.get('/api/auth/me');
+      // Longer timeout to absorb Render cold starts (~30-60s on free tier)
+      // — without this, the very first request after the server sleeps would
+      // throw and (previously) wipe the token. Now we retry instead.
+      const { data } = await api.get('/api/auth/me', { timeout: 60000 });
       setUser(data);
-    } catch {
-      localStorage.removeItem('crowdbash_token');
+    } catch (err: unknown) {
+      const status = (err as { response?: { status?: number } })?.response?.status;
+      if (status === 401) {
+        // Token is genuinely invalid/expired — clear it and log the user out.
+        // (The api response interceptor also clears it on 401; this is belt+braces.)
+        localStorage.removeItem('crowdbash_token');
+        setLoading(false);
+        return;
+      }
+      // Network error / timeout / 5xx — DO NOT clear the token. Retry with
+      // backoff. The user keeps their session even if the server is cold-starting.
+      if (retryCount < 3) {
+        await new Promise((r) => setTimeout(r, 3000 * (retryCount + 1)));
+        return fetchMe(retryCount + 1);
+      }
+      // Out of retries — leave token in place so a later page focus / refresh
+      // can recover the session. Just stop showing the loading spinner.
       setLoading(false);
     }
   }
