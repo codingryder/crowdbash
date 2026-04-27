@@ -561,14 +561,18 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
               activeSlot={activeSlot}
             />
 
-            {/* Locked confirmation + Go to room CTA — floating below pitch when team is already locked */}
+            {/* Locked confirmation + Go to room CTA — anchored to the bottom-right
+                on desktop so it doesn't overlap the lower pitch fielders
+                (Padikkal / Salam). Stays clear of the floating power strip,
+                which is vertically centered on the right edge. */}
             {game?.squad_locked && (
               <div style={{
-                position: 'absolute', bottom: 20, left: '50%', transform: 'translateX(-50%)', zIndex: 25,
-                display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 10,
+                position: 'absolute', bottom: 20, right: 24, zIndex: 25,
+                display: 'flex', flexDirection: 'column', alignItems: 'stretch', gap: 10,
                 background: 'rgba(26,27,30,0.95)', backdropFilter: 'blur(8px)',
                 border: '1px solid rgba(45,214,122,0.3)', borderRadius: 14, padding: 14,
                 boxShadow: '0 8px 32px rgba(0,0,0,0.4)',
+                maxWidth: 260,
               }}>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
                   <div style={{ fontSize: 18 }}>🔒</div>
@@ -578,7 +582,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                   onClick={onComplete}
                   style={{
                     background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 12,
-                    padding: '12px 28px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800,
+                    padding: '12px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800,
                     cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
                     boxShadow: '0 8px 24px rgba(45,214,122,0.35)',
                   }}
