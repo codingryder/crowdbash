@@ -43,7 +43,7 @@ export function HomePage() {
           WebkitMaskImage: 'radial-gradient(ellipse 70% 70% at 50% 50%, black 0%, transparent 100%)',
         }} />
 
-        <div className="relative z-10 text-center" style={{ maxWidth: 860 }}>
+        <div className="relative z-10 text-center w-full" style={{ maxWidth: 860 }}>
           <div className="inline-flex items-center gap-2 rounded-full mb-9 animate-fadeup" style={{ background: 'var(--surface)', border: '1px solid var(--border2)', padding: '6px 18px', fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>
             <div className="w-1.5 h-1.5 rounded-full animate-pulse-slow" style={{ background: 'var(--green)' }} />
             India's boldest sports fantasy platform
@@ -68,7 +68,7 @@ export function HomePage() {
             </a>
           </div>
 
-          <div className="flex items-center justify-center gap-3 mt-14 pt-10 animate-fadeup" style={{ borderTop: '1px solid var(--border)', animationDelay: '.45s' }}>
+          <div className="flex flex-wrap items-center justify-center gap-2 mt-14 pt-10 animate-fadeup" style={{ borderTop: '1px solid var(--border)', animationDelay: '.45s' }}>
             <div className="flex items-center gap-2 rounded-full" style={{ background: 'rgba(45,214,122,0.06)', border: '1px solid rgba(45,214,122,0.3)', padding: '8px 18px', fontSize: 13, fontWeight: 600, color: 'var(--green)' }}>
               🏏 Cricket
             </div>
@@ -80,10 +80,10 @@ export function HomePage() {
             </div>
           </div>
 
-          <div className="flex items-center justify-center mt-6 animate-fadeup" style={{ animationDelay: '.5s' }}>
+          <div className="flex flex-wrap items-center justify-center mt-6 animate-fadeup" style={{ animationDelay: '.5s' }}>
             {[{ n: '14K+', l: 'Active players' }, { n: '480+', l: 'Rooms today' }, { n: '2', l: 'Sports live' }, { n: '₹9', l: 'Entry from' }].map((s, i) => (
               <div key={s.l} className="flex items-center">
-                {i > 0 && <div className="mx-8" style={{ width: 1, height: 36, background: 'var(--border)' }} />}
+                {i > 0 && <div className="mx-3 md:mx-8" style={{ width: 1, height: 36, background: 'var(--border)' }} />}
                 <div className="text-center">
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900 }}>{s.n}</div>
                   <div className="text-[11px]" style={{ color: 'var(--muted)', marginTop: 2 }}>{s.l}</div>
