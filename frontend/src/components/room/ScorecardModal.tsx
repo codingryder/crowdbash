@@ -184,13 +184,131 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
             )}
 
             {/* Football-specific info */}
-            {isFootball && scorecard?.minute && (
+            {isFootball && scorecard?.is_live && scorecard?.minute > 0 && (
               <div className="text-center mb-4">
                 <span className="text-[11px] px-3 py-1 rounded-full" style={{ background: 'rgba(239,68,68,0.1)', color: '#ef4444' }}>
                   {scorecard.minute}' {scorecard.half === 2 ? '2nd Half' : '1st Half'}
                 </span>
               </div>
             )}
+
+            {/* Football match info card */}
+            {isFootball && (scorecard?.league || scorecard?.venue || scorecard?.kickoff) && (
+              <div className="mb-4 px-4 py-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--muted)' }}>Match Info</div>
+                <div className="grid grid-cols-1 gap-1.5 text-[12px]">
+                  {scorecard?.league && (
+                    <div className="flex gap-2"><span style={{ color: 'var(--muted)', width: 18 }}>🏆</span><span style={{ color: 'var(--text)' }}>{scorecard.league}</span></div>
+                  )}
+                  {scorecard?.venue && (
+                    <div className="flex gap-2"><span style={{ color: 'var(--muted)', width: 18 }}>🏟️</span><span style={{ color: 'var(--text)' }}>{scorecard.venue}</span></div>
+                  )}
+                  {!scorecard?.is_live && scorecard?.kickoff && (
+                    <div className="flex gap-2"><span style={{ color: 'var(--muted)', width: 18 }}>🕒</span><span style={{ color: 'var(--text)' }}>{new Date(scorecard.kickoff).toLocaleString([], { weekday: 'short', day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}</span></div>
+                  )}
+                  {scorecard?.attendance > 0 && (
+                    <div className="flex gap-2"><span style={{ color: 'var(--muted)', width: 18 }}>👥</span><span style={{ color: 'var(--text)' }}>{scorecard.attendance.toLocaleString()} attending</span></div>
+                  )}
+                  {Array.isArray(scorecard?.broadcasts) && scorecard.broadcasts.length > 0 && (
+                    <div className="flex gap-2"><span style={{ color: 'var(--muted)', width: 18 }}>📺</span><span style={{ color: 'var(--text)' }}>{scorecard.broadcasts.join(', ')}</span></div>
+                  )}
+                </div>
+              </div>
+            )}
+
+            {/* Recent form */}
+            {isFootball && (scorecard?.form?.home || scorecard?.form?.away) && (
+              <div className="mb-4 px-4 py-3 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--muted)' }}>Recent Form</div>
+                <div className="grid grid-cols-2 gap-3">
+                  {(['home', 'away'] as const).map((side) => {
+                    const form = scorecard?.form?.[side] || '';
+                    const teamName = side === 'home' ? team1Name : team2Name;
+                    const record = scorecard?.record?.[side] || '';
+                    return (
+                      <div key={side}>
+                        <div className="text-[11px] mb-1" style={{ color: 'var(--muted)' }}>{teamName}</div>
+                        <div className="flex gap-1 mb-1">
+                          {form.split('').slice(-5).map((c: string, i: number) => (
+                            <span key={i} className="inline-flex items-center justify-center text-[10px] font-bold rounded" style={{
+                              width: 18, height: 18,
+                              background: c === 'W' ? 'rgba(45,214,122,0.15)' : c === 'L' ? 'rgba(239,68,68,0.15)' : 'rgba(245,158,11,0.15)',
+                              color: c === 'W' ? '#2dd67a' : c === 'L' ? '#ef4444' : '#f59e0b',
+                            }}>{c}</span>
+                          ))}
+                        </div>
+                        {record && <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{record}</div>}
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Match events timeline */}
+            {isFootball && Array.isArray(scorecard?.events) && scorecard.events.length > 0 && (
+              <div className="mb-4">
+                <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--muted)' }}>Match Events</div>
+                <div className="rounded-lg overflow-hidden" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                  {/* eslint-disable-next-line @typescript-eslint/no-explicit-any */}
+                  {scorecard.events.map((ev: any, i: number) => {
+                    const icon = ev.is_goal ? (ev.is_own_goal ? '🥅' : '⚽') : ev.is_red ? '🟥' : ev.is_yellow ? '🟨' : '•';
+                    const isHome = ev.team === 'home';
+                    return (
+                      <div key={i} className="flex items-center gap-3 px-3 py-2" style={{ borderBottom: i < scorecard.events.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                        <div className="text-[11px] font-bold" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", color: 'var(--muted)', width: 32 }}>{ev.minute}'</div>
+                        <div style={{ fontSize: 14 }}>{icon}</div>
+                        <div className="flex-1 text-[12px]" style={{ color: 'var(--text)' }}>
+                          <span style={{ fontWeight: ev.is_goal ? 700 : 400 }}>{ev.player || ev.type}</span>
+                          {ev.player && <span className="ml-1.5 text-[10px]" style={{ color: 'var(--muted)' }}>{ev.type}</span>}
+                        </div>
+                        <div className="text-[10px]" style={{ color: 'var(--muted)' }}>{isHome ? team1Name : team2Name}</div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            )}
+
+            {/* Team stats comparison */}
+            {isFootball && (() => {
+              const stats = scorecard?.stats || {};
+              const rows: { label: string; key: string }[] = [
+                { label: 'Possession %', key: 'possessionPct' },
+                { label: 'Shots', key: 'totalShots' },
+                { label: 'On Target', key: 'shotsOnTarget' },
+                { label: 'Corners', key: 'wonCorners' },
+                { label: 'Fouls', key: 'foulsCommitted' },
+              ];
+              const visible = rows.filter(r => stats.home?.[r.key] !== undefined || stats.away?.[r.key] !== undefined);
+              if (visible.length === 0) return null;
+              return (
+                <div className="mb-4">
+                  <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--muted)' }}>Team Stats</div>
+                  <div className="rounded-lg px-4 py-3" style={{ background: 'rgba(255,255,255,0.03)', border: '1px solid var(--border)' }}>
+                    {visible.map(r => {
+                      const h = parseFloat(stats.home?.[r.key] ?? '0') || 0;
+                      const a = parseFloat(stats.away?.[r.key] ?? '0') || 0;
+                      const total = h + a;
+                      const hPct = total > 0 ? (h / total) * 100 : 50;
+                      return (
+                        <div key={r.key} className="mb-2.5 last:mb-0">
+                          <div className="flex justify-between items-center mb-1 text-[11px]">
+                            <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: 'var(--text)' }}>{stats.home?.[r.key] ?? '—'}</span>
+                            <span style={{ color: 'var(--muted)' }}>{r.label}</span>
+                            <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: 'var(--text)' }}>{stats.away?.[r.key] ?? '—'}</span>
+                          </div>
+                          <div className="flex h-1.5 rounded overflow-hidden" style={{ background: 'rgba(255,255,255,0.05)' }}>
+                            <div style={{ width: `${hPct}%`, background: 'var(--green)' }} />
+                            <div style={{ width: `${100 - hPct}%`, background: 'var(--blue)' }} />
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })()}
 
             {/* Detailed innings (cricket with full scorecard) */}
             {hasDetailedInnings && (
@@ -287,11 +405,11 @@ export function ScorecardModal({ roomId, sport, matchId, roomName, onClose }: Sc
               </>
             )}
 
-            {/* No detailed data note */}
-            {!hasDetailedInnings && (
+            {/* No detailed data note (cricket only — football has its own rich sections above) */}
+            {!hasDetailedInnings && !isFootball && (
               <div className="text-center py-4 rounded-lg" style={{ background: 'rgba(255,255,255,0.03)' }}>
                 <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
-                  {isFootball ? '⚽ Live football score' : '📡 Live score summary — detailed scorecard updates during the match'}
+                  📡 Live score summary — detailed scorecard updates during the match
                 </div>
               </div>
             )}

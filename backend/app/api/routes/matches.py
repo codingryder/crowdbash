@@ -409,7 +409,7 @@ async def _get_espn_scorecard(sport: str, event_id: str, match_name: str) -> dic
 
 
 async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict | None:
-    """Build a basic football scorecard from the cached ESPN football match list."""
+    """Build a rich football scorecard from the cached ESPN match list."""
     from app.core.redis import redis_get_json
 
     matches = await redis_get_json("espn:football:all_live") or []
@@ -431,13 +431,41 @@ async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict |
     away = match.get("awayTeam", {}).get("name", "")
     ft = (match.get("score") or {}).get("fullTime", {}) or {}
     is_live = match.get("status") == "IN_PLAY"
+    period = match.get("_period", 0) or 0
+
+    venue = match.get("venue", "")
+    city = match.get("_venue_city", "")
+    venue_full = f"{venue}, {city}" if venue and city else (venue or city)
 
     return {
         "sport": "football",
         "match_name": match_name or f"{home} vs {away}",
         "team1": {"name": home, "score": str(ft.get("home", "")) if is_live else "—"},
         "team2": {"name": away, "score": str(ft.get("away", "")) if is_live else "—"},
-        "status": "Live" if is_live else "Scheduled",
+        "status": match.get("_status_detail", "") or ("Live" if is_live else "Scheduled"),
+        "minute": match.get("_minute", 0),
+        "half": 2 if period >= 2 else 1,
+        "period": period,
+        "is_live": is_live,
+        "league": (match.get("competition") or {}).get("name", ""),
+        "venue": venue_full,
+        "venue_country": match.get("_venue_country", ""),
+        "kickoff": match.get("utcDate", ""),
+        "attendance": match.get("_attendance", 0),
+        "broadcasts": match.get("_broadcasts", []),
+        "events": match.get("_events", []),
+        "stats": {
+            "home": match.get("_home_stats", {}),
+            "away": match.get("_away_stats", {}),
+        },
+        "form": {
+            "home": match.get("_home_form", ""),
+            "away": match.get("_away_form", ""),
+        },
+        "record": {
+            "home": match.get("_home_record", ""),
+            "away": match.get("_away_record", ""),
+        },
         "innings": [],
     }
 

@@ -410,7 +410,7 @@ async def get_espn_live_football_matches() -> list:
 
 
 def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
-    """Convert ESPN soccer event → Football-Data.org-compatible shape."""
+    """Convert ESPN soccer event → Football-Data.org-compatible shape with extras."""
     status_obj = event.get("status", {})
     status_type = status_obj.get("type", {})
     state = status_type.get("state", "pre")  # pre | in | post
@@ -433,14 +433,67 @@ def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
     home_data = next((c for c in competitors if c.get("homeAway") == "home"), competitors[0])
     away_data = next((c for c in competitors if c.get("homeAway") == "away"), competitors[1])
 
-    home_name = home_data.get("team", {}).get("displayName", "") or home_data.get("team", {}).get("name", "")
-    away_name = away_data.get("team", {}).get("displayName", "") or away_data.get("team", {}).get("name", "")
+    home_team = home_data.get("team", {})
+    away_team = away_data.get("team", {})
+    home_name = home_team.get("displayName", "") or home_team.get("name", "")
+    away_name = away_team.get("displayName", "") or away_team.get("name", "")
+    home_id = str(home_team.get("id", "") or home_data.get("id", ""))
+    away_id = str(away_team.get("id", "") or away_data.get("id", ""))
 
     def _to_int(v):
         try:
             return int(v) if v not in (None, "") else 0
         except (ValueError, TypeError):
             return 0
+
+    def _stats_dict(c) -> dict:
+        return {s.get("name", ""): s.get("displayValue", "") for s in c.get("statistics", [])}
+
+    def _record(c) -> str:
+        recs = c.get("records") or []
+        return recs[0].get("summary", "") if recs else ""
+
+    # Key events (goals, cards, etc.) from competition.details
+    key_events = []
+    for det in comp.get("details", []):
+        clock_disp = (det.get("clock") or {}).get("displayValue", "")
+        try:
+            minute = int(clock_disp.rstrip("'+"))
+        except (ValueError, AttributeError):
+            minute = 0
+        athletes = det.get("athletesInvolved") or []
+        player = athletes[0].get("displayName", "").strip() if athletes else ""
+        team_id = str((det.get("team") or {}).get("id", ""))
+        side = "home" if team_id == home_id else "away" if team_id == away_id else ""
+        key_events.append({
+            "minute": minute,
+            "type": (det.get("type") or {}).get("text", ""),
+            "team": side,
+            "player": player,
+            "is_goal": bool(det.get("scoringPlay")),
+            "is_yellow": bool(det.get("yellowCard")),
+            "is_red": bool(det.get("redCard")),
+            "is_own_goal": bool(det.get("ownGoal")),
+            "is_penalty": bool(det.get("penaltyKick")),
+        })
+    key_events.sort(key=lambda e: e["minute"])
+
+    venue_obj = comp.get("venue") or event.get("venue") or {}
+    venue_addr = venue_obj.get("address") or {}
+
+    broadcasts = []
+    for b in comp.get("broadcasts") or []:
+        broadcasts.extend(b.get("names") or [])
+
+    # Status detail like "50'" or "Half Time" or "FT"
+    status_detail = status_type.get("detail") or status_type.get("description") or ""
+    clock_str = status_obj.get("displayClock", "")
+    minute_val = 0
+    if clock_str:
+        try:
+            minute_val = int(clock_str.rstrip("'+"))
+        except (ValueError, AttributeError):
+            minute_val = 0
 
     return {
         "id": f"espn_{event.get('id', '')}",
@@ -455,8 +508,23 @@ def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
         "status": fd_status,
         "competition": {"name": league_name},
         "utcDate": event.get("date", ""),
-        "venue": (comp.get("venue") or {}).get("fullName", ""),
+        "venue": venue_obj.get("fullName", ""),
         "source": "espn",
+        # Rich fields consumed by the scorecard endpoint
+        "_status_detail": status_detail,
+        "_minute": minute_val,
+        "_period": status_obj.get("period", 0),
+        "_attendance": comp.get("attendance", 0),
+        "_broadcasts": broadcasts,
+        "_venue_city": venue_addr.get("city", ""),
+        "_venue_country": venue_addr.get("country", ""),
+        "_events": key_events,
+        "_home_stats": _stats_dict(home_data),
+        "_away_stats": _stats_dict(away_data),
+        "_home_form": home_data.get("form", "") or "",
+        "_away_form": away_data.get("form", "") or "",
+        "_home_record": _record(home_data),
+        "_away_record": _record(away_data),
     }
 
 
