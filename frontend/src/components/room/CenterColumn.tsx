@@ -60,7 +60,12 @@ export function CenterColumn({ onSendChat, room }: CenterColumnProps) {
         {activeTab === 'chat' && <ChatPanel onSendChat={onSendChat} />}
         {activeTab === 'quiz' && <QuizPanel />}
         {activeTab === 'my-team' && <MyTeamTab roomId={room.id} />}
-        {activeTab === 'leaderboard' && <LeaderboardTab roomId={room.id} />}
+        {activeTab === 'leaderboard' && (
+          <LeaderboardTab
+            roomId={room.id}
+            matchStarted={!!room.match_date && new Date(room.match_date) <= new Date()}
+          />
+        )}
       </div>
 
       {activeTab === 'chat' && <ChatInput onSendChat={onSendChat} />}

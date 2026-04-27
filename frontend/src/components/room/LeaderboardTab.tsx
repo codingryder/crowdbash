@@ -33,9 +33,10 @@ interface OpponentPlayer {
 
 interface LeaderboardTabProps {
   roomId: string;
+  matchStarted: boolean;
 }
 
-export function LeaderboardTab({ roomId }: LeaderboardTabProps) {
+export function LeaderboardTab({ roomId, matchStarted }: LeaderboardTabProps) {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [viewTeam, setViewTeam] = useState<{ userId: string; name: string; players: OpponentPlayer[]; totalPoints: number } | null>(null);
@@ -135,8 +136,8 @@ export function LeaderboardTab({ roomId }: LeaderboardTabProps) {
                 {entry.points.toLocaleString()}
               </div>
 
-              {/* View team button */}
-              {!isMe && (
+              {/* View team button — hidden until the match starts */}
+              {!isMe && matchStarted && (
                 <button
                   onClick={() => handleViewTeam(entry)}
                   disabled={teamLoading}

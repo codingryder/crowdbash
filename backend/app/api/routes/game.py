@@ -397,12 +397,14 @@ async def get_user_team(
     user_id: uuid.UUID = Depends(get_current_user_id),
     db: AsyncSession = Depends(get_db),
 ):
-    """View another user's team in the same room. Only visible after room is locked."""
+    """View another user's team in the same room. Only visible after the match start time."""
     room_result = await db.execute(select(Room).where(Room.id == uuid.UUID(room_id)))
     room = room_result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if room.status == "open":
+    match_started = bool(room.match_date and room.match_date <= datetime.now(timezone.utc))
+    # Owner can always view their own team; opponents must wait for match start.
+    if not match_started and str(user_id) != target_user_id:
         raise HTTPException(status_code=403, detail="Teams are hidden until match starts")
 
     game_result = await db.execute(

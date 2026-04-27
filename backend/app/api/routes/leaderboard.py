@@ -5,6 +5,7 @@ from app.core.database import get_db
 from app.models.user import User
 from app.models.room import Room
 from app.models.game import Game, PlayerWeightage
+from datetime import datetime, timezone
 import uuid
 
 router = APIRouter()
@@ -32,6 +33,9 @@ async def get_room_leaderboard(
     if not room:
         return []
     pre_match = room.status == "open"
+    # Strategy/team-composition reveals are gated on match start time, not just
+    # room.status — so opponents can't peek at picks before the first ball.
+    match_started = bool(room.match_date and room.match_date <= datetime.now(timezone.utc))
 
     # Count selected players per game so we can gate on "team built"
     selected_counts_subq = (
@@ -67,25 +71,27 @@ async def get_room_leaderboard(
             or f"Player_{str(user.id)[:6]}"
         )
 
-        # Top 2 weighted players for strategy string
+        # Top 2 weighted players for strategy string. Withheld pre-match so
+        # opponents can't see each other's picks before the first ball.
         strategy = ""
-        try:
-            pw_result = await db.execute(
-                select(PlayerWeightage)
-                .where(
-                    PlayerWeightage.game_id == game.id,
-                    PlayerWeightage.selected == True,
+        if match_started:
+            try:
+                pw_result = await db.execute(
+                    select(PlayerWeightage)
+                    .where(
+                        PlayerWeightage.game_id == game.id,
+                        PlayerWeightage.selected == True,
+                    )
+                    .order_by(PlayerWeightage.weightage.desc())
+                    .limit(2)
                 )
-                .order_by(PlayerWeightage.weightage.desc())
-                .limit(2)
-            )
-            parts = []
-            for p in pw_result.scalars().all():
-                short_name = p.player_name.split()[-1] if p.player_name else "?"
-                parts.append(f"{p.weightage}x {short_name}")
-            strategy = ", ".join(parts)
-        except Exception:
-            pass
+                parts = []
+                for p in pw_result.scalars().all():
+                    short_name = p.player_name.split()[-1] if p.player_name else "?"
+                    parts.append(f"{p.weightage}x {short_name}")
+                strategy = ", ".join(parts)
+            except Exception:
+                pass
 
         enriched.append({
             "user_id": str(user.id),
