@@ -89,11 +89,11 @@ function PastGamesSection({ currentUserId }: { currentUserId: string }) {
               style={{ background: 'transparent', border: 'none', color: 'var(--text)' }}
             >
               <div className="min-w-0 flex-1">
-                <div className="text-[13px] font-semibold truncate flex items-center gap-2">
-                  {g.you_won && <span aria-label="winner" title="You won this game" style={{ color: 'var(--gold)' }}>🏆</span>}
+                <div className="text-[13px] font-semibold truncate">
+                  {g.you_won && <span aria-label="winner" title="You won this game" style={{ color: 'var(--gold)', marginRight: 6 }}>🏆</span>}
                   {g.match_name}
                 </div>
-                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+                <div className="text-[11px] truncate" style={{ color: 'var(--muted)' }}>
                   {[g.league, formatDate(g.completed_at)].filter(Boolean).join(' • ')}
                 </div>
               </div>
