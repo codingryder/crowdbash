@@ -189,17 +189,17 @@ export function ProfilePage() {
         {/* Avatar + Name */}
         <div className="flex items-center gap-4 mb-6">
           <div
-            className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold"
+            className="w-14 h-14 rounded-full flex items-center justify-center text-lg font-bold shrink-0"
             style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'rgba(45,214,122,0.12)', color: 'var(--green)' }}
           >
             {(user.first_name?.[0] || '').toUpperCase()}{(user.last_name?.[0] || '').toUpperCase()}
           </div>
-          <div>
-            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900 }}>
+          <div className="min-w-0 flex-1">
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, overflowWrap: 'anywhere' }}>
               {user.first_name} {user.last_name}
             </div>
-            <div className="text-[12px]" style={{ color: 'var(--muted)' }}>@{user.username}</div>
-            <div className="text-[12px]" style={{ color: 'var(--muted)' }}>{user.email}</div>
+            <div className="text-[12px]" style={{ color: 'var(--muted)', overflowWrap: 'anywhere' }}>@{user.username}</div>
+            <div className="text-[12px]" style={{ color: 'var(--muted)', overflowWrap: 'anywhere' }}>{user.email}</div>
           </div>
         </div>
 
@@ -244,9 +244,9 @@ export function ProfilePage() {
                 { label: 'Email', value: user.email },
                 { label: 'Phone', value: user.phone || 'Not provided' },
               ].map((item) => (
-                <div key={item.label} className="flex justify-between py-2" style={{ borderBottom: '1px solid var(--border)' }}>
-                  <span className="text-[12px]" style={{ color: 'var(--muted)' }}>{item.label}</span>
-                  <span className="text-[13px] font-medium">{item.value}</span>
+                <div key={item.label} className="flex justify-between items-baseline gap-3 py-2" style={{ borderBottom: '1px solid var(--border)' }}>
+                  <span className="text-[12px] shrink-0" style={{ color: 'var(--muted)' }}>{item.label}</span>
+                  <span className="text-[13px] font-medium text-right min-w-0" style={{ overflowWrap: 'anywhere' }}>{item.value}</span>
                 </div>
               ))}
             </div>
