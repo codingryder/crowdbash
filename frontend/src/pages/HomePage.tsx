@@ -81,12 +81,18 @@ export function HomePage() {
           </div>
 
           <div className="flex flex-wrap items-center justify-center mt-6 animate-fadeup" style={{ animationDelay: '.5s' }}>
-            {[{ n: '14K+', l: 'Active players' }, { n: '480+', l: 'Rooms today' }, { n: '2', l: 'Sports live' }, { n: '₹9', l: 'Entry from' }].map((s, i) => (
-              <div key={s.l} className="flex items-center">
-                {i > 0 && <div className="mx-3 md:mx-8" style={{ width: 1, height: 36, background: 'var(--border)' }} />}
+            {[
+              { i: '⚡', t: 'Live reshuffle', s: 'Change power mid-match' },
+              { i: '🎯', t: 'Power mechanic', s: '33 power across 11 players' },
+              { i: '🆓', t: 'Free to play', s: 'No entry fees' },
+              { i: '📡', t: 'Real-time data', s: 'Live ESPN match feeds' },
+            ].map((f, idx) => (
+              <div key={f.t} className="flex items-center">
+                {idx > 0 && <div className="mx-3 md:mx-8" style={{ width: 1, height: 44, background: 'var(--border)' }} />}
                 <div className="text-center">
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900 }}>{s.n}</div>
-                  <div className="text-[11px]" style={{ color: 'var(--muted)', marginTop: 2 }}>{s.l}</div>
+                  <div style={{ fontSize: 24, lineHeight: 1, marginBottom: 6 }}>{f.i}</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{f.t}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--muted)', marginTop: 2 }}>{f.s}</div>
                 </div>
               </div>
             ))}
