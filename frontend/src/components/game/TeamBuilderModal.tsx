@@ -210,6 +210,19 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
     setLoading(true);
     setError('');
     try {
+      // Defensive: if the user changed the XI on step 1 but the swap isn't
+      // reflected in the game's saved player_weightages yet (e.g. they
+      // closed step 1 without going through "Assign Power →"), persist the
+      // current selection before weightages so the squad swap doesn't get
+      // silently dropped. We only call select-squad when there's an actual
+      // diff to avoid an extra round-trip on the common no-swap path.
+      const savedIds = (game?.player_weightages || []).filter(pw => pw.selected).map(pw => pw.player_id).sort();
+      const currentIds = [...selectedPlayerIds].sort();
+      const squadDiffers = savedIds.length !== currentIds.length || savedIds.some((id, i) => id !== currentIds[i]);
+      if (squadDiffers && currentIds.length === 11) {
+        await onSelectSquad(selectedPlayerIds);
+      }
+
       const weightages = Object.entries(powers).map(([pid, w]) => ({ player_id: pid, weightage: w }));
       await onSaveWeightages(weightages);
       if (!game?.squad_locked) await onLockSquad();
@@ -676,7 +689,7 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
     // Match against the canonical key so football's "FW" preset catches
     // ESPN-tagged "FWD" / "ST" / "LW" players, and cricket's "batsman" preset
     // catches "BAT" / "Batter" variants the source data might emit.
-    const matches = (p: { player_role: string }) =>
+    const matches = (p: { player_role?: string }) =>
       isFootball
         ? _footballRoleKey(p.player_role || '') === targetRole
         : _cricketRoleKey(p.player_role || '') === targetRole;
