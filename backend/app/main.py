@@ -578,7 +578,7 @@ async def keep_alive():
         await asyncio.sleep(600)  # 10 minutes
         try:
             async with httpx.AsyncClient() as client:
-                await client.get("https://crowdbash.onrender.com/health", timeout=10)
+                await client.get("https://crowdbash-xf00.onrender.com/health", timeout=10)
         except Exception:
             pass
 
