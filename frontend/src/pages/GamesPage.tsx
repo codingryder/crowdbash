@@ -145,8 +145,21 @@ export function GamesPage() {
   // Active sport for the matches tabs (cricket or football)
   const activeSport: 'cricket' | 'football' = tab === 'football' ? 'football' : 'cricket';
 
-  const filteredLiveMatches = liveMatches.filter(m => m.sport === activeSport);
-  const filteredUpcomingMatches = upcomingMatches.filter(m => m.sport === activeSport);
+  // Live: most-recently kicked-off first (descending). Upcoming: soonest first
+  // (ascending). Sorting upcoming before the per-league cap below keeps the 6
+  // nearest fixtures per league, and makes date groups insert in chronological
+  // order instead of in API order.
+  const matchTime = (m: LiveMatch) => (m.match_date ? new Date(m.match_date).getTime() : 0);
+  const filteredLiveMatches = liveMatches
+    .filter(m => m.sport === activeSport)
+    .sort((a, b) => matchTime(b) - matchTime(a));
+  const filteredUpcomingMatches = upcomingMatches
+    .filter(m => m.sport === activeSport)
+    .sort((a, b) => {
+      const ta = matchTime(a) || Number.POSITIVE_INFINITY;
+      const tb = matchTime(b) || Number.POSITIVE_INFINITY;
+      return ta - tb;
+    });
 
   // Cross-reference live/upcoming matches with admin-created rooms so we can
   // surface a "Join free room" CTA on any match that has a corresponding room.
