@@ -127,7 +127,12 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
   }
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 920, overflowX: 'hidden' }}>
+    // min-w-0 + width:100% are needed because the parent route container is a
+    // flex column. Without them, a flex item's default min-width: auto lets
+    // the wrapper grow to its content's intrinsic min-width (long match names,
+    // wide player rows), spilling ~30px past the viewport on mobile and
+    // visually clipping the right side of every card below.
+    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto min-w-0 w-full" style={{ maxWidth: 920, overflowX: 'hidden', boxSizing: 'border-box' }}>
       {/* Breadcrumb — match_name is long for IPL/Premier League fixtures and
           forces the parent wider than the mobile viewport without flex-wrap +
           min-w-0 on the leaf, so the right edge of every card below it ends
