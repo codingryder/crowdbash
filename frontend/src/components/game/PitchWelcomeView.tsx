@@ -187,10 +187,19 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     setLocking(true); setError('');
     try {
       const playerIds = slots.filter(Boolean).map(p => p!.player_id);
-      await selectSquad(playerIds, { skipRefetch: true });
       const weightages = slots.map((p, i) => p ? { player_id: p.player_id, weightage: powers[i] } : null).filter(Boolean) as Array<{ player_id: string; weightage: number }>;
+      // Reshuffle path (squad already locked, room is live): players can't be
+      // changed — only weightages are redistributed. selectSquad would 400
+      // because room.status === 'locked', and lockSquad would 400 "Already
+      // locked". Save weightages only.
+      const isReshuffle = !!game?.squad_locked;
+      if (!isReshuffle) {
+        await selectSquad(playerIds, { skipRefetch: true });
+      }
       await saveWeightages(weightages, { skipRefetch: true });
-      await lockSquad({ skipRefetch: true });
+      if (!isReshuffle) {
+        await lockSquad({ skipRefetch: true });
+      }
       // Single refetch at the end so the room view sees updated weightages immediately.
       await fetchGameState();
       onComplete();
@@ -302,7 +311,7 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                   padding: isMobile ? '6px 14px' : '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 12 : 13, fontWeight: 800,
                   cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
                 }}>
-                  {locking ? '...' : 'Lock ✓'}
+                  {locking ? '...' : (game?.squad_locked ? 'Save power ✓' : 'Lock ✓')}
                 </button>
               </div>
             </div>
