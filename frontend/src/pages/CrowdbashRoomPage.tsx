@@ -381,12 +381,12 @@ export function CrowdbashRoomPage() {
                     >
                       📊 Score
                     </button>
-                    <ShareRoomButton roomId={room.id} matchName={room.match_name} small />
                     {canEditTeam && game && (
-                      <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 14px', flex: 1.2, justifyContent: 'center' }}>
+                      <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 12px', flex: 1, justifyContent: 'center' }}>
                         Edit XI
                       </button>
                     )}
+                    <ShareRoomButton roomId={room.id} matchName={room.match_name} small />
                   </div>
                 </>
               ) : (

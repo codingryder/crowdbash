@@ -148,6 +148,17 @@ export function GamesPage() {
   const filteredLiveMatches = liveMatches.filter(m => m.sport === activeSport);
   const filteredUpcomingMatches = upcomingMatches.filter(m => m.sport === activeSport);
 
+  // Cross-reference live/upcoming matches with admin-created rooms so we can
+  // surface a "Join free room" CTA on any match that has a corresponding room.
+  // Match by the upstream match_id (e.g. "espn_740932") which is shared
+  // between Match (live scoreboard) and Room (admin-created) records.
+  const roomByMatchId = new Map<string, Room>();
+  for (const r of rooms) {
+    if (r.match_id && (r.status === 'open' || r.status === 'locked')) {
+      roomByMatchId.set(r.match_id, r);
+    }
+  }
+
   // Get unique leagues from upcoming matches
   const upcomingLeagues = [...new Set(filteredUpcomingMatches.map(m => m.league).filter(Boolean))];
 
@@ -300,7 +311,7 @@ export function GamesPage() {
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)', marginBottom: 14 }}>LIVE NOW</div>
                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mb-10">
                   {filteredLiveMatches.map(m => (
-                    <MatchCard key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
+                    <MatchCard key={m.match_id} match={m} matchedRoom={roomByMatchId.get(m.match_id)} onClick={() => setSelectedMatch(m)} />
                   ))}
                 </div>
               </>
@@ -345,7 +356,7 @@ export function GamesPage() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                       {matches.map(m => (
-                        <MatchCard key={m.match_id} match={m} onClick={() => setSelectedMatch(m)} />
+                        <MatchCard key={m.match_id} match={m} matchedRoom={roomByMatchId.get(m.match_id)} onClick={() => setSelectedMatch(m)} />
                       ))}
                     </div>
                   </div>
@@ -414,7 +425,7 @@ export function GamesPage() {
 
 
 /* ── Match Card (for Live Matches tab) ── */
-function MatchCard({ match, onClick }: { match: LiveMatch; onClick: () => void }) {
+function MatchCard({ match, matchedRoom, onClick }: { match: LiveMatch; matchedRoom?: Room; onClick: () => void }) {
   const t1 = match.team1.name || 'TBD';
   const t2 = match.team2.name || 'TBD';
   const isCricket = match.sport === 'cricket';
@@ -422,23 +433,36 @@ function MatchCard({ match, onClick }: { match: LiveMatch; onClick: () => void }
   const a1 = match.team1.abbr || fallbackAbbr(t1);
   const a2 = match.team2.abbr || fallbackAbbr(t2);
   const isLive = match.status === 'live';
+  const hasRoom = !!matchedRoom;
 
   return (
     <div
       onClick={onClick}
       className="block cursor-pointer transition-all hover:-translate-y-1"
-      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}
+      style={{
+        background: hasRoom ? 'rgba(45,214,122,0.04)' : 'var(--surface)',
+        border: hasRoom ? '1px solid rgba(45,214,122,0.4)' : '1px solid var(--border)',
+        borderRadius: 'var(--radius)',
+        overflow: 'hidden',
+      }}
     >
-      <div style={{ padding: '18px 18px 14px', borderBottom: '1px solid var(--border)' }}>
-        <div className="flex items-center justify-between mb-3">
+      <div style={{ padding: '18px 18px 14px', borderBottom: hasRoom ? '1px solid rgba(45,214,122,0.18)' : '1px solid var(--border)' }}>
+        <div className="flex items-center justify-between mb-3 gap-2">
           {isLive ? (
             <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>
           ) : (
             <span className="badge badge-amber" style={{ fontSize: 10 }}>{formatMatchDate(match.match_date)}</span>
           )}
-          <span className="truncate" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', fontFamily: "'Cabinet Grotesk', sans-serif", padding: '3px 8px', borderRadius: 4, maxWidth: 140, color: isCricket ? 'var(--amber)' : 'var(--blue)', background: isCricket ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)' }}>
-            {isCricket ? '🏏' : '⚽'} {(match.match_format || match.league || '').slice(0, 18)}
-          </span>
+          <div className="flex items-center gap-1.5">
+            {hasRoom && (
+              <span style={{ fontSize: 9, fontWeight: 800, letterSpacing: '1px', fontFamily: "'Cabinet Grotesk', sans-serif", padding: '3px 8px', borderRadius: 4, color: 'var(--green)', background: 'rgba(45,214,122,0.12)', border: '1px solid rgba(45,214,122,0.3)' }}>
+                🆓 ROOM OPEN
+              </span>
+            )}
+            <span className="truncate" style={{ fontSize: 9, fontWeight: 700, letterSpacing: '1.5px', fontFamily: "'Cabinet Grotesk', sans-serif", padding: '3px 8px', borderRadius: 4, maxWidth: 140, color: isCricket ? 'var(--amber)' : 'var(--blue)', background: isCricket ? 'rgba(245,158,11,0.08)' : 'rgba(59,130,246,0.08)' }}>
+              {isCricket ? '🏏' : '⚽'} {(match.match_format || match.league || '').slice(0, 18)}
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center justify-between">
@@ -468,11 +492,31 @@ function MatchCard({ match, onClick }: { match: LiveMatch; onClick: () => void }
         )}
       </div>
 
-      <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-        <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{match.league || ''}</div>
-        <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, color: 'var(--text)', opacity: 0.5 }}>
-          {isLive ? 'View Scorecard →' : 'Details →'}
-        </span>
+      <div style={{ padding: '10px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12 }}>
+        <div className="text-[11px] truncate" style={{ color: 'var(--muted)' }}>{match.league || ''}</div>
+        {hasRoom ? (
+          <Link
+            to={`/room/${matchedRoom.id}`}
+            onClick={(e) => e.stopPropagation()}
+            className="no-underline shrink-0"
+            style={{
+              fontFamily: "'Cabinet Grotesk', sans-serif",
+              fontSize: 11,
+              fontWeight: 800,
+              color: '#071a0e',
+              background: 'var(--green)',
+              padding: '6px 12px',
+              borderRadius: 7,
+              letterSpacing: '0.3px',
+            }}
+          >
+            🆓 {matchedRoom.status === 'locked' ? 'Enter room' : 'Join free room'} →
+          </Link>
+        ) : (
+          <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, color: 'var(--text)', opacity: 0.5 }}>
+            {isLive ? 'View Scorecard →' : 'Details →'}
+          </span>
+        )}
       </div>
     </div>
   );
