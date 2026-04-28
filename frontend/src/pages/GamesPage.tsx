@@ -146,20 +146,22 @@ export function GamesPage() {
   const activeSport: 'cricket' | 'football' = tab === 'football' ? 'football' : 'cricket';
 
   // Live: most-recently kicked-off first (descending). Upcoming: soonest first
-  // (ascending). Sorting upcoming before the per-league cap below keeps the 6
-  // nearest fixtures per league, and makes date groups insert in chronological
-  // order instead of in API order.
+  // (ascending), capped at "today + next 3 days" (4 calendar days total) so the
+  // list stays focused on what's imminent. Sorting upcoming before the
+  // per-league cap below keeps the 6 nearest fixtures per league, and makes
+  // date groups insert in chronological order instead of in API order. Live
+  // matches aren't date-windowed because long-format games (e.g. cricket
+  // Tests) can stay live across multiple days.
   const matchTime = (m: LiveMatch) => (m.match_date ? new Date(m.match_date).getTime() : 0);
+  const _todayStart = new Date(); _todayStart.setHours(0, 0, 0, 0);
+  const upcomingCutoff = _todayStart.getTime() + 4 * 24 * 60 * 60 * 1000;
   const filteredLiveMatches = liveMatches
     .filter(m => m.sport === activeSport)
     .sort((a, b) => matchTime(b) - matchTime(a));
   const filteredUpcomingMatches = upcomingMatches
     .filter(m => m.sport === activeSport)
-    .sort((a, b) => {
-      const ta = matchTime(a) || Number.POSITIVE_INFINITY;
-      const tb = matchTime(b) || Number.POSITIVE_INFINITY;
-      return ta - tb;
-    });
+    .filter(m => !!m.match_date && matchTime(m) <= upcomingCutoff)
+    .sort((a, b) => matchTime(a) - matchTime(b));
 
   // Cross-reference live/upcoming matches with admin-created rooms so we can
   // surface a "Join free room" CTA on any match that has a corresponding room.
