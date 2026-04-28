@@ -15,6 +15,7 @@ import { ChatPanel, ChatInput } from '../components/room/ChatPanel';
 import { MyTeamTab } from '../components/room/MyTeamTab';
 import { LeaderboardTab } from '../components/room/LeaderboardTab';
 import { RewardsRoomTab } from '../components/room/RewardsRoomTab';
+import { ShareRoomButton } from '../components/room/ShareRoomButton';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
 import { splitTeams, teamAbbr, cricketAbbr } from '../types';
@@ -277,6 +278,7 @@ export function CrowdbashRoomPage() {
                       📊 Score
                     </button>
                   )}
+                  <ShareRoomButton roomId={room.id} matchName={room.match_name} small={isMobile} />
                   {canEditTeam && game && (
                     <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: isMobile ? 11 : 12, padding: isMobile ? '5px 10px' : '7px 14px' }}>Edit XI</button>
                   )}

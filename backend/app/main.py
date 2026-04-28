@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.websocket import room_manager
 from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, cricket
-from app.api.routes import sports, admin, matches, coins
+from app.api.routes import sports, admin, matches, coins, og
 from app.services.game_service import calculate_and_update_points, finalize_room_results
 from app.services.sport_service import get_adapter
 from app.core.database import AsyncSessionLocal
@@ -32,6 +32,8 @@ app.include_router(sports.router, prefix="/api/sports", tags=["sports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
 app.include_router(coins.router, prefix="/api/coins", tags=["coins"])
+# OG router uses absolute paths (/api/og/... and /share/...) — no prefix.
+app.include_router(og.router, tags=["og"])
 
 
 @app.get("/health")
