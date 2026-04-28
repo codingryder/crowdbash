@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
+import { usePlayingXi } from '../../hooks/usePlayingXi';
 import type { SquadPlayer } from '../../types';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
 
@@ -30,6 +31,7 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
   const selectedPlayerIds = useGameStore((s) => s.selectedPlayerIds);
   const game = useGameStore((s) => s.game);
   const togglePlayer = useGameStore((s) => s.togglePlayer);
+  const { announced: xiAnnounced, isInXi } = usePlayingXi();
 
   const hasSelected = game && game.player_weightages.filter((pw) => pw.selected).length === 11;
   const [step, setStep] = useState<Step>(hasSelected ? 'power' : 'pick');
@@ -251,6 +253,7 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                   const isSelected = selectedPlayerIds.includes(p.player_id);
                   const canAdd = count < 11;
                   const role = ROLE_TAGS[(p.player_role || '').toLowerCase()] || { label: '?', color: 'var(--mu)', bg: 'var(--faint)' };
+                  const isBenched = xiAnnounced && !isInXi(p.player_name);
 
                   return (
                     <button
@@ -260,7 +263,12 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                       className="w-full flex items-center gap-2 rounded-btn mb-1.5 text-left border-none transition-all disabled:opacity-25"
                       style={{
                         background: isSelected ? 'rgba(45,214,122,0.05)' : 'var(--surface)',
-                        border: isSelected ? '1px solid var(--green)' : '1px solid var(--b1)',
+                        border: isBenched
+                          ? '1px solid rgba(240,82,82,0.55)'
+                          : isSelected
+                            ? '1px solid var(--green)'
+                            : '1px solid var(--b1)',
+                        borderLeftWidth: isBenched ? 3 : undefined,
                         padding: '8px 10px',
                       }}
                     >
@@ -276,6 +284,15 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                         </div>
                         <div className="text-[10px]" style={{ color: 'var(--mu)' }}>{p.team}</div>
                       </div>
+                      {isBenched && (
+                        <span
+                          className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
+                          style={{ color: 'var(--red)', background: 'rgba(240,82,82,0.12)' }}
+                          title="Not in announced XI"
+                        >
+                          OUT
+                        </span>
+                      )}
                       <span
                         className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
                         style={{ color: role.color, background: role.bg }}
@@ -297,11 +314,17 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                 {selectedPlayerIds.map((id, i) => {
                   const p = allPlayers.find((x) => x.player_id === id);
                   if (!p) return null;
+                  const isBenched = xiAnnounced && !isInXi(p.player_name);
                   return (
                     <div
                       key={id}
                       className="flex items-center gap-2 rounded-btn px-3 py-2"
-                      style={{ background: 'var(--surface)', border: '1px solid var(--b1)' }}
+                      style={{
+                        background: 'var(--surface)',
+                        border: isBenched ? '1px solid rgba(240,82,82,0.55)' : '1px solid var(--b1)',
+                        borderLeftWidth: isBenched ? 3 : undefined,
+                      }}
+                      title={isBenched ? 'Not in announced XI' : undefined}
                     >
                       <PlayerAvatar
                         name={p.player_name}
@@ -310,7 +333,9 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                         size={28}
                         radius={6}
                       />
-                      <span className="text-[11px] font-medium truncate">{p.player_name.split(' ').pop()}</span>
+                      <span className="text-[11px] font-medium truncate" style={{ color: isBenched ? 'var(--red)' : undefined }}>
+                        {p.player_name.split(' ').pop()}
+                      </span>
                     </div>
                   );
                 })}
@@ -374,13 +399,19 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                 const fillColor = isMax ? 'var(--red)' : isMin ? 'var(--blue)' : 'var(--amber)';
                 const valColor = isMax ? 'var(--red)' : isMin ? 'var(--blue)' : 'var(--amber)';
 
+                const isBenched = xiAnnounced && !isInXi(player.player_name);
                 return (
                   <div
                     key={player.player_id}
                     className="rounded-[11px] px-3.5 py-3 mb-2"
                     style={{
                       background: 'var(--surface)',
-                      border: isMax ? '1px solid rgba(240,82,82,0.25)' : '1px solid var(--b1)',
+                      border: isBenched
+                        ? '1px solid rgba(240,82,82,0.55)'
+                        : isMax
+                          ? '1px solid rgba(240,82,82,0.25)'
+                          : '1px solid var(--b1)',
+                      borderLeftWidth: isBenched ? 3 : undefined,
                     }}
                   >
                     <div className="flex items-center gap-3">
@@ -395,7 +426,18 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
 
                       {/* Info */}
                       <div className="flex-1 min-w-0">
-                        <div className="text-[13px] font-semibold truncate">{player.player_name}</div>
+                        <div className="flex items-center gap-1.5">
+                          <span className="text-[13px] font-semibold truncate">{player.player_name}</span>
+                          {isBenched && (
+                            <span
+                              className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
+                              style={{ color: 'var(--red)', background: 'rgba(240,82,82,0.12)' }}
+                              title="Not in announced XI"
+                            >
+                              NOT IN XI
+                            </span>
+                          )}
+                        </div>
                         <div className="text-[10px]" style={{ color: 'var(--mu)' }}>
                           {player.team} · {player.points_earned > 0 ? `${player.points_earned}pts` : player.player_role || ''}
                         </div>

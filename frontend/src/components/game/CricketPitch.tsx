@@ -1,5 +1,6 @@
 import type { SquadPlayer } from '../../types';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
+import { usePlayingXi } from '../../hooks/usePlayingXi';
 
 interface PosCoord {
   top?: number | string;
@@ -36,6 +37,7 @@ interface CricketPitchProps {
 }
 
 export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick, hint, activeSlot }: CricketPitchProps) {
+  const { announced: xiAnnounced, isInXi } = usePlayingXi();
   return (
     <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', flex: 1 }}>
       {/* Hint text */}
@@ -74,16 +76,33 @@ export function CricketPitch({ slots, powers, selectedPlayer, phase, onSlotClick
           const player = slots[i];
           const hasSel = !!selectedPlayer && phase === 1;
           const filled = !!player;
+          const isBenched = filled && xiAnnounced && !isInXi(player!.player_name);
 
           const style: React.CSSProperties = {
             position: 'absolute', width: 'clamp(48px, 12vw, 64px)', height: 'clamp(48px, 12vw, 64px)', borderRadius: '50%',
-            border: (filled && activeSlot === i) ? '2px solid var(--amber)' : filled ? '1.5px solid rgba(255,255,255,0.1)' : '1.5px dashed rgba(255,255,255,0.11)',
+            border: isBenched
+              ? '2px solid var(--red)'
+              : (filled && activeSlot === i)
+                ? '2px solid var(--amber)'
+                : filled
+                  ? '1.5px solid rgba(255,255,255,0.1)'
+                  : '1.5px dashed rgba(255,255,255,0.11)',
             borderStyle: filled ? 'solid' : 'dashed',
-            boxShadow: (activeSlot === i) ? '0 0 12px rgba(245,158,11,0.3)' : 'none',
+            boxShadow: isBenched
+              ? '0 0 12px rgba(240,82,82,0.35)'
+              : (activeSlot === i)
+                ? '0 0 12px rgba(245,158,11,0.3)'
+                : 'none',
             display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
             cursor: 'pointer', transition: 'all 0.2s', zIndex: 10,
             background: (hasSel && !filled) ? 'rgba(45,214,122,0.08)' : 'transparent',
-            borderColor: (hasSel && !filled) ? 'var(--green)' : filled ? 'rgba(255,255,255,0.1)' : 'rgba(255,255,255,0.11)',
+            borderColor: isBenched
+              ? 'var(--red)'
+              : (hasSel && !filled)
+                ? 'var(--green)'
+                : filled
+                  ? 'rgba(255,255,255,0.1)'
+                  : 'rgba(255,255,255,0.11)',
           };
 
           if (pos.top !== undefined) style.top = typeof pos.top === 'number' ? pos.top : pos.top;

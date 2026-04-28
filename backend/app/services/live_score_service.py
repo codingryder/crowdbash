@@ -204,12 +204,8 @@ async def fetch_announced_xi_via_gemini(match_name: str, sport: str = "cricket")
     if cached:
         return cached
 
-    if sport != "cricket":
-        # Football XIs work the same way conceptually, but skip for now until
-        # we wire in football-side surfaces.
-        return None
-
-    prompt = f"""Has the OFFICIAL playing XI (11 starting players) been announced
+    if sport == "cricket":
+        prompt = f"""Has the OFFICIAL playing XI (11 starting players) been announced
 for this cricket match: {match_name}?
 
 Only return data if the team sheets have been officially confirmed (typically
@@ -232,6 +228,32 @@ Rules:
 - Each xi_a / xi_b array MUST have exactly 11 names.
 - Use the same full name spelling that broadcasters use.
 - If unsure or data is from a different match, return {{"announced": false}}."""
+    elif sport == "football":
+        prompt = f"""Has the OFFICIAL starting XI (11 starting players) been announced
+for this football match: {match_name}?
+
+Only return data once the team sheets have been published — typically ~60
+minutes before kickoff. Do NOT guess based on form, injuries, or past starts.
+
+If confirmed, return ONLY valid JSON:
+{{
+  "announced": true,
+  "team_a": "<Home Team Name>",
+  "team_b": "<Away Team Name>",
+  "xi_a": ["<Full Name>", ... 11 names],
+  "xi_b": ["<Full Name>", ... 11 names]
+}}
+
+If NOT yet announced, return:
+{{"announced": false}}
+
+Rules:
+- Each xi_a / xi_b array MUST have exactly 11 names (the starting XI; substitutes are excluded).
+- Use the standard broadcaster spelling (e.g. "Bukayo Saka", "Heung-Min Son").
+- xi_a is the home side, xi_b is the away side.
+- If unsure, the lineup hasn't dropped yet, or the data refers to a past fixture, return {{"announced": false}}."""
+    else:
+        return None
 
     data = await _ask_gemini(prompt, grounded=True)
     if not isinstance(data, dict) or not data.get("announced"):

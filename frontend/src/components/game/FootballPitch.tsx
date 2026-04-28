@@ -1,4 +1,5 @@
 import type { SquadPlayer } from '../../types';
+import { usePlayingXi } from '../../hooks/usePlayingXi';
 
 const POSITIONS = [
   { key: 'gk', label: 'GK', top: 90, left: 50, role: 'GK' },
@@ -22,6 +23,7 @@ interface FootballPitchProps {
 
 export function FootballPitch({ assignments, allPlayers, onPositionTap }: FootballPitchProps) {
   const playerMap = Object.fromEntries(allPlayers.map(p => [p.player_id, p]));
+  const { announced: xiAnnounced, isInXi } = usePlayingXi();
 
   return (
     <div style={{ position: 'relative', width: '100%', maxWidth: 360, aspectRatio: '0.65 / 1', margin: '0 auto' }}>
@@ -53,6 +55,7 @@ export function FootballPitch({ assignments, allPlayers, onPositionTap }: Footba
         const playerId = assignments[pos.key];
         const player = playerId ? playerMap[playerId] : null;
         const filled = !!player;
+        const isBenched = filled && xiAnnounced && !isInXi(player!.player_name);
         const initials = player
           ? player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
           : '+';
@@ -61,6 +64,7 @@ export function FootballPitch({ assignments, allPlayers, onPositionTap }: Footba
           <button
             key={pos.key}
             onClick={() => onPositionTap(pos.key)}
+            title={isBenched ? 'Not in announced XI' : undefined}
             style={{
               position: 'absolute',
               top: `${pos.top}%`,
@@ -73,19 +77,24 @@ export function FootballPitch({ assignments, allPlayers, onPositionTap }: Footba
             <div style={{
               width: 38, height: 38, borderRadius: '50%',
               display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: filled ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)',
-              border: filled ? '2px solid var(--blue)' : '1.5px dashed rgba(255,255,255,0.15)',
-              color: filled ? 'var(--blue)' : 'var(--muted)',
+              background: isBenched
+                ? 'rgba(240,82,82,0.15)'
+                : filled ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)',
+              border: isBenched
+                ? '2px solid var(--red)'
+                : filled ? '2px solid var(--blue)' : '1.5px dashed rgba(255,255,255,0.15)',
+              color: isBenched ? 'var(--red)' : filled ? 'var(--blue)' : 'var(--muted)',
               fontSize: filled ? 11 : 16,
               fontWeight: 800,
               fontFamily: "'Cabinet Grotesk', sans-serif",
               transition: 'all 0.2s',
+              boxShadow: isBenched ? '0 0 10px rgba(240,82,82,0.3)' : undefined,
             }}>
               {initials}
             </div>
             <div style={{
               fontSize: 8, fontWeight: 600, letterSpacing: '0.5px',
-              color: filled ? 'var(--blue)' : 'var(--muted)',
+              color: isBenched ? 'var(--red)' : filled ? 'var(--blue)' : 'var(--muted)',
               whiteSpace: 'nowrap',
               fontFamily: "'Cabinet Grotesk', sans-serif",
             }}>

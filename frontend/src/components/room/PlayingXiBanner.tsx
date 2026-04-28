@@ -13,14 +13,17 @@ interface PlayingXiBannerProps {
  * Review/Keep buttons. Sticky until the user makes an active choice.
  */
 export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
-  const { bannerVisible, benchedSelected, dismiss } = usePlayingXi();
+  const { bannerVisible, benchedSelected, xi, isInXi, dismiss } = usePlayingXi();
   const isMobile = useIsMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [view, setView] = useState<'benched' | 'full'>('benched');
 
   if (!bannerVisible) return null;
 
   const benchCount = benchedSelected.length;
   const hasBenched = benchCount > 0;
+  // If no one's benched, default the sheet to the Full XI view directly.
+  const activeView: 'benched' | 'full' = hasBenched ? view : 'full';
   const summary = hasBenched
     ? `${benchCount} of your players ${benchCount === 1 ? "isn't" : "aren't"} in the XI`
     : 'All your picks are in the XI';
@@ -151,11 +154,43 @@ export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
               </div>
             </div>
 
+            {/* Toggle: Your benched | Full XI */}
+            {hasBenched && xi && (
+              <div className="flex gap-1 px-5 pt-3" style={{ flexShrink: 0 }}>
+                {([
+                  { key: 'benched' as const, label: `Your bench (${benchCount})`, accent: 'var(--red)' },
+                  { key: 'full' as const, label: `Confirmed XI (${(xi.xi_a?.length || 0) + (xi.xi_b?.length || 0)})`, accent: 'var(--green)' },
+                ]).map(t => {
+                  const active = activeView === t.key;
+                  return (
+                    <button
+                      key={t.key}
+                      onClick={() => setView(t.key)}
+                      style={{
+                        padding: '6px 12px',
+                        borderRadius: 8,
+                        background: active ? 'var(--surface2)' : 'transparent',
+                        color: active ? t.accent : 'var(--muted)',
+                        border: active ? `1px solid ${t.accent}` : '1px solid var(--border)',
+                        fontSize: 11,
+                        fontWeight: 700,
+                        fontFamily: "'Cabinet Grotesk', sans-serif",
+                        letterSpacing: '0.3px',
+                        cursor: 'pointer',
+                      }}
+                    >
+                      {t.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
             {/* Bench list */}
-            {hasBenched && (
+            {hasBenched && activeView === 'benched' && (
               <div className="flex-1 overflow-y-auto px-5 py-2">
                 <div
-                  className="text-[10px] uppercase tracking-[1.5px] mb-2"
+                  className="text-[10px] uppercase tracking-[1.5px] mb-2 mt-1"
                   style={{ color: 'var(--muted)', fontWeight: 700 }}
                 >
                   Not in XI
@@ -193,6 +228,44 @@ export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
                     </span>
                   </div>
                 ))}
+              </div>
+            )}
+
+            {/* Full XI view — both teams' announced 11s */}
+            {activeView === 'full' && xi && (
+              <div className="flex-1 overflow-y-auto px-5 py-3">
+                <div className="grid gap-4" style={{ gridTemplateColumns: isMobile ? '1fr' : '1fr 1fr' }}>
+                  {([
+                    { name: xi.team_a, players: xi.xi_a || [] },
+                    { name: xi.team_b, players: xi.xi_b || [] },
+                  ]).map(team => (
+                    <div key={team.name} className="rounded-lg" style={{ border: '1px solid var(--border)', background: 'var(--surface2)' }}>
+                      <div className="px-3 py-2" style={{ borderBottom: '1px solid var(--border)', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 800, color: 'var(--text)' }}>
+                        {team.name}
+                        <span className="ml-2 text-[10px]" style={{ color: 'var(--muted)', fontWeight: 600 }}>{team.players.length} starting</span>
+                      </div>
+                      <div className="px-3 py-2">
+                        {team.players.map((player, i) => {
+                          const picked = isInXi(player); // always true for Full XI; we instead check if user selected this player
+                          // Mark with check if THIS specific player is in the user's selected squad
+                          // (read from the room/game store via benchedSelected? Cleanest: just rely on visual list).
+                          void picked;
+                          return (
+                            <div key={`${player}-${i}`} className="flex items-center gap-2 py-1.5" style={{ borderBottom: i < team.players.length - 1 ? '1px solid var(--border)' : 'none' }}>
+                              <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, color: 'var(--muted)', width: 18, fontWeight: 700, textAlign: 'right' }}>{i + 1}</span>
+                              <span className="text-[12px] truncate" style={{ color: 'var(--text)', fontWeight: 500 }}>{player}</span>
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {!hasBenched && (
+                  <div className="text-[11px] mt-3 text-center" style={{ color: 'var(--green)' }}>
+                    All your selected picks are in the XI. No changes needed.
+                  </div>
+                )}
               </div>
             )}
 
