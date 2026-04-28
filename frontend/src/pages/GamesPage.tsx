@@ -19,6 +19,77 @@ interface LiveMatch {
   match_status_text: string;
 }
 
+/**
+ * Match loader: a ball bouncing across the page with a soft shadow and
+ * shimmering skeleton cards underneath. Cricket tab gets a 🏏, football
+ * gets a ⚽, rooms get a 🏟️.
+ */
+function MatchLoader({ kind }: { kind: 'cricket' | 'football' | 'rooms' }) {
+  const ball = kind === 'football' ? '⚽' : kind === 'cricket' ? '🏏' : '🏟️';
+  const label = kind === 'rooms' ? 'Loading rooms' : `Loading ${kind} matches`;
+  const accent = kind === 'football' ? 'var(--blue)' : kind === 'cricket' ? 'var(--amber)' : 'var(--green)';
+  return (
+    <div className="flex flex-col items-center justify-center pt-8 pb-10">
+      {/* Ball + shadow */}
+      <div style={{ position: 'relative', width: 240, height: 80, marginBottom: 14 }}>
+        <div
+          style={{
+            position: 'absolute', left: '50%', top: 8,
+            fontSize: 36, lineHeight: 1, marginLeft: -18,
+            animation: 'ballbounce 1.4s cubic-bezier(.5,.05,.5,.95) infinite',
+            willChange: 'transform',
+            filter: `drop-shadow(0 6px 14px ${accent === 'var(--amber)' ? 'rgba(245,158,11,0.35)' : accent === 'var(--blue)' ? 'rgba(59,130,246,0.35)' : 'rgba(45,214,122,0.35)'})`,
+          }}
+        >
+          {ball}
+        </div>
+        <div
+          style={{
+            position: 'absolute', left: '50%', bottom: 6,
+            width: 36, height: 6, borderRadius: '50%', marginLeft: -18,
+            background: 'radial-gradient(ellipse at center, rgba(0,0,0,0.45) 0%, transparent 70%)',
+            animation: 'ballshadow 1.4s cubic-bezier(.5,.05,.5,.95) infinite',
+            willChange: 'transform, opacity',
+          }}
+        />
+      </div>
+
+      {/* Label + animated dots */}
+      <div className="flex items-center gap-2">
+        <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, letterSpacing: '0.5px', color: 'var(--text)' }}>
+          {label}
+        </span>
+        <span className="flex gap-0.5" style={{ color: accent, fontSize: 16, lineHeight: 1 }}>
+          <span style={{ animation: 'dotpulse 1.2s infinite', animationDelay: '0s' }}>•</span>
+          <span style={{ animation: 'dotpulse 1.2s infinite', animationDelay: '0.18s' }}>•</span>
+          <span style={{ animation: 'dotpulse 1.2s infinite', animationDelay: '0.36s' }}>•</span>
+        </span>
+      </div>
+      <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>Pulling live scores from the source</div>
+
+      {/* Shimmering skeleton cards */}
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 mt-6 w-full">
+        {[0, 1, 2, 3, 4, 5].map(i => (
+          <div
+            key={i}
+            className="rounded-[14px] relative overflow-hidden"
+            style={{ background: 'var(--surface)', border: '1px solid var(--border)', height: 160 }}
+          >
+            <div
+              style={{
+                position: 'absolute', inset: 0,
+                background: 'linear-gradient(90deg, transparent 0%, rgba(255,255,255,0.04) 50%, transparent 100%)',
+                animation: `shimmer 1.8s ${i * 0.15}s infinite`,
+                willChange: 'transform',
+              }}
+            />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 // Build a 3-letter team abbreviation. Splits on whitespace AND hyphens so
 // "Paris Saint-Germain" → ["Paris","Saint","Germain"] → "PSG", not "PS".
 function teamAbbr(name: string): string {
@@ -234,13 +305,7 @@ export function GamesPage() {
         {/* ── TAB 1 & 2: CRICKET / FOOTBALL MATCHES ── */}
         {(tab === 'cricket' || tab === 'football') && (
           <>
-            {matchesLoading && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="animate-pulse rounded-[14px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', height: 160 }} />
-                ))}
-              </div>
-            )}
+            {matchesLoading && <MatchLoader kind={activeSport} />}
 
             {!matchesLoading && filteredLiveMatches.length > 0 && (
               <>
@@ -313,13 +378,7 @@ export function GamesPage() {
         {/* ── TAB 3: LIVE ROOMS ── */}
         {tab === 'rooms' && (
           <>
-            {roomsLoading && (
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
-                {[1, 2, 3].map(i => (
-                  <div key={i} className="animate-pulse rounded-[14px]" style={{ background: 'var(--surface)', border: '1px solid var(--border)', height: 180 }} />
-                ))}
-              </div>
-            )}
+            {roomsLoading && <MatchLoader kind="rooms" />}
 
             {!roomsLoading && liveRooms.length > 0 && (
               <>

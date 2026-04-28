@@ -54,6 +54,29 @@ input { font-family: 'Instrument Sans', sans-serif; }
 @keyframes fadeup { from{opacity:0;transform:translateY(14px)} to{opacity:1;transform:translateY(0)} }
 @keyframes fadein { from{opacity:0} to{opacity:1} }
 
+/* Match-loader: ball bouncing across with rotation. Used on Games page. */
+@keyframes ballbounce {
+  0%   { transform: translateX(-110px) translateY(0) rotate(0deg); }
+  25%  { transform: translateX(-55px) translateY(-26px) rotate(180deg); }
+  50%  { transform: translateX(0) translateY(0) rotate(360deg); }
+  75%  { transform: translateX(55px) translateY(-26px) rotate(540deg); }
+  100% { transform: translateX(110px) translateY(0) rotate(720deg); }
+}
+@keyframes ballshadow {
+  0%,100% { transform: translateX(-110px) scaleX(1); opacity: .35; }
+  25%     { transform: translateX(-55px) scaleX(.55); opacity: .15; }
+  50%     { transform: translateX(0) scaleX(1); opacity: .35; }
+  75%     { transform: translateX(55px) scaleX(.55); opacity: .15; }
+}
+@keyframes shimmer {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(100%); }
+}
+@keyframes dotpulse {
+  0%, 80%, 100% { opacity: .25; transform: scale(0.85); }
+  40% { opacity: 1; transform: scale(1.1); }
+}
+
 .animate-pulse-slow { animation: pulse 1.4s ease-in-out infinite; }
 .animate-fadeup { animation: fadeup 0.5s ease both; }
 .animate-blink { animation: pulse 1s infinite; }
