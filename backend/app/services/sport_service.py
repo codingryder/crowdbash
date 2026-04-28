@@ -21,11 +21,22 @@ class SportAdapter(ABC):
         ...
 
     @abstractmethod
-    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
+    def calculate_player_points(
+        self,
+        player_id: str,
+        match_data: dict,
+        weightage: int,
+        player_name: str = "",
+        player_role: str = "",
+        player_team: str = "",
+    ) -> tuple[int, dict]:
         """
         Calculate points for a player.
         Returns (total_points, scoring_breakdown).
         scoring_breakdown is sport-specific: {"runs": 45} or {"goals": 2, "assists": 1}
+
+        player_role / player_team are used by some sports (e.g. football for
+        the clean-sheet bonus on DEF / GK). Cricket ignores them.
         """
         ...
 

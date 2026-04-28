@@ -159,7 +159,7 @@ export function HomePage() {
           {/* Sport-specific scoring footnote */}
           <div className="mt-8 text-[12px]" style={{ color: 'var(--muted)', maxWidth: 720, lineHeight: 1.6 }}>
             {howItWorksSport === 'cricket' ? (
-              <><span style={{ color: 'var(--text)', fontWeight: 700 }}>Scoring:</span> 1pt/run · 4pt/four · 6pt/six + milestones (50/100). Bowling: 25pt/wicket · 10pt/maiden. Fielding: 10pt/catch · 15pt/stumping. Your score = fantasy points × power.</>
+              <><span style={{ color: 'var(--text)', fontWeight: 700 }}>Scoring:</span> +1 per run · +4 boundary bonus on every four · +6 on every six (so a four = 8 pts, a six = 12). Milestones: +25 at 50, +50 at 100. Duck: −5. Bowling: +25/wicket · +10/maiden · +25 for a 3-wicket haul · +50 for 5+. Fielding: +10/catch · +15/stumping · +10/run-out. Your contribution = (fantasy points × power).</>
             ) : (
               <><span style={{ color: 'var(--text)', fontWeight: 700 }}>Scoring:</span> 6pt/goal · 3pt/assist · 4pt/clean sheet (DEF/GK) · 1pt/match played. Cards: −1 yellow, −3 red. Own goal: −2. Your score = fantasy points × power.</>
             )}

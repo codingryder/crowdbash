@@ -142,7 +142,7 @@ class FootballAdapter(SportAdapter):
             print(f"Gemini football squad error: {e}")
         return []
 
-    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
+    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "", player_role: str = "", player_team: str = "") -> tuple[int, dict]:
         breakdown: Dict[str, int] = {}
         raw_points = 0
 
@@ -150,6 +150,7 @@ class FootballAdapter(SportAdapter):
         bookings = match_data.get("bookings", [])
 
         goals = assists = own_goals = yellow_cards = red_cards = 0
+        clean_sheet = False
 
         for goal in goals_list:
             scorer = goal.get("scorer", {})
@@ -175,11 +176,33 @@ class FootballAdapter(SportAdapter):
                 if card == "YELLOW": yellow_cards += 1
                 elif card in ("RED", "YELLOW_RED"): red_cards += 1
 
+# Clean-sheet bonus for DEF / GK whose team conceded zero. Only meaningful
+        # once the match has finished — for in-progress games the running
+        # score is what we have, so we only award once status indicates done.
+        role_norm = (player_role or "").upper()
+        is_back_line = role_norm in ("GK", "DEF", "DEFENDER", "GOALKEEPER")
+        match_status = (match_data.get("status") or "").upper()
+        match_finished = match_status in ("FINISHED", "AWARDED") or bool(match_data.get("matchEnded"))
+        if is_back_line and player_team and match_finished:
+            score = match_data.get("score") or {}
+            full_time = score.get("fullTime") if isinstance(score, dict) else None
+            home_goals = (full_time or {}).get("home")
+            away_goals = (full_time or {}).get("away")
+            home_team = (match_data.get("homeTeam") or {}).get("name", "")
+            away_team = (match_data.get("awayTeam") or {}).get("name", "")
+            pt = player_team.strip().lower()
+            if home_goals is not None and away_goals is not None:
+                if pt and pt == home_team.strip().lower() and int(away_goals) == 0:
+                    clean_sheet = True
+                elif pt and pt == away_team.strip().lower() and int(home_goals) == 0:
+                    clean_sheet = True
+
         if goals > 0: raw_points += goals * POINTS_GOAL; breakdown["goals"] = goals
         if assists > 0: raw_points += assists * POINTS_ASSIST; breakdown["assists"] = assists
         if own_goals > 0: raw_points += own_goals * POINTS_OWN_GOAL; breakdown["own_goals"] = own_goals
         if yellow_cards > 0: raw_points += yellow_cards * POINTS_YELLOW_CARD; breakdown["yellow_cards"] = yellow_cards
         if red_cards > 0: raw_points += red_cards * POINTS_RED_CARD; breakdown["red_cards"] = red_cards
+        if clean_sheet: raw_points += POINTS_CLEAN_SHEET; breakdown["clean_sheet"] = 1
         if red_cards == 0: raw_points += POINTS_MINUTES_PLAYED; breakdown["minutes_bonus"] = 1
 
         total = raw_points * weightage

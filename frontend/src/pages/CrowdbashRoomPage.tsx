@@ -21,6 +21,101 @@ import type { ScoreData, Sport, CricketScoreData } from '../types';
 import { splitTeams, teamAbbr, cricketAbbr } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
 
+// ── How to Play rules per sport ────────────────────────────────────────────
+// Mirrors backend scoring in cricket_service.py and football_service.py.
+// Keep these in sync when scoring constants change.
+
+const CRICKET_RULES = [
+  {
+    icon: '🎯',
+    title: 'Pick 11 Players',
+    desc: 'Build your fantasy XI from both teams. Role caps apply: max 6 batters, max 3 all-rounders, max 5 bowlers, and at least 1 wicket-keeper.',
+  },
+  {
+    icon: '⚡',
+    title: 'Assign Power (33 pts)',
+    desc: 'Distribute 33 power points across your 11 players. Min 1×, max 6× per player. Higher power = more points when that player performs.',
+  },
+  {
+    icon: '🏏',
+    title: 'Batting Points',
+    desc: '+1 per run · +4 boundary bonus on every four (so a four = 4 runs + 4 = 8 pts) · +6 boundary bonus on every six (so a six = 6 + 6 = 12 pts). Milestones: +25 for 50 runs, +50 for 100+ (does not stack with the 50). Duck out for 0 = −5.',
+  },
+  {
+    icon: '🎯',
+    title: 'Bowling Points',
+    desc: '+25 per wicket · +10 per maiden over. Hauls: +25 for 3 wickets, +50 for 5+ (does not stack with the 3-wicket bonus).',
+  },
+  {
+    icon: '🧤',
+    title: 'Fielding Points',
+    desc: '+10 per catch · +15 per stumping · +10 per run-out.',
+  },
+  {
+    icon: '🔒',
+    title: 'Lock & Play',
+    desc: "Lock your XI before the match starts. Once the match begins, late arrivals can chat and follow the score in spectator mode but can't join the game.",
+  },
+  {
+    icon: '🔄',
+    title: 'Power Reshuffle',
+    desc: 'A 5-minute reshuffle window opens three times per match: after 10 overs of the 1st innings, at the innings break, and after 10 overs of the 2nd innings. You can only change power, not players. Changes are blind.',
+  },
+  {
+    icon: '🏆',
+    title: 'Win',
+    desc: 'Each player\'s contribution = (their fantasy points × power you assigned). Highest total at the end of the match wins. Points update live.',
+  },
+];
+
+const FOOTBALL_RULES = [
+  {
+    icon: '🎯',
+    title: 'Pick 11 Players',
+    desc: 'Build your fantasy XI from both teams across the four positions: 1 GK, 3–5 DEF, 3–5 MID, 1–3 FWD. Real lineups load before kickoff.',
+  },
+  {
+    icon: '⚡',
+    title: 'Assign Power (33 pts)',
+    desc: 'Distribute 33 power points across your 11 players. Min 1×, max 6× per player. Higher power = more points when that player performs.',
+  },
+  {
+    icon: '⚽',
+    title: 'Attacking Points',
+    desc: '+6 per goal · +3 per assist. Own goal: −2.',
+  },
+  {
+    icon: '🛡️',
+    title: 'Defensive Points',
+    desc: '+4 clean sheet (defenders & goalkeepers only — awarded if your player\'s team concedes 0 goals).',
+  },
+  {
+    icon: '🟨',
+    title: 'Cards',
+    desc: 'Yellow card: −1 · Red card: −3 (or yellow-into-red).',
+  },
+  {
+    icon: '🏃',
+    title: 'Played Bonus',
+    desc: '+1 base per match for every player who didn\'t pick up a red card.',
+  },
+  {
+    icon: '🔒',
+    title: 'Lock & Play',
+    desc: "Lock your XI before kickoff. Once the match begins, late arrivals can spectate but can't join the game.",
+  },
+  {
+    icon: '🔄',
+    title: 'Power Reshuffle',
+    desc: 'A blind reshuffle window opens at half-time. You can change power, not players. Changes are hidden until the second half kicks off.',
+  },
+  {
+    icon: '🏆',
+    title: 'Win',
+    desc: 'Each player\'s contribution = (their fantasy points × power you assigned). Highest total at full-time wins. Points update live.',
+  },
+];
+
 export function CrowdbashRoomPage() {
   const { roomId } = useParams<{ roomId: string }>();
   const { room, loading } = useRoom(roomId);
@@ -416,14 +511,7 @@ export function CrowdbashRoomPage() {
                 <div style={{ padding: '20px 24px' }}>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 16 }}>How to Play</div>
                   <div className="space-y-4">
-                    {[
-                      { icon: '🎯', title: 'Pick 11 Players', desc: 'Build your fantasy XI from both teams. Role caps apply: max 6 batters, max 3 all-rounders, max 5 bowlers, and at least 1 wicket-keeper.' },
-                      { icon: '⚡', title: 'Assign Power (33 pts)', desc: 'Distribute 33 power points across your 11 players. Min 1x, max 6x per player. Higher power = more points when that player performs.' },
-                      { icon: '🏏', title: 'Scoring', desc: 'Batting: 1pt/run + 4pt/four + 6pt/six + milestones. Bowling: 25pt/wicket + 10pt/maiden. Fielding: 10pt/catch + 15pt/stumping. Your score = fantasy points × power.' },
-                      { icon: '🔒', title: 'Lock & Play', desc: 'Lock your XI before the match starts. Once the match begins, late arrivals can chat and follow the score in spectator mode but can\'t join the game.' },
-                      { icon: '🔄', title: 'Power Reshuffle', desc: 'A 5-minute reshuffle window opens three times per match: after 10 overs of the 1st innings, at the innings break (end of 1st innings), and after 10 overs of the 2nd innings. You can only change power, not players. Changes are blind.' },
-                      { icon: '🏆', title: 'Win', desc: 'The player with the highest total points at the end of the match wins. Points update live as the match progresses.' },
-                    ].map((rule, i) => (
+                    {(room.sport === 'football' ? FOOTBALL_RULES : CRICKET_RULES).map((rule, i) => (
                       <div key={i} className="flex gap-3" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: '14px 16px' }}>
                         <div style={{ fontSize: 20, flexShrink: 0, marginTop: 2 }}>{rule.icon}</div>
                         <div>

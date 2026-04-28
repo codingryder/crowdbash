@@ -197,8 +197,9 @@ class CricketAdapter(SportAdapter):
             return True
         return False
 
-    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "") -> tuple[int, dict]:
-        """Full fantasy scoring for cricket."""
+    def calculate_player_points(self, player_id: str, match_data: dict, weightage: int, player_name: str = "", player_role: str = "", player_team: str = "") -> tuple[int, dict]:
+        """Full fantasy scoring for cricket. role/team args are unused (football needs them for clean-sheet)."""
+        del player_role, player_team  # cricket doesn't use these
         breakdown: dict = {}
         fantasy_pts = 0
 
