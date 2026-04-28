@@ -1,0 +1,9 @@
+User-agent: *
+Allow: /
+
+Disallow: /admin
+Disallow: /profile
+Disallow: /rewards
+Disallow: /share/
+
+Sitemap: https://crowdbash.codingryder.com/sitemap.xml

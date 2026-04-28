@@ -4,6 +4,7 @@ import api from '../lib/api';
 import type { Room } from '../types';
 import { formatMatchDate } from '../types';
 import { MatchSummaryCard } from '../components/room/MatchSummaryCard';
+import { useSeo } from '../hooks/useSeo';
 
 export function LeaguePage() {
   const { leagueName } = useParams<{ leagueName: string }>();
@@ -11,6 +12,16 @@ export function LeaguePage() {
   const [loading, setLoading] = useState(true);
 
   const decodedLeague = decodeURIComponent(leagueName || '');
+
+  useSeo({
+    title: decodedLeague
+      ? `${decodedLeague} fantasy — live matches & leaderboard | Crowdbash`
+      : 'Fantasy league | Crowdbash',
+    description: decodedLeague
+      ? `Free-to-play fantasy ${decodedLeague}. Pick your squad, assign power, reshuffle live across every match in the league.`
+      : 'Free-to-play fantasy leagues across cricket and football.',
+    path: `/league/${encodeURIComponent(decodedLeague)}`,
+  });
 
   useEffect(() => {
     async function fetchRooms() {

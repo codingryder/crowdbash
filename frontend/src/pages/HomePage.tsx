@@ -3,11 +3,40 @@ import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
 import { formatMatchDate, splitTeams, teamAbbr, cricketAbbr } from '../types';
+import { useSeo } from '../hooks/useSeo';
 
 export function HomePage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [_loading, setLoading] = useState(true);
   const [howItWorksSport, setHowItWorksSport] = useState<'cricket' | 'football'>('cricket');
+
+  useSeo({
+    title: 'Crowdbash — Free fantasy cricket & football leagues, live power reshuffles',
+    description:
+      'Free-to-play fantasy cricket and fantasy football. Pick your squad, assign power to every player, and reshuffle live as the match unfolds. Join the league for free.',
+    path: '/',
+    jsonLd: [
+      {
+        '@context': 'https://schema.org',
+        '@type': 'Organization',
+        name: 'Crowdbash',
+        url: 'https://crowdbash.codingryder.com',
+        logo: 'https://crowdbash.codingryder.com/og.png',
+        sameAs: [],
+      },
+      {
+        '@context': 'https://schema.org',
+        '@type': 'WebSite',
+        name: 'Crowdbash',
+        url: 'https://crowdbash.codingryder.com',
+        potentialAction: {
+          '@type': 'SearchAction',
+          target: 'https://crowdbash.codingryder.com/games?q={search_term_string}',
+          'query-input': 'required name=search_term_string',
+        },
+      },
+    ],
+  });
 
   useEffect(() => {
     async function fetchData(retry = 0) {

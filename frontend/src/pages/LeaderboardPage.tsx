@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { useParams, Link } from 'react-router-dom';
 import api from '../lib/api';
 import { useAuth } from '../hooks/useAuth';
+import { useSeo } from '../hooks/useSeo';
 
 interface LeaderboardEntry {
   user_id: string;
@@ -35,6 +36,16 @@ export function LeaderboardPage() {
   const [entries, setEntries] = useState<LeaderboardEntry[]>([]);
   const [room, setRoom] = useState<RoomInfo | null>(null);
   const [loading, setLoading] = useState(true);
+
+  useSeo({
+    title: room?.match_name
+      ? `${room.match_name} fantasy leaderboard | Crowdbash`
+      : 'Fantasy leaderboard | Crowdbash',
+    description: room?.match_name
+      ? `Live fantasy leaderboard for ${room.match_name}. See who's leading the squad-power game.`
+      : 'Live fantasy leaderboards across cricket and football matches on Crowdbash.',
+    path: roomId ? `/leaderboard/${roomId}` : '/leaderboard',
+  });
 
   useEffect(() => {
     if (!roomId) { setLoading(false); return; }

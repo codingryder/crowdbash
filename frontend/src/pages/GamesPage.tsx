@@ -4,6 +4,7 @@ import api from '../lib/api';
 import type { Room } from '../types';
 import { formatMatchDate, splitTeams, teamAbbr, cricketAbbr } from '../types';
 import { ScorecardModal } from '../components/room/ScorecardModal';
+import { useSeo } from '../hooks/useSeo';
 
 interface LiveMatch {
   match_id: string;
@@ -144,6 +145,22 @@ export function GamesPage() {
 
   // Active sport for the matches tabs (cricket or football)
   const activeSport: 'cricket' | 'football' = tab === 'football' ? 'football' : 'cricket';
+
+  useSeo({
+    title:
+      tab === 'football'
+        ? 'Live & upcoming fantasy football matches | Crowdbash'
+        : tab === 'rooms'
+          ? 'Free fantasy rooms — cricket & football leagues | Crowdbash'
+          : 'Live & upcoming fantasy cricket matches | Crowdbash',
+    description:
+      tab === 'football'
+        ? 'Browse live and upcoming fantasy football matches across the Premier League, La Liga, Champions League and more. Pick your squad and play free.'
+        : tab === 'rooms'
+          ? 'Open fantasy rooms across cricket and football leagues. Free-to-play, skill-based, with live power reshuffles during the match.'
+          : 'Browse live and upcoming fantasy cricket matches across the IPL, T20, ODI and Test cricket. Pick your squad and play free.',
+    path: tab === 'football' ? '/games?sport=football' : tab === 'cricket' ? '/games?sport=cricket' : '/games',
+  });
 
   // Live: most-recently kicked-off first (descending). Upcoming: soonest first
   // (ascending), capped at "today + next 3 days" (4 calendar days total) so the

@@ -1,6 +1,7 @@
 {
   "rewrites": [
     { "source": "/share/(.*)", "destination": "https://crowdbash-xf00.onrender.com/share/$1" },
+    { "source": "/sitemap.xml", "destination": "https://crowdbash-xf00.onrender.com/sitemap.xml" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }

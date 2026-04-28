@@ -20,6 +20,7 @@ import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
 import { splitTeams, teamAbbr, cricketAbbr } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
+import { useSeo } from '../hooks/useSeo';
 
 // ── How to Play rules per sport ────────────────────────────────────────────
 // Mirrors backend scoring in cricket_service.py and football_service.py.
@@ -142,6 +143,46 @@ export function CrowdbashRoomPage() {
 
   const sport: Sport = room?.sport || 'cricket';
   void game?.player_weightages; // used by MyTeamTab via gameStore
+
+  // ── SEO: per-match title, description, and SportsEvent JSON-LD so Google
+  // can render rich match cards. Hook must run on every render (before the
+  // loading early-return below), so room===null is guarded inside.
+  const _seoJsonLd = useMemo(() => {
+    if (!room) return undefined;
+    const [team1, team2] = splitTeams(room.match_name);
+    const eventStatus =
+      room.status === 'open'
+        ? 'https://schema.org/EventScheduled'
+        : room.status === 'locked'
+          ? 'https://schema.org/EventInProgress'
+          : undefined;
+    return {
+      '@context': 'https://schema.org',
+      '@type': 'SportsEvent',
+      name: room.match_name,
+      description: `Free-to-play fantasy game for ${room.match_name}.`,
+      sport: sport === 'cricket' ? 'Cricket' : 'Soccer',
+      url: `https://crowdbash.codingryder.com/room/${room.id}`,
+      ...(room.match_date ? { startDate: room.match_date } : {}),
+      ...(room.venue ? { location: { '@type': 'Place', name: room.venue } } : {}),
+      ...(room.league ? { organizer: { '@type': 'Organization', name: room.league } } : {}),
+      ...(eventStatus ? { eventStatus } : {}),
+      competitor: [
+        { '@type': 'SportsTeam', name: team1 || 'Team 1' },
+        { '@type': 'SportsTeam', name: team2 || 'Team 2' },
+      ],
+    };
+  }, [room, sport]);
+  useSeo({
+    title: room
+      ? `${room.match_name} fantasy — ${room.league || (sport === 'cricket' ? 'cricket' : 'football')} | Crowdbash`
+      : undefined,
+    description: room
+      ? `Free fantasy game for ${room.match_name}${room.league ? ' (' + room.league + ')' : ''}. Pick your XI, assign power, reshuffle live as the match unfolds.`
+      : undefined,
+    path: roomId ? `/room/${roomId}` : undefined,
+    jsonLd: _seoJsonLd,
+  });
 
   // Chat unread badge: count messages from other users that arrived
   // since the last time this user had the Chat tab open.

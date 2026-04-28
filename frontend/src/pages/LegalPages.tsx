@@ -1,4 +1,5 @@
 import { Link } from 'react-router-dom';
+import { useSeo } from '../hooks/useSeo';
 
 /**
  * Legal pages — Terms of Service and Privacy Policy.
@@ -53,6 +54,12 @@ const H2_STYLE: React.CSSProperties = {
 const EFFECTIVE_DATE = 'April 2026';
 
 export function TermsPage() {
+  useSeo({
+    title: 'Terms of Service | Crowdbash',
+    description:
+      'Crowdbash Terms of Service — free-to-play, skill-based fantasy sports platform. Eligibility, conduct, and platform rules.',
+    path: '/terms',
+  });
   return (
     <div style={PAGE_STYLE}>
       <div style={CONTAINER}>
@@ -170,6 +177,12 @@ export function TermsPage() {
 }
 
 export function PrivacyPage() {
+  useSeo({
+    title: 'Privacy Policy | Crowdbash',
+    description:
+      'How Crowdbash collects, uses, and protects your data. Free-to-play fantasy sports platform privacy practices.',
+    path: '/privacy',
+  });
   return (
     <div style={PAGE_STYLE}>
       <div style={CONTAINER}>
