@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { CricketPitch } from './CricketPitch';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
 import { useGameStore } from '../../store/gameStore';
@@ -87,6 +87,46 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   const pickCount = slots.filter(Boolean).length;
   const totalUsed = powers.reduce((s, v, i) => slots[i] ? s + v : s, 0);
   const isBalanced = totalUsed === TOTAL_B;
+
+  // ── Reshuffle auto-save ────────────────────────────────────────────────
+  // The banner promises "auto-locks when time is up", and users' power
+  // edits live entirely in local React state — so when the window expires
+  // and PitchWelcomeView unmounts (because canEditTeam flips false), we
+  // need to persist their current valid weightages on the way out.
+  //
+  // Refs hold the latest powers/slots so the unmount cleanup reads them at
+  // unmount time rather than the values captured when the effect ran. We
+  // distinguish window-expiry unmounts (editWindowOpen === false, save) from
+  // user-initiated exits like "Back to room" (editWindowOpen still true,
+  // skip — they didn't lock, presumed intentional discard).
+  const powersRef = useRef(powers);
+  const slotsRef = useRef(slots);
+  const saveWeightagesRef = useRef(saveWeightages);
+  useEffect(() => { powersRef.current = powers; }, [powers]);
+  useEffect(() => { slotsRef.current = slots; }, [slots]);
+  useEffect(() => { saveWeightagesRef.current = saveWeightages; }, [saveWeightages]);
+
+  useEffect(() => {
+    return () => {
+      const state = useGameStore.getState();
+      if (state.editWindowOpen) return; // user-initiated exit while window still open
+      if (!state.game?.squad_locked) return; // not a reshuffle session
+      const currentSlots = slotsRef.current;
+      const currentPowers = powersRef.current;
+      const filled = currentSlots.filter(Boolean).length;
+      const total = currentSlots.reduce((acc, slot, i) => slot ? acc + currentPowers[i] : acc, 0);
+      if (filled !== 11 || total !== TOTAL_B) return;
+      const weightages = currentSlots
+        .map((p, i) => p ? { player_id: p.player_id, weightage: currentPowers[i] } : null)
+        .filter(Boolean) as Array<{ player_id: string; weightage: number }>;
+      // Don't pass skipRefetch — let it refetch into the gameStore so the
+      // room view that takes over from PitchWelcomeView shows the new
+      // weightages immediately. fetchGameState only writes to Zustand,
+      // safe to fire after this component unmounts.
+      saveWeightagesRef.current(weightages)
+        .catch((e: unknown) => console.error('Reshuffle auto-save failed', e));
+    };
+  }, []);
 
   // Role composition counts — desktop uses slots, mobile step 1 uses mobileSelected
   const roleCounts: Record<RoleKey, number> = { BAT: 0, AR: 0, BOWL: 0, WK: 0 };
