@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { usePlayingXi } from '../../hooks/usePlayingXi';
-import type { SquadPlayer } from '../../types';
+import type { Sport, SquadPlayer } from '../../types';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
 
 const TOTAL_POWER = 33;
@@ -11,22 +11,32 @@ const DEFAULT_POWER = 3;
 
 type Step = 'pick' | 'power' | 'locked';
 
-const ROLE_TAGS: Record<string, { label: string; color: string; bg: string }> = {
+// Cricket role display tags. Football has its own map below.
+const CRICKET_ROLE_TAGS: Record<string, { label: string; color: string; bg: string }> = {
   batsman: { label: 'BAT', color: 'var(--green)', bg: 'rgba(45,214,122,0.1)' },
   bowler: { label: 'BOWL', color: 'var(--purple)', bg: 'rgba(139,92,246,0.1)' },
   'all-rounder': { label: 'AR', color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)' },
   'wicket-keeper': { label: 'WK', color: 'var(--mu)', bg: 'rgba(192,194,200,0.08)' },
 };
 
+const FOOTBALL_ROLE_TAGS: Record<string, { label: string; color: string; bg: string }> = {
+  GK: { label: 'GK', color: 'var(--red)', bg: 'rgba(240,82,82,0.1)' },
+  DEF: { label: 'DEF', color: 'var(--blue)', bg: 'rgba(59,130,246,0.1)' },
+  MID: { label: 'MID', color: 'var(--amber)', bg: 'rgba(245,158,11,0.1)' },
+  FW: { label: 'FW', color: 'var(--green)', bg: 'rgba(45,214,122,0.1)' },
+};
+
 interface Props {
   roomName: string;
+  sport: Sport;
   onSelectSquad: (ids: string[]) => Promise<void>;
   onSaveWeightages: (w: Array<{ player_id: string; weightage: number }>) => Promise<void>;
   onLockSquad: () => Promise<void>;
   onClose: () => void;
 }
 
-export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWeightages, onLockSquad, onClose }: Props) {
+export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, onSaveWeightages, onLockSquad, onClose }: Props) {
+  const isFootball = sport === 'football';
   const availableSquads = useGameStore((s) => s.availableSquads);
   const selectedPlayerIds = useGameStore((s) => s.selectedPlayerIds);
   const game = useGameStore((s) => s.game);
@@ -61,10 +71,18 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
   // now the client showed nothing until the user hit "Assign Power →" and
   // got back an after-the-fact toast. Compute the same checks here so the
   // user sees the constraints live.
-  const ROLE_CAP_VALUES = { batsman: 6, 'all-rounder': 3, bowler: 5 } as const;
+  // Cricket caps mirror backend ROLE_CAPS: max-6 BAT / max-3 AR / max-5 BOWL,
+  // min-1 WK. Football caps mirror FOOTBALL_ROLE_CAPS: 1 GK, 3-5 DEF/MID, 1-3 FW.
+  const CRICKET_CAP_VALUES = { batsman: 6, 'all-rounder': 3, bowler: 5 } as const;
   const MIN_WK = 1;
+  const FOOTBALL_CAP_RANGES = {
+    GK: [1, 1],
+    DEF: [3, 5],
+    MID: [3, 5],
+    FW: [1, 3],
+  } as const;
 
-  function _roleKey(role: string): 'batsman' | 'all-rounder' | 'bowler' | 'wicket-keeper' | 'unknown' {
+  function _cricketRoleKey(role: string): 'batsman' | 'all-rounder' | 'bowler' | 'wicket-keeper' | 'unknown' {
     const r = (role || '').toLowerCase();
     if (r.includes('keep') || r === 'wk') return 'wicket-keeper';
     if (r.includes('all')) return 'all-rounder';
@@ -73,26 +91,57 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
     return 'unknown';
   }
 
-  const roleCounts: Record<string, number> = { batsman: 0, 'all-rounder': 0, bowler: 0, 'wicket-keeper': 0, unknown: 0 };
+  function _footballRoleKey(role: string): 'GK' | 'DEF' | 'MID' | 'FW' | 'unknown' {
+    const r = (role || '').toUpperCase().trim();
+    if (!r) return 'unknown';
+    if (r === 'GK' || r === 'G' || r.includes('GOAL') || r.includes('KEEPER')) return 'GK';
+    if (['DEF', 'D', 'DF', 'CB', 'LB', 'RB', 'LWB', 'RWB'].includes(r) || r.includes('DEFEN') || r.includes('BACK')) return 'DEF';
+    if (['MID', 'M', 'MF', 'CM', 'CDM', 'CAM', 'LM', 'RM'].includes(r) || r.includes('MID')) return 'MID';
+    if (['FW', 'F', 'FWD', 'ST', 'CF', 'LW', 'RW'].includes(r) || r.includes('FORW') || r.includes('ATTACK') || r.includes('STRIK') || r.includes('WING')) return 'FW';
+    return 'unknown';
+  }
+
+  // Initialise an empty roleCounts object whose keys depend on the sport so
+  // chip rendering and cap checks below can use the same indexer.
+  const roleCounts: Record<string, number> = isFootball
+    ? { GK: 0, DEF: 0, MID: 0, FW: 0, unknown: 0 }
+    : { batsman: 0, 'all-rounder': 0, bowler: 0, 'wicket-keeper': 0, unknown: 0 };
   for (const pid of selectedPlayerIds) {
     const p = allPlayers.find(x => x.player_id === pid);
-    roleCounts[_roleKey(p?.player_role || '')]++;
+    const key = isFootball ? _footballRoleKey(p?.player_role || '') : _cricketRoleKey(p?.player_role || '');
+    roleCounts[key]++;
   }
 
   // Build a single, actionable error message — first violation wins, same
   // ordering as the backend so the message matches what the API would say.
   let compositionError: string | null = null;
   if (count === 11) {
-    if (roleCounts.batsman > ROLE_CAP_VALUES.batsman) compositionError = `Too many batters: max ${ROLE_CAP_VALUES.batsman} allowed.`;
-    else if (roleCounts['all-rounder'] > ROLE_CAP_VALUES['all-rounder']) compositionError = `Too many all-rounders: max ${ROLE_CAP_VALUES['all-rounder']} allowed.`;
-    else if (roleCounts.bowler > ROLE_CAP_VALUES.bowler) compositionError = `Too many bowlers: max ${ROLE_CAP_VALUES.bowler} allowed.`;
-    else if (roleCounts['wicket-keeper'] < MIN_WK) compositionError = `Pick at least ${MIN_WK} wicket-keeper.`;
+    if (isFootball) {
+      const labels: Record<string, string> = { GK: 'goalkeeper', DEF: 'defender', MID: 'midfielder', FW: 'forward' };
+      for (const role of ['GK', 'DEF', 'MID', 'FW'] as const) {
+        const [lo, hi] = FOOTBALL_CAP_RANGES[role];
+        const c = roleCounts[role] || 0;
+        if (c < lo) { compositionError = `Pick at least ${lo} ${lo === 1 ? labels[role] : labels[role] + 's'}.`; break; }
+        if (c > hi) { compositionError = `Too many ${labels[role]}s: max ${hi} allowed.`; break; }
+      }
+      if (!compositionError && roleCounts.unknown > 0) compositionError = `${roleCounts.unknown} player(s) have unrecognised positions.`;
+    } else {
+      if (roleCounts.batsman > CRICKET_CAP_VALUES.batsman) compositionError = `Too many batters: max ${CRICKET_CAP_VALUES.batsman} allowed.`;
+      else if (roleCounts['all-rounder'] > CRICKET_CAP_VALUES['all-rounder']) compositionError = `Too many all-rounders: max ${CRICKET_CAP_VALUES['all-rounder']} allowed.`;
+      else if (roleCounts.bowler > CRICKET_CAP_VALUES.bowler) compositionError = `Too many bowlers: max ${CRICKET_CAP_VALUES.bowler} allowed.`;
+      else if (roleCounts['wicket-keeper'] < MIN_WK) compositionError = `Pick at least ${MIN_WK} wicket-keeper.`;
+    }
   }
   const compositionValid = compositionError === null;
 
-  // Filter for bench
+  // Filter for bench — sport-aware so the role filter pills match whatever
+  // sport this room is, and the comparison goes through the canonical key
+  // function (so e.g. ESPN-tagged "FWD" still matches the "FW" filter).
   const filteredPlayers = allPlayers.filter((p) => {
-    if (roleFilter !== 'all' && (p.player_role || '').toLowerCase() !== roleFilter) return false;
+    if (roleFilter !== 'all') {
+      const k = isFootball ? _footballRoleKey(p.player_role || '') : _cricketRoleKey(p.player_role || '');
+      if (k !== roleFilter) return false;
+    }
     if (search && !p.player_name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -180,27 +229,45 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
         style={{ borderBottom: '1px solid var(--b1)', background: 'var(--bg2)' }}
       >
         <div className="flex items-center gap-0">
-          {['Pick your 11', 'Assign power', 'Lock in'].map((label, i) => (
-            <div key={label} className="flex items-center">
-              {i > 0 && <span className="text-[13px] mx-1" style={{ color: 'var(--faint)' }}>›</span>}
-              <div
-                className="flex items-center gap-1.5 px-3 text-[12px] font-semibold"
-                style={{ color: step === ['pick', 'power', 'locked'][i] ? 'var(--green)' : 'var(--mu)' }}
-              >
-                <div
-                  className="w-5 h-5 rounded-full flex items-center justify-center font-cabinet text-[9px] font-extrabold shrink-0"
+          {['Pick your 11', 'Assign power', 'Lock in'].map((label, i) => {
+            const stepKey = ['pick', 'power', 'locked'][i];
+            const isActive = step === stepKey;
+            // Allow clicking back from "Assign power" → "Pick your 11" so the
+            // user can swap a player who's no longer in the announced XI
+            // (e.g. Vitinha / Davies tagged NOT IN XI) without closing the
+            // modal. Forward jumps stay disabled — those go through their
+            // normal Confirm/Lock buttons.
+            const canClick = step === 'power' && stepKey === 'pick';
+            return (
+              <div key={label} className="flex items-center">
+                {i > 0 && <span className="text-[13px] mx-1" style={{ color: 'var(--faint)' }}>›</span>}
+                <button
+                  type="button"
+                  onClick={canClick ? () => setStep('pick') : undefined}
+                  disabled={!canClick && !isActive}
+                  className="flex items-center gap-1.5 px-3 text-[12px] font-semibold border-none bg-transparent"
                   style={{
-                    border: step === ['pick', 'power', 'locked'][i] ? 'none' : '1.5px solid currentColor',
-                    background: step === ['pick', 'power', 'locked'][i] ? 'var(--green)' : 'transparent',
-                    color: step === ['pick', 'power', 'locked'][i] ? '#071a0e' : 'inherit',
+                    color: isActive ? 'var(--green)' : 'var(--mu)',
+                    cursor: canClick ? 'pointer' : 'default',
+                    textDecoration: canClick ? 'underline dotted' : 'none',
+                    textUnderlineOffset: 4,
                   }}
                 >
-                  {i + 1}
-                </div>
-                <span className="hidden md:inline">{label}</span>
+                  <div
+                    className="w-5 h-5 rounded-full flex items-center justify-center font-cabinet text-[9px] font-extrabold shrink-0"
+                    style={{
+                      border: isActive ? 'none' : '1.5px solid currentColor',
+                      background: isActive ? 'var(--green)' : 'transparent',
+                      color: isActive ? '#071a0e' : 'inherit',
+                    }}
+                  >
+                    {i + 1}
+                  </div>
+                  <span className="hidden md:inline">{label}</span>
+                </button>
               </div>
-            </div>
-          ))}
+            );
+          })}
         </div>
         <div className="flex items-center gap-3">
           <div className="text-[12px]" style={{ color: 'var(--mu)' }}>
@@ -244,12 +311,21 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
       {step === 'pick' && (
         <div className="flex items-center gap-2 flex-wrap px-4 md:px-6 py-2 shrink-0" style={{ borderBottom: '1px solid var(--b1)', background: 'var(--bg2)' }}>
           <span className="text-[10px] uppercase tracking-[1px]" style={{ color: 'var(--mu)' }}>Squad mix:</span>
-          {([
-            { role: 'wicket-keeper', label: 'WK', current: roleCounts['wicket-keeper'], rule: `min ${MIN_WK}`, ok: roleCounts['wicket-keeper'] >= MIN_WK },
-            { role: 'batsman', label: 'BAT', current: roleCounts.batsman, rule: `max ${ROLE_CAP_VALUES.batsman}`, ok: roleCounts.batsman <= ROLE_CAP_VALUES.batsman },
-            { role: 'all-rounder', label: 'AR', current: roleCounts['all-rounder'], rule: `max ${ROLE_CAP_VALUES['all-rounder']}`, ok: roleCounts['all-rounder'] <= ROLE_CAP_VALUES['all-rounder'] },
-            { role: 'bowler', label: 'BOWL', current: roleCounts.bowler, rule: `max ${ROLE_CAP_VALUES.bowler}`, ok: roleCounts.bowler <= ROLE_CAP_VALUES.bowler },
-          ]).map(c => (
+          {(isFootball
+            ? (['GK', 'DEF', 'MID', 'FW'] as const).map(role => {
+                const [lo, hi] = FOOTBALL_CAP_RANGES[role];
+                const current = roleCounts[role] || 0;
+                const rule = lo === hi ? `${lo}` : `${lo}-${hi}`;
+                const ok = current >= lo && current <= hi;
+                return { role, label: role, current, rule, ok };
+              })
+            : [
+                { role: 'wicket-keeper', label: 'WK', current: roleCounts['wicket-keeper'], rule: `min ${MIN_WK}`, ok: roleCounts['wicket-keeper'] >= MIN_WK },
+                { role: 'batsman', label: 'BAT', current: roleCounts.batsman, rule: `max ${CRICKET_CAP_VALUES.batsman}`, ok: roleCounts.batsman <= CRICKET_CAP_VALUES.batsman },
+                { role: 'all-rounder', label: 'AR', current: roleCounts['all-rounder'], rule: `max ${CRICKET_CAP_VALUES['all-rounder']}`, ok: roleCounts['all-rounder'] <= CRICKET_CAP_VALUES['all-rounder'] },
+                { role: 'bowler', label: 'BOWL', current: roleCounts.bowler, rule: `max ${CRICKET_CAP_VALUES.bowler}`, ok: roleCounts.bowler <= CRICKET_CAP_VALUES.bowler },
+              ]
+          ).map(c => (
             <div
               key={c.role}
               className="flex items-center gap-1 rounded-[6px] px-2 py-1 text-[10px] font-bold"
@@ -295,15 +371,24 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                   style={{ background: 'var(--surface)', border: '1px solid var(--b1)', color: 'var(--tx)' }}
                 />
               </div>
-              {/* Role tabs */}
+              {/* Role tabs — sport-aware. */}
               <div className="flex gap-1 px-4 pb-2 shrink-0 flex-wrap">
-                {[
-                  { key: 'all', label: 'All' },
-                  { key: 'batsman', label: 'Bat' },
-                  { key: 'bowler', label: 'Bowl' },
-                  { key: 'all-rounder', label: 'AR' },
-                  { key: 'wicket-keeper', label: 'WK' },
-                ].map((r) => (
+                {(isFootball
+                  ? [
+                      { key: 'all', label: 'All' },
+                      { key: 'GK', label: 'GK' },
+                      { key: 'DEF', label: 'DEF' },
+                      { key: 'MID', label: 'MID' },
+                      { key: 'FW', label: 'FW' },
+                    ]
+                  : [
+                      { key: 'all', label: 'All' },
+                      { key: 'batsman', label: 'Bat' },
+                      { key: 'bowler', label: 'Bowl' },
+                      { key: 'all-rounder', label: 'AR' },
+                      { key: 'wicket-keeper', label: 'WK' },
+                    ]
+                ).map((r) => (
                   <button
                     key={r.key}
                     onClick={() => setRoleFilter(r.key)}
@@ -323,7 +408,11 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
                 {filteredPlayers.map((p) => {
                   const isSelected = selectedPlayerIds.includes(p.player_id);
                   const canAdd = count < 11;
-                  const role = ROLE_TAGS[(p.player_role || '').toLowerCase()] || { label: '?', color: 'var(--mu)', bg: 'var(--faint)' };
+                  const k = isFootball
+                    ? _footballRoleKey(p.player_role || '')
+                    : _cricketRoleKey(p.player_role || '');
+                  const tagMap = isFootball ? FOOTBALL_ROLE_TAGS : CRICKET_ROLE_TAGS;
+                  const role = tagMap[k] || { label: '?', color: 'var(--mu)', bg: 'var(--faint)' };
                   const isBenched = xiAnnounced && !isInXi(p.player_name);
 
                   return (
@@ -441,14 +530,23 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
               </div>
             </div>
 
-            {/* Presets */}
+            {/* Presets — sport-aware: cricket gets Batters/Bowlers/AR,
+                football gets Defence/Midfield/Attack. */}
             <div className="flex gap-1.5 px-6 py-2 shrink-0 flex-wrap" style={{ borderBottom: '1px solid var(--b1)' }}>
-              {[
-                { key: 'reset', label: '⚖️ Reset', action: () => { const u: Record<string, number> = {}; selectedPlayers.forEach((p) => { u[p.player_id] = DEFAULT_POWER; }); setPowers(u); } },
-                { key: 'bat', label: '🏏 Batters', action: () => applyPreset('batsman') },
-                { key: 'bowl', label: '🎯 Bowlers', action: () => applyPreset('bowler') },
-                { key: 'ar', label: '⚡ All-rounders', action: () => applyPreset('all-rounder') },
-              ].map((p) => (
+              {(isFootball
+                ? [
+                    { key: 'reset', label: '⚖️ Reset', action: () => { const u: Record<string, number> = {}; selectedPlayers.forEach((p) => { u[p.player_id] = DEFAULT_POWER; }); setPowers(u); } },
+                    { key: 'def', label: '🛡️ Defence', action: () => applyPreset('DEF') },
+                    { key: 'mid', label: '🎯 Midfield', action: () => applyPreset('MID') },
+                    { key: 'att', label: '⚡ Attack', action: () => applyPreset('FW') },
+                  ]
+                : [
+                    { key: 'reset', label: '⚖️ Reset', action: () => { const u: Record<string, number> = {}; selectedPlayers.forEach((p) => { u[p.player_id] = DEFAULT_POWER; }); setPowers(u); } },
+                    { key: 'bat', label: '🏏 Batters', action: () => applyPreset('batsman') },
+                    { key: 'bowl', label: '🎯 Bowlers', action: () => applyPreset('bowler') },
+                    { key: 'ar', label: '⚡ All-rounders', action: () => applyPreset('all-rounder') },
+                  ]
+              ).map((p) => (
                 <button
                   key={p.key}
                   onClick={p.action}
@@ -575,8 +673,15 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
   function applyPreset(targetRole: string) {
     const updated: Record<string, number> = {};
     const players = selectedPlayers;
-    const targets = players.filter((p) => (p.player_role || '').toLowerCase() === targetRole);
-    const others = players.filter((p) => (p.player_role || '').toLowerCase() !== targetRole);
+    // Match against the canonical key so football's "FW" preset catches
+    // ESPN-tagged "FWD" / "ST" / "LW" players, and cricket's "batsman" preset
+    // catches "BAT" / "Batter" variants the source data might emit.
+    const matches = (p: { player_role: string }) =>
+      isFootball
+        ? _footballRoleKey(p.player_role || '') === targetRole
+        : _cricketRoleKey(p.player_role || '') === targetRole;
+    const targets = players.filter(matches);
+    const others = players.filter((p) => !matches(p));
 
     // Set everyone to min
     players.forEach((p) => { updated[p.player_id] = MIN_POWER; });

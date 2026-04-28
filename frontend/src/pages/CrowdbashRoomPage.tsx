@@ -365,6 +365,7 @@ export function CrowdbashRoomPage() {
       {showTeamBuilder && (
         <TeamBuilderModal
           roomName={room.match_name}
+          sport={sport}
           onSelectSquad={selectSquad}
           onSaveWeightages={saveWeightages}
           onLockSquad={lockSquad}
