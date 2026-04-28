@@ -14,15 +14,11 @@ api.interceptors.request.use((config) => {
   return config;
 });
 
-// Handle 401 responses — clear token
-api.interceptors.response.use(
-  (response) => response,
-  (error) => {
-    if (error.response?.status === 401) {
-      localStorage.removeItem('crowdbash_token');
-    }
-    return Promise.reject(error);
-  }
-);
+// Intentionally NO global 401 → token-clear handler.
+// A transient 401 from a polling endpoint (live scorecard every 15s,
+// leaderboard every 30s) used to silently wipe the session and force a
+// fresh OTP login mid-match. Token validity is now decided in one place:
+// useAuth.fetchMe(), which calls /api/auth/me on mount + tab focus and
+// only clears the token when *that* specific endpoint returns 401.
 
 export default api;
