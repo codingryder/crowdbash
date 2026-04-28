@@ -106,11 +106,16 @@ def _validate_football_composition(roles: list[str]) -> str | None:
 
 
 # Late-join windows: allow team building after match starts for specific rooms.
-# Map of room_id -> { "max_innings": int, "max_over": float }
-# Window is open while current innings <= max_innings AND current over < max_over.
+# Map of room_id -> sport-specific config:
+#   cricket: {"sport": "cricket", "max_innings": int, "max_over": float}
+#     window open while innings <= max_innings AND over < max_over
+#   football: {"sport": "football", "max_minute": float}
+#     window open while in-game minute < max_minute (45 = until half-time)
 LATE_JOIN_ROOMS: dict[str, dict] = {
     # RR v SRH (one-off): allow joining and team building up to over 10 of innings 1
-    "1b07c88d-6547-43f5-a72c-254864b0689d": {"max_innings": 1, "max_over": 10.0},
+    "1b07c88d-6547-43f5-a72c-254864b0689d": {"sport": "cricket", "max_innings": 1, "max_over": 10.0},
+    # PSG v Bayern (one-off): allow joining and team building until half-time.
+    "582582aa-9e64-40c3-aa1d-9598a88777b3": {"sport": "football", "max_minute": 45.0},
 }
 
 
@@ -121,13 +126,25 @@ def is_late_join_open(room: Room | None) -> bool:
     cfg = LATE_JOIN_ROOMS.get(str(room.id))
     if not cfg:
         return False
+    sport = (cfg.get("sport") or room.sport or "cricket").lower()
     progress = room.match_progress or {}
+
+    if sport == "football":
+        minute = float(progress.get("minute", 0) or 0)
+        # Match not started yet (minute=0 + room.status='open' or 'locked' just
+        # set) — treat as open. Closes once we cross max_minute, including
+        # any stoppage time within the first half.
+        if minute <= 0:
+            return True
+        return minute < float(cfg.get("max_minute", 45.0))
+
+    # Cricket (default for backward compat with the original config shape).
     innings = int(progress.get("innings", 0) or 0)
     over = float(progress.get("over", 0) or 0)
     if innings == 0:
-        # Match not started yet — treat as open (room.status == 'open' covers this normally)
+        # Match not started yet
         return True
-    return innings <= cfg["max_innings"] and over < cfg["max_over"]
+    return innings <= int(cfg.get("max_innings", 1)) and over < float(cfg.get("max_over", 0))
 
 
 class SelectSquadRequest(BaseModel):
