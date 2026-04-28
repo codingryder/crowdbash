@@ -166,13 +166,25 @@ async def get_room_match_info(room_id: str, db: AsyncSession = Depends(get_db)):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
-    if room.sport != "cricket" or not room.match_id or not room.match_id.startswith("espn_"):
+    if not room.match_id or not room.match_id.startswith("espn_"):
         return {"info": None}
-
-    from app.api.routes.matches import _get_espn_match_info
     event_id = room.match_id.replace("espn_", "")
-    info = await _get_espn_match_info(event_id)
-    return {"info": info}
+
+    if room.sport == "football":
+        from app.api.routes.matches import _get_espn_football_match_info
+        from app.services.espn_service import FOOTBALL_LEAGUES
+        league_slug = FOOTBALL_LEAGUES.get(room.league or "")
+        if not league_slug:
+            return {"info": None}
+        info = await _get_espn_football_match_info(event_id, league_slug)
+        return {"info": info}
+
+    if room.sport == "cricket":
+        from app.api.routes.matches import _get_espn_match_info
+        info = await _get_espn_match_info(event_id)
+        return {"info": info}
+
+    return {"info": None}
 
 
 @router.get("/{room_id}/mvp")

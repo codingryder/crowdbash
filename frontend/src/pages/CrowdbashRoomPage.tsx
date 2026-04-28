@@ -803,17 +803,23 @@ export function CrowdbashRoomPage() {
 
 /* ── Match Info card (series, toss, venue, umpires, multi-tz time) ── */
 interface MatchInfo {
+  sport?: string;
   match_name: string;
   match_short: string;
-  match_number: string;
+  match_number?: string;
+  // Football fields
+  stage?: string;
+  assistant_referees?: string[];
+  // Common
   series: string;
   match_date_gmt: string;
   venue: string;
-  toss: string;
-  umpires: string[];
-  tv_umpire: string;
+  // Cricket-only fields (left optional so the football branch doesn't carry empties)
+  toss?: string;
+  umpires?: string[];
+  tv_umpire?: string;
   referee: string;
-  reserve_umpire: string;
+  reserve_umpire?: string;
 }
 
 function MatchInfoCard({ roomId, matchDateGmt }: { roomId: string; matchDateGmt?: string }) {
@@ -856,16 +862,21 @@ function MatchInfoCard({ roomId, matchDateGmt }: { roomId: string; matchDateGmt?
   }
 
   const rows: Array<{ label: string; value: string }> = [];
+  const isFootball = info.sport === 'football';
   const matchLine = [info.match_short || info.match_name, info.match_number, info.series].filter(Boolean).join(' · ');
   if (matchLine) rows.push({ label: 'Match', value: matchLine });
-  if (info.series) rows.push({ label: 'Series', value: info.series });
-  if (dateLabel) rows.push({ label: 'Date', value: dateLabel });
+  if (info.stage) rows.push({ label: isFootball ? 'Stage' : 'Round', value: info.stage });
+  if (info.series && !matchLine.includes(info.series)) rows.push({ label: isFootball ? 'Competition' : 'Series', value: info.series });
+  if (dateLabel) rows.push({ label: isFootball ? 'Kickoff' : 'Date', value: dateLabel });
   if (timeLine) rows.push({ label: 'Time', value: timeLine });
   if (info.toss) rows.push({ label: 'Toss', value: info.toss });
   if (info.venue) rows.push({ label: 'Venue', value: info.venue });
-  if (info.umpires.length) rows.push({ label: 'Umpires', value: info.umpires.join(', ') });
+  if (info.umpires && info.umpires.length) rows.push({ label: 'Umpires', value: info.umpires.join(', ') });
   if (info.tv_umpire) rows.push({ label: '3rd Umpire', value: info.tv_umpire });
   if (info.referee) rows.push({ label: 'Referee', value: info.referee });
+  if (info.assistant_referees && info.assistant_referees.length) {
+    rows.push({ label: 'Assistants', value: info.assistant_referees.join(', ') });
+  }
 
   if (!rows.length) return null;
 

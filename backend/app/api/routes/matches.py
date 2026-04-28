@@ -233,6 +233,93 @@ async def get_match_info(sport: str, match_id: str):
     return {"info": info}
 
 
+async def _get_espn_football_match_info(event_id: str, league_slug: str) -> dict | None:
+    """Fetch enriched match metadata for a football match from ESPN's soccer
+    summary endpoint. Returns referee, venue (with city + country), match
+    round/stage, and league name. Cached 10 minutes.
+    """
+    import httpx
+    from app.services.espn_service import ESPN_FOOTBALL_BASE, HEADERS
+    from app.core.redis import redis_get_json, redis_set_json
+
+    if not event_id or not league_slug:
+        return None
+    cache_key = f"espn:info:football:{event_id}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f"{ESPN_FOOTBALL_BASE}/{league_slug}/summary",
+                params={"event": event_id},
+                headers=HEADERS, timeout=10,
+            )
+            if res.status_code != 200:
+                return None
+            data = res.json()
+            header = data.get("header") or {}
+            comp = (header.get("competitions") or [{}])[0]
+            game_info = data.get("gameInfo") or {}
+            league = header.get("league") or {}
+            season = header.get("season") or {}
+
+            venue_obj = game_info.get("venue") or {}
+            addr = venue_obj.get("address") or {}
+            venue_name = venue_obj.get("fullName") or ""
+            venue_loc = ", ".join([x for x in (addr.get("city"), addr.get("country")) if x])
+            venue_full = f"{venue_name}, {venue_loc}" if venue_name and venue_loc else (venue_name or venue_loc)
+
+            officials = game_info.get("officials") or []
+            referee = ""
+            assistants: list[str] = []
+            for o in officials:
+                name = o.get("displayName") or o.get("fullName") or ""
+                if not name:
+                    continue
+                pos = ((o.get("position") or {}).get("name") or "").lower()
+                if "referee" in pos and "assistant" not in pos and "video" not in pos and "fourth" not in pos:
+                    if not referee:
+                        referee = name
+                elif not pos and not referee:
+                    # ESPN sometimes omits position; first official is the head referee.
+                    referee = name
+                else:
+                    assistants.append(name)
+
+            # Round/stage (e.g. "Semifinals", "Group Stage", "Round of 16").
+            stage = ""
+            notes = comp.get("notes") or []
+            if notes:
+                first = notes[0] if isinstance(notes, list) else None
+                if isinstance(first, dict):
+                    leg = first.get("leg")
+                    title = first.get("title") or ""
+                    stage = f"{title} · Leg {leg}" if leg else title
+
+            league_name = league.get("name", "")
+            season_year = season.get("year", "")
+            series_label = f"{league_name} {season_year}".strip() if league_name else ""
+
+            info = {
+                "sport": "football",
+                "match_name": header.get("name", ""),
+                "match_short": header.get("shortName", ""),
+                "stage": stage,
+                "series": series_label,
+                "match_date_gmt": comp.get("date", ""),
+                "venue": venue_full,
+                "referee": referee,
+                "assistant_referees": assistants,
+            }
+            if any(v for v in info.values() if v not in ("", "football", [], None)):
+                await redis_set_json(cache_key, info, ex=600)
+                return info
+    except Exception as e:
+        print(f"ESPN football match info error: {e}")
+    return None
+
+
 async def _get_espn_match_info(event_id: str) -> dict | None:
     """Fetch enriched match metadata from ESPN summary endpoint."""
     import httpx
