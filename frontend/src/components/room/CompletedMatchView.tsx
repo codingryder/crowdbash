@@ -127,9 +127,12 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
   }
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 920 }}>
-      {/* Breadcrumb */}
-      <div className="flex items-center gap-2 mb-6">
+    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 920, overflowX: 'hidden' }}>
+      {/* Breadcrumb — match_name is long for IPL/Premier League fixtures and
+          forces the parent wider than the mobile viewport without flex-wrap +
+          min-w-0 on the leaf, so the right edge of every card below it ends
+          up clipped on phones. */}
+      <div className="flex flex-wrap items-center gap-x-2 gap-y-1 mb-6 min-w-0">
         <Link to="/" className="text-xs no-underline" style={{ color: 'var(--gold)' }}>Home</Link>
         <span className="text-[10px]" style={{ color: 'var(--dm)' }}>/</span>
         {room.league && (
@@ -140,7 +143,7 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
             <span className="text-[10px]" style={{ color: 'var(--dm)' }}>/</span>
           </>
         )}
-        <span className="text-xs" style={{ color: 'var(--mu)' }}>{room.match_name}</span>
+        <span className="text-xs min-w-0 break-words" style={{ color: 'var(--mu)' }}>{room.match_name}</span>
       </div>
 
       {/* Match header */}
