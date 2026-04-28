@@ -38,6 +38,10 @@ class AdminStatusUpdate(PydanticBaseModel):
     status: str
 
 
+class EditWindowOpenRequest(PydanticBaseModel):
+    duration_seconds: int = 300
+
+
 def _create_admin_jwt() -> str:
     payload = {
         "sub": "admin",
@@ -136,6 +140,9 @@ async def list_all_rooms(
             "match_date": str(r.match_date) if r.match_date else None,
             "fan_count": r.fan_count,
             "created_at": str(r.created_at) if r.created_at else None,
+            "edit_window_closes_at": (
+                r.edit_window_closes_at.isoformat() if r.edit_window_closes_at else None
+            ),
         }
         for r in rooms
     ]
@@ -157,6 +164,70 @@ async def update_room_status(
         room.completed_at = datetime.now(timezone.utc)
     await db.commit()
     return {"id": str(room.id), "status": room.status}
+
+
+@router.post("/rooms/{room_id}/edit-window/open")
+async def admin_open_edit_window(
+    room_id: str,
+    body: EditWindowOpenRequest,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually open a reshuffle window. Replaces any active window for this
+    room (admin overrides the auto-trigger). Duration is clamped to the
+    service's MIN/MAX bounds.
+    """
+    from app.services.edit_window_service import (
+        open_edit_window,
+        MIN_DURATION_SECONDS,
+        MAX_DURATION_SECONDS,
+    )
+
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.status != "locked":
+        raise HTTPException(
+            status_code=400,
+            detail=f"Reshuffle is only meaningful for locked rooms (current: {room.status})",
+        )
+    if body.duration_seconds < MIN_DURATION_SECONDS or body.duration_seconds > MAX_DURATION_SECONDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"duration_seconds must be between {MIN_DURATION_SECONDS} and {MAX_DURATION_SECONDS}",
+        )
+
+    closes_at = await open_edit_window(
+        room_id,
+        body.duration_seconds,
+        db=db,
+        source="admin",
+    )
+    return {
+        "room_id": room_id,
+        "closes_at": closes_at,
+        "duration_seconds": body.duration_seconds,
+    }
+
+
+@router.post("/rooms/{room_id}/edit-window/close")
+async def admin_close_edit_window(
+    room_id: str,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually close any active reshuffle window for this room."""
+    from app.services.edit_window_service import close_edit_window
+
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    was_active = await close_edit_window(room_id, source="admin", db=db)
+    return {"room_id": room_id, "was_active": was_active}
 
 
 @router.delete("/rooms/{room_id}")

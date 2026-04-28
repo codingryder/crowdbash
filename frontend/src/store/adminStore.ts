@@ -24,6 +24,7 @@ export interface AdminRoom {
   match_date: string | null;
   fan_count: number;
   created_at: string | null;
+  edit_window_closes_at: string | null;
 }
 
 export interface UpcomingMatch {
@@ -62,6 +63,8 @@ interface AdminState {
   updateStatus: (roomId: string, status: string) => Promise<void>;
   deleteRoom: (roomId: string) => Promise<void>;
   fetchMatches: (sport: string) => Promise<void>;
+  openEditWindow: (roomId: string, durationSeconds: number) => Promise<boolean>;
+  closeEditWindow: (roomId: string) => Promise<boolean>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -146,6 +149,30 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
     } finally {
       set({ fetchingMatches: false });
+    }
+  },
+
+  openEditWindow: async (roomId, durationSeconds) => {
+    try {
+      await adminApi().post(`/api/admin/rooms/${roomId}/edit-window/open`, {
+        duration_seconds: durationSeconds,
+      });
+      await get().fetchRooms();
+      return true;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return false;
+    }
+  },
+
+  closeEditWindow: async (roomId) => {
+    try {
+      await adminApi().post(`/api/admin/rooms/${roomId}/edit-window/close`);
+      await get().fetchRooms();
+      return true;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return false;
     }
   },
 }));

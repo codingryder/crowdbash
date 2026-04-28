@@ -278,8 +278,9 @@ export function CrowdbashRoomPage() {
   );
 
   // ── PITCH VIEW (shown when room is open — user can edit team anytime before match,
-  // or during a late-join window granted by the backend for specific rooms) ──
-  const canEditTeam = room.status === 'open' || !!room.late_join_open;
+  // during a backend-granted late-join window, or while a reshuffle window is open
+  // mid-match so the "Reshuffle power" CTA actually routes back into the editor) ──
+  const canEditTeam = room.status === 'open' || !!room.late_join_open || editWindowOpen;
   if (pitchView && canEditTeam) {
     return (
       <PitchWelcomeView

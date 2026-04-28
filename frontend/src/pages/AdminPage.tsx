@@ -18,8 +18,21 @@ interface AvailableMatch {
 }
 
 export function AdminPage() {
-  const { isLoggedIn, login, logout, rooms, loading, fetchRooms, createRoom, updateStatus, deleteRoom } = useAdminStore();
+  const {
+    isLoggedIn, login, logout, rooms, loading,
+    fetchRooms, createRoom, updateStatus, deleteRoom,
+    openEditWindow, closeEditWindow,
+  } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create'>('rooms');
+  const [reshuffleDurations, setReshuffleDurations] = useState<Record<string, number>>({});
+  const [reshuffleBusy, setReshuffleBusy] = useState<Record<string, boolean>>({});
+
+  // Tick every 5s so the "Active Xs left" badge counts down without manual refresh.
+  const [now, setNow] = useState(() => Date.now());
+  useEffect(() => {
+    const t = setInterval(() => setNow(Date.now()), 5000);
+    return () => clearInterval(t);
+  }, []);
 
   // Login form state
   const [username, setUsername] = useState('');
@@ -247,6 +260,28 @@ export function AdminPage() {
                               Delete
                             </button>
                           </div>
+                          {r.status === 'locked' && (
+                            <ReshuffleControls
+                              room={r}
+                              now={now}
+                              busy={!!reshuffleBusy[r.id]}
+                              duration={reshuffleDurations[r.id] ?? 300}
+                              onChangeDuration={(v) =>
+                                setReshuffleDurations((m) => ({ ...m, [r.id]: v }))
+                              }
+                              onOpen={async () => {
+                                const seconds = reshuffleDurations[r.id] ?? 300;
+                                setReshuffleBusy((m) => ({ ...m, [r.id]: true }));
+                                await openEditWindow(r.id, seconds);
+                                setReshuffleBusy((m) => ({ ...m, [r.id]: false }));
+                              }}
+                              onClose={async () => {
+                                setReshuffleBusy((m) => ({ ...m, [r.id]: true }));
+                                await closeEditWindow(r.id);
+                                setReshuffleBusy((m) => ({ ...m, [r.id]: false }));
+                              }}
+                            />
+                          )}
                         </td>
                       </tr>
                     ))}
@@ -417,6 +452,67 @@ function MatchSelectCard({ match, selected, onSelect }: { match: AvailableMatch;
           ✓ Selected — click "Create Room" below
         </div>
       )}
+    </div>
+  );
+}
+
+
+/* ─── Reshuffle Controls ─── */
+function ReshuffleControls({
+  room, now, busy, duration, onChangeDuration, onOpen, onClose,
+}: {
+  room: { id: string; edit_window_closes_at: string | null };
+  now: number;
+  busy: boolean;
+  duration: number;
+  onChangeDuration: (v: number) => void;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const closesAtMs = room.edit_window_closes_at ? new Date(room.edit_window_closes_at).getTime() : 0;
+  const remainingMs = Math.max(0, closesAtMs - now);
+  const isActive = remainingMs > 0;
+  const remainingLabel = isActive
+    ? remainingMs >= 60_000
+      ? `${Math.ceil(remainingMs / 60_000)}m left`
+      : `${Math.ceil(remainingMs / 1000)}s left`
+    : '';
+
+  return (
+    <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', color: 'var(--muted)', textTransform: 'uppercase' }}>
+        Reshuffle
+      </span>
+      {isActive && (
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(139,92,246,0.12)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)' }}>
+          ● {remainingLabel}
+        </span>
+      )}
+      <input
+        type="number"
+        min={30}
+        max={1800}
+        step={30}
+        value={duration}
+        onChange={(e) => onChangeDuration(Math.max(30, Math.min(1800, Number(e.target.value) || 300)))}
+        title="Duration in seconds (30–1800)"
+        style={{ width: 60, fontSize: 11, padding: '3px 6px', borderRadius: 5, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+      />
+      <span style={{ fontSize: 10, color: 'var(--muted)' }}>sec</span>
+      <button
+        disabled={busy}
+        onClick={onOpen}
+        style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(139,92,246,0.1)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.5 : 1 }}
+      >
+        {isActive ? 'Restart' : 'Open'}
+      </button>
+      <button
+        disabled={busy || !isActive}
+        onClick={onClose}
+        style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: busy || !isActive ? 'not-allowed' : 'pointer', opacity: busy || !isActive ? 0.4 : 1 }}
+      >
+        Close
+      </button>
     </div>
   );
 }

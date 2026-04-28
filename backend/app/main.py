@@ -6,6 +6,11 @@ from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, crick
 from app.api.routes import sports, admin, matches, coins, og
 from app.services.game_service import calculate_and_update_points, finalize_room_results
 from app.services.sport_service import get_adapter
+from app.services.edit_window_service import (
+    ACTIVE_EDIT_WINDOWS,
+    DEFAULT_EDIT_WINDOW_DURATION,
+    open_edit_window,
+)
 from app.core.database import AsyncSessionLocal
 import asyncio
 import json
@@ -54,13 +59,14 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         # client so reload/late-arrivals don't miss the open broadcast.
         import time as _time
         active_until = ACTIVE_EDIT_WINDOWS.get(room_id, 0)
-        if active_until > _time.time():
+        _now = _time.time()
+        if active_until > _now:
             await room_manager.send_to_user(websocket, {
                 "type": "edit_window",
                 "payload": {
                     "edit_window_open": True,
                     "closes_at": active_until,
-                    "duration_seconds": EDIT_WINDOW_DURATION,
+                    "duration_seconds": int(active_until - _now),
                     "replay": True,
                 }
             })
@@ -178,11 +184,6 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
             "type": "fan_count",
             "payload": {"count": room_manager.get_fan_count(room_id)}
         })
-
-
-EDIT_WINDOW_DURATION = 300  # seconds (5 minutes)
-# room_id -> epoch seconds when current edit window closes
-ACTIVE_EDIT_WINDOWS: dict[str, float] = {}
 
 
 async def score_poller():
@@ -320,70 +321,29 @@ async def score_poller():
                         if room.sport == "cricket":
                             room.current_over = new_progress.get("over", 0)
 
-                        # Check edit window (T20: after 5, 10, 15, 20 overs per innings)
-                        # Idempotency: don't re-fire OPEN while a window is already active.
+                        # Check edit window (T20: after 10 overs per innings + innings break).
+                        # Idempotency: skip auto-trigger while ANY window (admin or auto)
+                        # is already active. Admin overrides remain authoritative.
                         import time as _time
                         rid_str = str(room.id)
                         active_until = ACTIVE_EDIT_WINDOWS.get(rid_str, 0)
-                        now_epoch = _time.time()
-                        if active_until > now_epoch:
-                            pass  # window already active; skip re-broadcast
-                        elif adapter.is_edit_window(new_progress, old_progress):
+                        if active_until <= _time.time() and adapter.is_edit_window(new_progress, old_progress):
                             trigger = adapter.get_edit_trigger(new_progress)
                             innings = new_progress.get("innings", 1)
                             over = int(float(new_progress.get("over", 0)))
-                            closes_at = now_epoch + EDIT_WINDOW_DURATION
-                            ACTIVE_EDIT_WINDOWS[rid_str] = closes_at
-                            # Persist on the Room so reload/reconnect clients
-                            # can hydrate the active window with correct
-                            # remaining time without depending on the live WS.
-                            from datetime import datetime as _dt, timezone as _tz
-                            room.edit_window_closes_at = _dt.fromtimestamp(closes_at, tz=_tz.utc)
-                            print(f"EDIT WINDOW OPEN: {room.match_name} — Inn {innings}, Over {over}")
-                            await room_manager.broadcast(rid_str, {
-                                "type": "edit_window",
-                                "payload": {
+                            await open_edit_window(
+                                rid_str,
+                                DEFAULT_EDIT_WINDOW_DURATION,
+                                db=db,
+                                source="auto",
+                                extra_payload={
                                     "sport": room.sport,
                                     "progress": new_progress,
-                                    "edit_window_open": True,
                                     "trigger": trigger,
                                     "innings": innings,
                                     "over": over,
-                                    "duration_seconds": EDIT_WINDOW_DURATION,
-                                    "closes_at": closes_at,
-                                }
-                            })
-                            # Schedule auto-close after the duration
-                            async def close_window(rid: str, trg: str, expected_close: float):
-                                await asyncio.sleep(EDIT_WINDOW_DURATION)
-                                # Only broadcast CLOSE if our scheduled close matches the active one
-                                # (avoids closing a window that was reopened by a later trigger).
-                                if ACTIVE_EDIT_WINDOWS.get(rid) == expected_close:
-                                    ACTIVE_EDIT_WINDOWS.pop(rid, None)
-                                    # Clear persisted state so reconnecting
-                                    # clients no longer think the window is open.
-                                    try:
-                                        from sqlalchemy import update as _update
-                                        from app.models.room import Room as _Room
-                                        import uuid as _uuid
-                                        async with AsyncSessionLocal() as _db:
-                                            await _db.execute(
-                                                _update(_Room)
-                                                .where(_Room.id == _uuid.UUID(rid))
-                                                .values(edit_window_closes_at=None)
-                                            )
-                                            await _db.commit()
-                                    except Exception as _e:
-                                        print(f"Edit window clear failed: {_e}")
-                                    await room_manager.broadcast(rid, {
-                                        "type": "edit_window",
-                                        "payload": {
-                                            "edit_window_open": False,
-                                            "trigger": trg,
-                                        }
-                                    })
-                                    print(f"EDIT WINDOW CLOSED: {trg}")
-                            asyncio.create_task(close_window(rid_str, trigger, closes_at))
+                                },
+                            )
 
                 await db.commit()
         except Exception as e:
