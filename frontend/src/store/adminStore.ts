@@ -65,6 +65,7 @@ interface AdminState {
   fetchMatches: (sport: string) => Promise<void>;
   openEditWindow: (roomId: string, durationSeconds: number) => Promise<boolean>;
   closeEditWindow: (roomId: string) => Promise<boolean>;
+  refreshSquads: (roomId: string) => Promise<{ players_added?: number; skipped_reason?: string } | null>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -173,6 +174,23 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
       return false;
+    }
+  },
+
+  refreshSquads: async (roomId) => {
+    try {
+      // Grounded Gemini search can take 10-20s; use a generous timeout
+      // (the default 30s is fine but request-level it's clearer to be explicit).
+      const { data } = await adminApi().post(
+        `/api/admin/rooms/${roomId}/refresh-squads`,
+        undefined,
+        { timeout: 60_000 },
+      );
+      await get().fetchRooms();
+      return data as { players_added?: number; skipped_reason?: string };
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return null;
     }
   },
 }));

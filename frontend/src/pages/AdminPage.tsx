@@ -21,11 +21,13 @@ export function AdminPage() {
   const {
     isLoggedIn, login, logout, rooms, loading,
     fetchRooms, createRoom, updateStatus, deleteRoom,
-    openEditWindow, closeEditWindow,
+    openEditWindow, closeEditWindow, refreshSquads,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create'>('rooms');
   const [reshuffleDurations, setReshuffleDurations] = useState<Record<string, number>>({});
   const [reshuffleBusy, setReshuffleBusy] = useState<Record<string, boolean>>({});
+  const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
+  const [syncMsg, setSyncMsg] = useState('');
 
   // Tick every 5s so the "Active Xs left" badge counts down without manual refresh.
   const [now, setNow] = useState(() => Date.now());
@@ -171,6 +173,11 @@ export function AdminPage() {
             {createMsg}
           </div>
         )}
+        {syncMsg && (
+          <div style={{ background: syncMsg.includes('Failed') || syncMsg.includes('No data') ? 'rgba(245,158,11,0.1)' : 'rgba(45,214,122,0.1)', border: '1px solid ' + (syncMsg.includes('Failed') || syncMsg.includes('No data') ? 'rgba(245,158,11,0.3)' : 'rgba(45,214,122,0.3)'), borderRadius: 8, padding: '10px 14px', fontSize: 13, color: syncMsg.includes('Failed') || syncMsg.includes('No data') ? 'var(--amber)' : 'var(--green)', marginBottom: 16 }}>
+            {syncMsg}
+          </div>
+        )}
 
         {/* ═══ TAB: ALL ROOMS ═══ */}
         {tab === 'rooms' && (
@@ -256,6 +263,26 @@ export function AdminPage() {
                                 Reopen
                               </button>
                             )}
+                            <button
+                              disabled={!!syncBusy[r.id]}
+                              onClick={async () => {
+                                setSyncBusy(m => ({ ...m, [r.id]: true }));
+                                setSyncMsg('');
+                                const result = await refreshSquads(r.id);
+                                setSyncBusy(m => ({ ...m, [r.id]: false }));
+                                if (result === null) {
+                                  setSyncMsg(`Failed to sync squads for ${r.match_name}`);
+                                } else if (result.skipped_reason) {
+                                  setSyncMsg(`No data from source for ${r.match_name}. Existing squad kept.`);
+                                } else {
+                                  setSyncMsg(`Synced ${result.players_added ?? 0} players for ${r.match_name}.`);
+                                }
+                              }}
+                              title="Pull current squad from live source (Gemini for football). May take 10-20s."
+                              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(45,214,122,0.08)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.25)', cursor: syncBusy[r.id] ? 'not-allowed' : 'pointer', opacity: syncBusy[r.id] ? 0.5 : 1 }}
+                            >
+                              {syncBusy[r.id] ? 'Syncing…' : 'Sync squad'}
+                            </button>
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
                               Delete
                             </button>
