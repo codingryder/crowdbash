@@ -54,11 +54,99 @@ export function splitTeams(matchName: string): [string, string] {
 }
 
 // ── Team abbreviations ───────────────────────────────────────────────────
-// Football: 3-letter codes derived algorithmically when ESPN doesn't supply
-// team.abbreviation. Splits on whitespace AND hyphens so "Paris Saint-
-// Germain" → "PSG", not "PS".
+// Football: prefer the club's official short code from a static map; fall
+// back to a 3-letter code derived algorithmically when the club isn't in
+// the map (or when ESPN supplies team.abbreviation directly via the API).
+// The map exists because the algorithm produces wrong/awkward shorts for
+// clubs whose name doesn't decompose cleanly — "Bayern Munich" used to
+// become "BMU" instead of FCB / MUN.
+const FOOTBALL_ABBR: Record<string, string> = {
+  // Premier League
+  arsenal: 'ARS',
+  'aston villa': 'AVL',
+  bournemouth: 'BOU',
+  brentford: 'BRE',
+  'brighton & hove albion': 'BHA',
+  brighton: 'BHA',
+  chelsea: 'CHE',
+  'crystal palace': 'CRY',
+  everton: 'EVE',
+  fulham: 'FUL',
+  liverpool: 'LIV',
+  'manchester city': 'MCI',
+  'manchester united': 'MUN',
+  'newcastle united': 'NEW',
+  'nottingham forest': 'NFO',
+  'tottenham hotspur': 'TOT',
+  tottenham: 'TOT',
+  'west ham united': 'WHU',
+  wolves: 'WOL',
+  'wolverhampton wanderers': 'WOL',
+  // La Liga
+  'real madrid': 'RMA',
+  'fc barcelona': 'BAR',
+  barcelona: 'BAR',
+  'atletico madrid': 'ATM',
+  'atletico de madrid': 'ATM',
+  'athletic club': 'ATH',
+  'real sociedad': 'RSO',
+  villarreal: 'VIL',
+  sevilla: 'SEV',
+  valencia: 'VAL',
+  // Bundesliga
+  'bayern munich': 'FCB',
+  'fc bayern munchen': 'FCB',
+  'fc bayern munich': 'FCB',
+  'borussia dortmund': 'BVB',
+  'rb leipzig': 'RBL',
+  'bayer leverkusen': 'B04',
+  'bayer 04 leverkusen': 'B04',
+  'eintracht frankfurt': 'SGE',
+  'vfl wolfsburg': 'WOB',
+  'borussia monchengladbach': 'BMG',
+  'borussia mönchengladbach': 'BMG',
+  // Serie A
+  juventus: 'JUV',
+  'inter milan': 'INT',
+  'fc internazionale milano': 'INT',
+  'ac milan': 'ACM',
+  napoli: 'NAP',
+  'as roma': 'ROM',
+  roma: 'ROM',
+  lazio: 'LAZ',
+  fiorentina: 'FIO',
+  // Ligue 1
+  'paris saint-germain': 'PSG',
+  'paris saint germain': 'PSG',
+  marseille: 'MAR',
+  'olympique marseille': 'MAR',
+  'olympique de marseille': 'MAR',
+  lyon: 'LYO',
+  'olympique lyonnais': 'LYO',
+  monaco: 'MON',
+  'as monaco': 'MON',
+  // Other major Europe
+  ajax: 'AJX',
+  'afc ajax': 'AJX',
+  psv: 'PSV',
+  'psv eindhoven': 'PSV',
+  feyenoord: 'FEY',
+  porto: 'POR',
+  'fc porto': 'POR',
+  benfica: 'BEN',
+  'sl benfica': 'BEN',
+  'sporting cp': 'SCP',
+  'sporting lisbon': 'SCP',
+  celtic: 'CEL',
+  rangers: 'RAN',
+};
+
 export function teamAbbr(name: string): string {
   if (!name) return 'TBD';
+  const key = name.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (FOOTBALL_ABBR[key]) return FOOTBALL_ABBR[key];
+  // Algorithmic fallback — splits on whitespace AND hyphens so
+  // "Paris Saint-Germain" still resolves to PSG when not in the map.
   const words = name.split(/[\s-]+/).filter(Boolean);
   if (words.length >= 3) return words.map(w => w[0]).join('').slice(0, 3).toUpperCase();
   if (words.length === 2) {
