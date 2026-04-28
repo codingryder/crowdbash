@@ -287,15 +287,28 @@ async def _get_espn_football_match_info(event_id: str, league_slug: str) -> dict
                 else:
                     assistants.append(name)
 
-            # Round/stage (e.g. "Semifinals", "Group Stage", "Round of 16").
+            # Round/stage (e.g. "Semifinals · Leg 1", "Group Stage", "Round
+            # of 16"). ESPN puts the structured round info on
+            # competition.series for two-legged knockout ties; competition.notes
+            # is sometimes the same shape but often empty. Check both.
             stage = ""
-            notes = comp.get("notes") or []
-            if notes:
-                first = notes[0] if isinstance(notes, list) else None
-                if isinstance(first, dict):
-                    leg = first.get("leg")
-                    title = first.get("title") or ""
-                    stage = f"{title} · Leg {leg}" if leg else title
+            series_obj = comp.get("series")
+            stage_source = None
+            if isinstance(series_obj, list) and series_obj:
+                stage_source = series_obj[0]
+            elif isinstance(series_obj, dict):
+                stage_source = series_obj
+            else:
+                notes = comp.get("notes") or []
+                if isinstance(notes, list) and notes:
+                    stage_source = notes[0]
+            if isinstance(stage_source, dict):
+                leg = stage_source.get("leg")
+                title = stage_source.get("title") or stage_source.get("description") or ""
+                if title and leg:
+                    stage = f"{title} · Leg {leg}"
+                elif title:
+                    stage = title
 
             league_name = league.get("name", "")
             season_year = season.get("year", "")
