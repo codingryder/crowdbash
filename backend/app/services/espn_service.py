@@ -207,70 +207,63 @@ FOOTBALL_LIVE_LEAGUES = {
 
 async def get_espn_live_cricket_matches() -> list:
     """
-    Get all live + upcoming cricket matches from ESPN.
-    Free, no auth, real-time data. Returns normalized match list.
-    Fetches today + next 3 days for upcoming matches.
+    Get all live + upcoming cricket matches from ESPN (today + next 3 days).
+    Fetches all (series × date) combos concurrently to keep cold-cache
+    response time small. Free, no auth.
     """
     from app.core.redis import redis_get_json, redis_set_json
     from datetime import timedelta
+    import asyncio
 
     cache_key = "espn:cricket:all_live"
     cached = await redis_get_json(cache_key)
     if cached:
         return cached
 
-    all_matches = []
-    seen_ids = set()
-
-    # Generate date strings for today + next 3 days
     today = date.today()
     dates_to_fetch = [(today + timedelta(days=d)).strftime("%Y%m%d") for d in range(4)]
 
-    # Fetch from each known series, for each date
+    # Build job list: (url, params, label) for each series × date plus the global board
+    jobs: list[tuple[str, dict, str]] = []
     for series_id, series_name in CRICKET_LIVE_SERIES.items():
         for date_str in dates_to_fetch:
-            try:
-                async with httpx.AsyncClient() as client:
-                    res = await client.get(
-                        f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
-                        params={"dates": date_str},
-                        headers=HEADERS, timeout=10,
-                    )
-                    if res.status_code == 200:
-                        events = res.json().get("events", [])
-                        for event in events:
-                            eid = event.get("id", "")
-                            if eid in seen_ids:
-                                continue
-                            seen_ids.add(eid)
-                            match = _espn_event_to_match(event, series_name)
-                            if match:
-                                all_matches.append(match)
-            except Exception as e:
-                print(f"ESPN cricket series {series_id} date {date_str} error: {e}")
+            jobs.append((
+                f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
+                {"dates": date_str},
+                series_name,
+            ))
+    jobs.append((ESPN_CRICKET_ALL, {}, ""))
 
-    # Also try the general cricket scoreboard (today only)
-    try:
-        async with httpx.AsyncClient() as client:
-            res = await client.get(
-                ESPN_CRICKET_ALL,
-                headers=HEADERS, timeout=10,
-            )
-            if res.status_code == 200:
-                events = res.json().get("events", [])
-                for event in events:
-                    eid = event.get("id", "")
-                    if eid in seen_ids:
-                        continue
-                    seen_ids.add(eid)
-                    match = _espn_event_to_match(event, "")
-                    if match:
-                        all_matches.append(match)
-    except Exception as e:
-        print(f"ESPN cricket general scoreboard error: {e}")
+    sem = asyncio.Semaphore(8)
+
+    async def _fetch(client: httpx.AsyncClient, url: str, params: dict, label: str):
+        async with sem:
+            try:
+                res = await client.get(url, params=params, headers=HEADERS, timeout=8)
+                if res.status_code != 200:
+                    return label, []
+                return label, res.json().get("events", [])
+            except Exception as e:
+                print(f"ESPN cricket {url} {params} error: {e}")
+                return label, []
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(*[_fetch(client, u, p, lbl) for u, p, lbl in jobs])
+
+    all_matches: list = []
+    seen_ids: set = set()
+    for label, events in results:
+        for event in events:
+            eid = event.get("id", "")
+            if not eid or eid in seen_ids:
+                continue
+            seen_ids.add(eid)
+            match = _espn_event_to_match(event, label)
+            if match:
+                all_matches.append(match)
 
     if all_matches:
-        await redis_set_json(cache_key, all_matches, ex=120)  # Cache 2 min
+        await redis_set_json(cache_key, all_matches, ex=120)
 
     return all_matches
 
@@ -361,47 +354,59 @@ def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
 
 async def get_espn_live_football_matches() -> list:
     """
-    Get all live + upcoming football matches from ESPN soccer scoreboards.
-    Iterates over major leagues for today + next 3 days. Returns matches in
-    Football-Data.org-compatible shape so routes/matches.py normalization
-    handles them without special casing.
+    Get all live + upcoming football matches from ESPN soccer scoreboards
+    (13 leagues × 4 days = 52 fetches). Fans them out concurrently with a
+    semaphore-capped pool — without this the cold-cache response could take
+    30-60s of serial round-trips. Returns Football-Data.org-compatible shape.
     """
     from app.core.redis import redis_get_json, redis_set_json
     from datetime import timedelta
+    import asyncio
 
     cache_key = "espn:football:all_live"
     cached = await redis_get_json(cache_key)
     if cached:
         return cached
 
-    all_matches = []
-    seen_ids = set()
-
     today = date.today()
     dates_to_fetch = [(today + timedelta(days=d)).strftime("%Y%m%d") for d in range(4)]
 
-    for league_slug, league_name in FOOTBALL_LIVE_LEAGUES.items():
-        for date_str in dates_to_fetch:
+    jobs = [
+        (slug, name, ds)
+        for slug, name in FOOTBALL_LIVE_LEAGUES.items()
+        for ds in dates_to_fetch
+    ]
+
+    sem = asyncio.Semaphore(10)
+
+    async def _fetch(client: httpx.AsyncClient, slug: str, name: str, ds: str):
+        async with sem:
             try:
-                async with httpx.AsyncClient() as client:
-                    res = await client.get(
-                        f"{ESPN_FOOTBALL_BASE}/{league_slug}/scoreboard",
-                        params={"dates": date_str},
-                        headers=HEADERS, timeout=10,
-                    )
-                    if res.status_code != 200:
-                        continue
-                    events = res.json().get("events", [])
-                    for event in events:
-                        eid = str(event.get("id", ""))
-                        if not eid or eid in seen_ids:
-                            continue
-                        seen_ids.add(eid)
-                        match = _espn_football_event_to_match(event, league_name)
-                        if match:
-                            all_matches.append(match)
+                res = await client.get(
+                    f"{ESPN_FOOTBALL_BASE}/{slug}/scoreboard",
+                    params={"dates": ds}, headers=HEADERS, timeout=8,
+                )
+                if res.status_code != 200:
+                    return name, []
+                return name, res.json().get("events", [])
             except Exception as e:
-                print(f"ESPN football {league_slug} {date_str} error: {e}")
+                print(f"ESPN football {slug} {ds} error: {e}")
+                return name, []
+
+    async with httpx.AsyncClient() as client:
+        results = await asyncio.gather(*[_fetch(client, s, n, d) for s, n, d in jobs])
+
+    all_matches: list = []
+    seen_ids: set = set()
+    for league_name, events in results:
+        for event in events:
+            eid = str(event.get("id", ""))
+            if not eid or eid in seen_ids:
+                continue
+            seen_ids.add(eid)
+            match = _espn_football_event_to_match(event, league_name)
+            if match:
+                all_matches.append(match)
 
     if all_matches:
         await redis_set_json(cache_key, all_matches, ex=120)

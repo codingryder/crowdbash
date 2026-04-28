@@ -24,10 +24,19 @@ async def get_live_matches():
     all_live = []
     all_upcoming = []
 
-    for sport in ("cricket", "football"):
+    # Fetch cricket + football adapters concurrently — football's ESPN
+    # discovery alone fans out 52 HTTP calls, so doing this serially with
+    # cricket would double the cold-cache latency for no reason.
+    import asyncio
+    cricket_task = get_adapter("cricket").get_live_matches()
+    football_task = get_adapter("football").get_live_matches()
+    sport_results = await asyncio.gather(cricket_task, football_task, return_exceptions=True)
+
+    for sport, matches in zip(("cricket", "football"), sport_results):
         try:
-            adapter = get_adapter(sport)
-            matches = await adapter.get_live_matches()
+            if isinstance(matches, Exception):
+                print(f"Error fetching {sport} matches: {matches}")
+                continue
             if not matches:
                 continue
 
