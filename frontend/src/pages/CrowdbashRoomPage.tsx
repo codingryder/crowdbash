@@ -16,7 +16,7 @@ import { MyTeamTab } from '../components/room/MyTeamTab';
 import { LeaderboardTab } from '../components/room/LeaderboardTab';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
-import { splitTeams } from '../types';
+import { splitTeams, teamAbbr, cricketAbbr } from '../types';
 import { useIsMobile } from '../hooks/useIsMobile';
 
 export function CrowdbashRoomPage() {
@@ -197,8 +197,9 @@ export function CrowdbashRoomPage() {
   // ── NORMAL ROOM VIEW ──
   const scoreData = score as CricketScoreData | null;
   const [t1, t2] = splitTeams(room.match_name);
-  const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  const fallbackAbbr = room.sport === 'cricket' ? cricketAbbr : teamAbbr;
+  const a1 = fallbackAbbr(t1);
+  const a2 = fallbackAbbr(t2);
 
   const isLive = room.status === 'locked';
   const t1Score = scoreData?.team1?.score || (isLive ? '0/0' : '—');

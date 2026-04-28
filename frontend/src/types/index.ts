@@ -47,6 +47,53 @@ export function splitTeams(matchName: string): [string, string] {
   return [parts[0]?.trim() || 'TBD', parts[1]?.trim() || 'TBD'];
 }
 
+// ── Team abbreviations ───────────────────────────────────────────────────
+// Football: 3-letter codes derived algorithmically when ESPN doesn't supply
+// team.abbreviation. Splits on whitespace AND hyphens so "Paris Saint-
+// Germain" → "PSG", not "PS".
+export function teamAbbr(name: string): string {
+  if (!name) return 'TBD';
+  const words = name.split(/[\s-]+/).filter(Boolean);
+  if (words.length >= 3) return words.map(w => w[0]).join('').slice(0, 3).toUpperCase();
+  if (words.length === 2) {
+    const [a, b] = words;
+    return (a[0] + b.slice(0, 2)).toUpperCase();
+  }
+  return words[0].slice(0, 3).toUpperCase();
+}
+
+// Cricket: official short codes vary in length (MI, GT, RR, CSK, RCB, PBKS,
+// SRH…), so a static map is more correct than any algorithm. Used as a
+// fallback when the upstream source (CricketData.org, Gemini) doesn't
+// carry the official abbreviation. ESPN supplies team.abbreviation directly.
+const CRICKET_ABBR: Record<string, string> = {
+  // IPL
+  'mumbai indians': 'MI',
+  'chennai super kings': 'CSK',
+  'royal challengers bengaluru': 'RCB',
+  'royal challengers bangalore': 'RCB',
+  'kolkata knight riders': 'KKR',
+  'delhi capitals': 'DC',
+  'sunrisers hyderabad': 'SRH',
+  'punjab kings': 'PBKS',
+  'rajasthan royals': 'RR',
+  'gujarat titans': 'GT',
+  'lucknow super giants': 'LSG',
+  // Internationals
+  india: 'IND', australia: 'AUS', england: 'ENG', pakistan: 'PAK',
+  'south africa': 'SA', 'new zealand': 'NZ', 'west indies': 'WI',
+  'sri lanka': 'SL', bangladesh: 'BAN', afghanistan: 'AFG',
+  zimbabwe: 'ZIM', ireland: 'IRE', scotland: 'SCO', netherlands: 'NED',
+  nepal: 'NEP', oman: 'OMA', usa: 'USA', 'united states': 'USA',
+};
+
+export function cricketAbbr(name: string): string {
+  if (!name) return 'TBD';
+  const key = name.trim().toLowerCase().replace(/\s+/g, ' ');
+  if (CRICKET_ABBR[key]) return CRICKET_ABBR[key];
+  return key.slice(0, 3).toUpperCase();
+}
+
 /** Format a date string for display. */
 export function formatMatchDate(dateStr?: string | null, options?: { showTime?: boolean }): string {
   if (!dateStr) return '';

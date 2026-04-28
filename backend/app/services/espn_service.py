@@ -291,6 +291,8 @@ def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
     t2_data = competitors[1]
     t1_name = t1_data.get("team", {}).get("displayName", "Team 1")
     t2_name = t2_data.get("team", {}).get("displayName", "Team 2")
+    t1_abbr = (t1_data.get("team", {}).get("abbreviation", "") or "").upper()
+    t2_abbr = (t2_data.get("team", {}).get("abbreviation", "") or "").upper()
 
     # Build scores from linescores — only batting innings (runs > 0 or isBatting)
     t1_score = ""
@@ -338,6 +340,8 @@ def _espn_event_to_match(event: dict, series_name: str) -> dict | None:
         "teams": [t1_name, t2_name],
         "t1": t1_name,
         "t2": t2_name,
+        "t1_abbr": t1_abbr,
+        "t2_abbr": t2_abbr,
         "series": league,
         "ms": ms,
         "matchStarted": state == "in",

@@ -1,6 +1,6 @@
 import { useRoomStore } from '../../store/roomStore';
 import type { Room, CricketScoreData, FootballScoreData } from '../../types';
-import { splitTeams } from '../../types';
+import { splitTeams, teamAbbr, cricketAbbr } from '../../types';
 
 interface Props {
   room: Room;
@@ -29,7 +29,7 @@ function CricketHeader({ room, score }: { room: Room; score: CricketScoreData | 
       </div>
       <div className="flex items-center justify-between rounded-card px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--b1)' }}>
         <div className="text-center">
-          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{t1.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{cricketAbbr(t1)}</div>
           <div className="font-cabinet text-[28px] font-black" style={{ letterSpacing: '-1px' }}>{s1}</div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>{o1}</div>
         </div>
@@ -38,7 +38,7 @@ function CricketHeader({ room, score }: { room: Room; score: CricketScoreData | 
           {crr > 0 && <div className="text-[12px] font-semibold mt-1" style={{ color: 'var(--amber)' }}>CRR {crr.toFixed(2)}</div>}
         </div>
         <div className="text-center">
-          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{t2.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{cricketAbbr(t2)}</div>
           <div className="font-cabinet text-[28px] font-black" style={{ color: s2 === '—' ? 'var(--mu)' : 'var(--tx)' }}>{s2}</div>
           <div className="text-[10px] mt-0.5" style={{ color: 'var(--mu)' }}>{o2}</div>
         </div>
@@ -64,7 +64,7 @@ function FootballHeader({ room, score }: { room: Room; score: FootballScoreData 
       </div>
       <div className="flex items-center justify-between rounded-card px-5 py-4" style={{ background: 'var(--surface2)', border: '1px solid var(--b1)' }}>
         <div className="text-center flex-1">
-          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{home.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{teamAbbr(home)}</div>
           <div className="font-cabinet text-[28px] font-black">{hg}</div>
         </div>
         <div className="text-center px-3">
@@ -78,7 +78,7 @@ function FootballHeader({ room, score }: { room: Room; score: FootballScoreData 
           )}
         </div>
         <div className="text-center flex-1">
-          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{away.split(' ').map(w => w[0]).join('').slice(0,3).toUpperCase()}</div>
+          <div className="font-cabinet text-[11px] font-bold tracking-[1.5px] mb-1" style={{ color: 'var(--mu)' }}>{teamAbbr(away)}</div>
           <div className="font-cabinet text-[28px] font-black">{ag}</div>
         </div>
       </div>

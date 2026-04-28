@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import api from '../lib/api';
 import type { Room } from '../types';
-import { formatMatchDate, splitTeams } from '../types';
+import { formatMatchDate, splitTeams, teamAbbr, cricketAbbr } from '../types';
 
 export function HomePage() {
   const [rooms, setRooms] = useState<Room[]>([]);
@@ -209,10 +209,11 @@ export function HomePage() {
 /* ═══ GAME CARD ═══ */
 function GameCard({ room }: { room: Room }) {
   const [t1, t2] = splitTeams(room.match_name);
-  const a1 = t1.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const a2 = t2.split(' ').map(w => w[0]).join('').slice(0, 3).toUpperCase();
-  const isLive = room.status === 'locked';
   const isCricket = room.sport === 'cricket';
+  const fallback = isCricket ? cricketAbbr : teamAbbr;
+  const a1 = fallback(t1);
+  const a2 = fallback(t2);
+  const isLive = room.status === 'locked';
 
   return (
     <Link to={`/room/${room.id}`} className="block no-underline transition-all hover:-translate-y-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', overflow: 'hidden' }}>

@@ -86,10 +86,12 @@ async def get_live_matches():
                         "status": ms,
                         "team1": {
                             "name": t1_name,
+                            "abbr": m.get("t1_abbr", ""),
                             "score": team1_score,
                         },
                         "team2": {
                             "name": t2_name,
+                            "abbr": m.get("t2_abbr", ""),
                             "score": team2_score,
                         },
                         "match_status_text": m.get("status", ""),
