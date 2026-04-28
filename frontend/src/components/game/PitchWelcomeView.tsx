@@ -61,7 +61,9 @@ interface PitchWelcomeViewProps {
 export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchWelcomeViewProps) {
   const isFootball = sport === 'football';
   const Pitch = isFootball ? FootballPitch : CricketPitch;
-  const ROLE_CAPS_PAIRS = isFootball ? FOOTBALL_CAPS : CRICKET_CAPS;
+  // Typed as a partial map across all role keys so callers can index with the
+  // wider RoleKey union without the keyof intersection collapsing to `never`.
+  const ROLE_CAPS_PAIRS: Partial<Record<RoleKey, [number, number]>> = isFootball ? FOOTBALL_CAPS : CRICKET_CAPS;
   const PRIMARY_ROLES: RoleKey[] = isFootball ? FOOTBALL_PRIMARY : CRICKET_PRIMARY;
   const ROLE_LABELS_LONG: Record<RoleKey, string> = {
     BAT: 'batsman', AR: 'all-rounder', BOWL: 'bowler', WK: 'wicket-keeper',
@@ -189,7 +191,9 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
   // min and stays under its max. Cricket: WK min + per-role max.
   const compositionValid = isFootball
     ? PRIMARY_ROLES.every(k => {
-        const [lo, hi] = ROLE_CAPS_PAIRS[k as keyof typeof ROLE_CAPS_PAIRS];
+        const pair = ROLE_CAPS_PAIRS[k];
+        if (!pair) return true;
+        const [lo, hi] = pair;
         const c = roleCounts[k] || 0;
         return c >= lo && c <= hi;
       })
@@ -277,11 +281,13 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
     if (!compositionValid) {
       // Surface the first failing role so the user knows what to fix.
       const failing = PRIMARY_ROLES.find(k => {
-        const [lo] = ROLE_CAPS_PAIRS[k as keyof typeof ROLE_CAPS_PAIRS];
-        return (roleCounts[k] || 0) < lo;
+        const pair = ROLE_CAPS_PAIRS[k];
+        if (!pair) return false;
+        return (roleCounts[k] || 0) < pair[0];
       });
       if (isFootball && failing) {
-        const [lo] = ROLE_CAPS_PAIRS[failing as keyof typeof ROLE_CAPS_PAIRS];
+        const pair = ROLE_CAPS_PAIRS[failing];
+        const lo = pair ? pair[0] : 1;
         const label = ROLE_LABELS_LONG[failing];
         setError(`Pick at least ${lo} ${lo === 1 ? label : label + 's'}.`);
       } else {
@@ -388,7 +394,9 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
           <div style={{ fontSize: isMobile ? 10 : 11, color: 'var(--muted)', display: 'flex', gap: isMobile ? 6 : 8, fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, flexWrap: 'wrap' }}>
             {PRIMARY_ROLES.map(k => {
               const at = activeRoleCounts[k] || 0;
-              const [lo, hi] = ROLE_CAPS_PAIRS[k as keyof typeof ROLE_CAPS_PAIRS];
+              const pair = ROLE_CAPS_PAIRS[k];
+              if (!pair) return null;
+              const [lo, hi] = pair;
               const over = at > hi;
               const under = at < lo;
               const full = at === hi;
@@ -479,9 +487,8 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
                         const isSel = mobileSelected.has(player.player_id);
                         const rcBg = getRoleBg(player.player_role);
                         const pRole = roleKeyOf(sport, player.player_role);
-                        const pRoleCap = pRole && (pRole as RoleKey) in ROLE_CAPS_PAIRS
-                          ? ROLE_CAPS_PAIRS[pRole as keyof typeof ROLE_CAPS_PAIRS][1]
-                          : Infinity;
+                        const pRolePair = pRole ? ROLE_CAPS_PAIRS[pRole] : undefined;
+                        const pRoleCap = pRolePair ? pRolePair[1] : Infinity;
                         const capExceeded = !isSel && pRole !== null && (mobileRoleCounts[pRole] || 0) >= pRoleCap;
                         const canSelect = (mobileSelected.size < 11 || isSel) && !capExceeded;
                         return (
@@ -634,9 +641,8 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
                     const rcBg = getRoleBg(player.player_role);
                     const fullName = player.player_name;
                     const pRole = roleKeyOf(sport, player.player_role);
-                    const pRoleCap = pRole && (pRole as RoleKey) in ROLE_CAPS_PAIRS
-                      ? ROLE_CAPS_PAIRS[pRole as keyof typeof ROLE_CAPS_PAIRS][1]
-                      : Infinity;
+                    const pRolePair = pRole ? ROLE_CAPS_PAIRS[pRole] : undefined;
+                    const pRoleCap = pRolePair ? pRolePair[1] : Infinity;
                     const capExceeded = !isPlaced && pRole !== null && (roleCounts[pRole] || 0) >= pRoleCap;
                     const disabled = isPlaced || capExceeded;
                     return (
