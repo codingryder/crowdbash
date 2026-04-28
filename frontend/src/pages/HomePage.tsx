@@ -45,11 +45,6 @@ export function HomePage() {
         }} />
 
         <div className="relative z-10 text-center w-full" style={{ maxWidth: 860 }}>
-          <div className="inline-flex items-center gap-2 rounded-full mb-9 animate-fadeup" style={{ background: 'var(--surface)', border: '1px solid var(--border2)', padding: '6px 18px', fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>
-            <div className="w-1.5 h-1.5 rounded-full animate-pulse-slow" style={{ background: 'var(--green)' }} />
-            🆓 Free to play · Skill-based sports fantasy
-          </div>
-
           <h1 className="animate-fadeup" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(50px,8.5vw,94px)', fontWeight: 900, lineHeight: 0.98, letterSpacing: '-3px', marginBottom: 28, animationDelay: '.1s' }}>
             <span style={{ color: 'var(--green)' }}>Your</span> team.<br />
             <span style={{ color: 'var(--green)' }}>Your</span> power.<br />

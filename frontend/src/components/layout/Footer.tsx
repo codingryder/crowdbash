@@ -8,7 +8,7 @@ export function Footer() {
     >
       <div className="flex flex-col items-center gap-2 text-[12px]" style={{ color: 'var(--mu)' }}>
         {/* Free-to-play emphasis */}
-        <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
+        <div className="text-[11px] text-center" style={{ color: 'var(--muted)' }}>
           🆓 Crowdbash is a free-to-play, skill-based fan-engagement game · No entry fees · No real-money stakes
         </div>
 
