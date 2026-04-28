@@ -103,6 +103,23 @@ async def create_room(
     db.add(room)
     await db.commit()
     await db.refresh(room)
+
+    # Football rooms: auto-populate squads in the background so admins don't
+    # have to type rosters manually. Cricket already has its own pull-on-demand
+    # path via the adapter, so we only fire this for football.
+    if room.sport == "football":
+        import asyncio as _asyncio
+        from app.core.database import AsyncSessionLocal as _SessionLocal
+        async def _bg_sync(room_id):
+            try:
+                async with _SessionLocal() as bg_db:
+                    bg_room = (await bg_db.execute(select(Room).where(Room.id == room_id))).scalar_one_or_none()
+                    if bg_room:
+                        await _populate_match_squads(bg_db, bg_room)
+            except Exception as e:
+                print(f"Background squad sync failed for room {room_id}: {e}")
+        _asyncio.create_task(_bg_sync(room.id))
+
     return {
         "id": str(room.id),
         "match_name": room.match_name,
@@ -906,6 +923,96 @@ async def set_match_squads(
         "match_name": room.match_name,
         "players_added": added,
     }
+
+
+async def _populate_match_squads(db: AsyncSession, room: Room) -> dict:
+    """
+    Refresh the match_squads rows for a room from the live data source. For
+    football this calls grounded Gemini (Google Search) so we get the current
+    season's first-team roster instead of stale training-cutoff data. For
+    cricket the existing CricketAdapter chain (ESPN → CricketData → Gemini)
+    is reused.
+
+    Returns a dict with counts; does NOT raise if the source had no data —
+    leaves any existing rows alone in that case.
+    """
+    import uuid as _uuid
+    from datetime import datetime, timezone as _tz
+    from app.services.live_score_service import fetch_squad_via_gemini
+
+    players: list[dict] = []
+    if room.sport == "football":
+        # Football: Gemini grounded search is the only reliable path for
+        # current rosters. Football-Data.org only exposes lineups inside
+        # match details and only ~60 min before kickoff.
+        try:
+            result = await fetch_squad_via_gemini(room.match_name, "football")
+            if isinstance(result, list):
+                players = result
+        except Exception as e:
+            print(f"Squad sync (football, gemini) failed for {room.match_name}: {e}")
+    else:
+        # Cricket: lean on the adapter's own player-lookup chain.
+        try:
+            adapter = get_adapter(room.sport)
+            if hasattr(adapter, "set_match_context"):
+                adapter.set_match_context(room.match_name)
+            if hasattr(adapter, "get_match_players"):
+                result = await adapter.get_match_players(room.match_id)
+                if isinstance(result, list):
+                    players = result
+        except Exception as e:
+            print(f"Squad sync ({room.sport}) failed for {room.match_name}: {e}")
+
+    if not players:
+        return {
+            "room_id": str(room.id),
+            "match_name": room.match_name,
+            "players_added": 0,
+            "skipped_reason": "no_data_from_source",
+        }
+
+    # Replace existing rows in a single transaction so a partial sync can't
+    # leave the squad in a half-old/half-new state.
+    await db.execute(delete(MatchSquad).where(MatchSquad.room_id == room.id))
+    added = 0
+    for p in players:
+        try:
+            squad = MatchSquad(
+                room_id=room.id,
+                player_id=str(p.get("player_id") or f"t_{added + 1}"),
+                player_name=str(p.get("player_name") or "")[:100],
+                team=str(p.get("team") or "")[:50],
+                player_role=str(p.get("role") or p.get("player_role") or "")[:30],
+            )
+            db.add(squad)
+            added += 1
+        except Exception as e:
+            print(f"Skipped malformed player from sync: {p} ({e})")
+
+    room.squads_last_refreshed_at = datetime.now(_tz.utc)
+    await db.commit()
+    return {
+        "room_id": str(room.id),
+        "match_name": room.match_name,
+        "players_added": added,
+        "squads_last_refreshed_at": room.squads_last_refreshed_at.isoformat(),
+    }
+
+
+@router.post("/rooms/{room_id}/refresh-squads")
+async def admin_refresh_squads(
+    room_id: str,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually pull current squads from the live data source for this room."""
+    import uuid as _uuid
+    result = await db.execute(select(Room).where(Room.id == _uuid.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    return await _populate_match_squads(db, room)
 
 
 @router.get("/squads/{room_id}")

@@ -645,6 +645,19 @@ async def startup():
     except Exception as e:
         print(f"rooms.playing_xi migration failed: {e}")
 
+    # Self-heal: rooms.squads_last_refreshed_at — populated by the football
+    # squad auto-sync flow so we know when each room last pulled rosters.
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text(
+                "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS squads_last_refreshed_at TIMESTAMPTZ NULL"
+            ))
+            await db.commit()
+            print("rooms.squads_last_refreshed_at ensured")
+    except Exception as e:
+        print(f"rooms.squads_last_refreshed_at migration failed: {e}")
+
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
     asyncio.create_task(auto_close_past_rooms())

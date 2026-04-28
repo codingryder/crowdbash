@@ -148,8 +148,16 @@ RULES:
 
 
 async def fetch_squad_via_gemini(match_name: str, sport: str = "cricket") -> list | None:
-    """Get squad/lineup for a match via Gemini."""
+    """Get squad/lineup for a match via Gemini.
+
+    Football uses grounded Google Search so the response reflects the *current*
+    season's first-team roster — without grounding, Gemini happily returns its
+    training-cutoff roster (e.g. Messi/Ramos still at PSG long after they left).
+    Cached longer for football because club rosters only change at transfer
+    windows.
+    """
     from app.core.redis import redis_get_json, redis_set_json
+    from datetime import datetime
 
     cache_key = f"gemini:squad:{sport}:{match_name}"
     cached = await redis_get_json(cache_key)
@@ -166,22 +174,33 @@ Return ONLY valid JSON array:
 
 Include ALL players from both teams (15-25 per team). Use roles: batsman, bowler, all-rounder, wicket-keeper.
 If you don't know the squad, return []"""
+        data = await _ask_gemini(prompt)
+        ttl = 600
     elif sport == "football":
-        prompt = f"""List the squad for both teams in: {match_name}
+        current_year = datetime.now().year
+        season = f"{current_year}-{(current_year + 1) % 100:02d}" if datetime.now().month >= 7 else f"{current_year - 1}-{current_year % 100:02d}"
+        prompt = f"""Use Google Search to find the CURRENT {season} season first-team squad of both clubs in: {match_name}.
+
+Verify with the official club website or a current source — do NOT use stale rosters. Players who transferred OUT before {season} must NOT be included.
 
 Return ONLY valid JSON array:
 [
-  {{"player_id": "t1_1", "player_name": "<Full Name>", "team": "<Team Name>", "role": "GK|DEF|MID|FWD"}}
+  {{"player_id": "t1_1", "player_name": "<Full Name>", "team": "<Team Name>", "role": "GK|DEF|MID|FW"}}
 ]
 
-Include starting XI + key substitutes for both teams (15-20 per team).
-If you don't know the squad, return []"""
+Use exactly these role values: GK (goalkeeper), DEF (defender), MID (midfielder), FW (forward — striker, winger, attacker).
+
+Include 20-25 first-team players per club. Use the team name exactly as it appears in the match name. If a club's current squad cannot be verified, return []."""
+        data = await _ask_gemini(prompt, grounded=True)
+        # Squads change at transfer windows, not daily. Cache for 7 days so a
+        # single Gemini call covers many room creates / refreshes for the
+        # same fixture or the same clubs in different fixtures.
+        ttl = 60 * 60 * 24 * 7
     else:
         return None
 
-    data = await _ask_gemini(prompt)
     if data and isinstance(data, list) and len(data) > 0:
-        await redis_set_json(cache_key, data, ex=600)
+        await redis_set_json(cache_key, data, ex=ttl)
         return data
     return None
 

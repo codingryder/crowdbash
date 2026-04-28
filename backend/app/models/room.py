@@ -33,3 +33,8 @@ class Room(Base):
     # Stays NULL until we get a confident result from Gemini.
     playing_xi_announced_at = Column(DateTime(timezone=True), nullable=True)
     playing_xi = Column(JSONB, nullable=True)
+    # When match_squads was last refreshed from a live source (Gemini for
+    # football, adapter chain for cricket). NULL means never synced — the
+    # row was either populated manually via the legacy admin endpoint or
+    # not at all. Used to detect stale rosters between transfer windows.
+    squads_last_refreshed_at = Column(DateTime(timezone=True), nullable=True)
