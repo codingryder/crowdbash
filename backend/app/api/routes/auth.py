@@ -131,6 +131,14 @@ async def verify_otp(body: VerifyOTPRequest, db: AsyncSession = Depends(get_db))
     user.email_verified = True
     user.otp_code = None
     user.otp_expires_at = None
+
+    # Award the 50-coin signup bonus on first verification (idempotent)
+    try:
+        from app.services.rewards_service import award_signup_bonus
+        await award_signup_bonus(db, user)
+    except Exception as e:
+        print(f"[auth] signup bonus award skipped: {e}")
+
     await db.commit()
 
     # Generate JWT

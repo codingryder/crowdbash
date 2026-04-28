@@ -154,6 +154,39 @@ export function HomePage() {
         </div>
       </div>
 
+      {/* ═══ REWARDS ═══ */}
+      <div style={{ borderTop: '1px solid var(--border)' }}>
+        <div style={{ maxWidth: 1080, margin: '0 auto', padding: '96px 36px' }}>
+          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', color: 'var(--green)', marginBottom: 14 }}>REWARDS</div>
+          <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(30px,4.5vw,50px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.08, marginBottom: 14 }}>Earn coins.<br />Redeem real rewards.</h2>
+          <p style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.7, maxWidth: 540, marginBottom: 56 }}>
+            Every match is a chance to bank coins. Top finishers get the biggest payouts, and signing in daily keeps your streak alive — climb tiers to multiply everything.
+          </p>
+
+          <div className="grid gap-4 mb-10" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            {[
+              { icon: '🎁', title: '+50 signup bonus', desc: 'One-time, when you verify your email.' },
+              { icon: '🗓️', title: '+10 daily check-in', desc: 'One claim per day — multiplied by your tier.' },
+              { icon: '🥇', title: 'Top-3 match payouts', desc: '+100 / +50 / +25 coins for 1st / 2nd / 3rd place per match.' },
+              { icon: '⚡', title: 'Tier multipliers', desc: 'Bronze 1× · Silver 1.25× · Gold 1.5× · Platinum 2×' },
+            ].map(c => (
+              <div key={c.title} className="transition-all hover:-translate-y-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '22px 20px' }}>
+                <div style={{ fontSize: 28, marginBottom: 12 }}>{c.icon}</div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 15, fontWeight: 800, marginBottom: 6 }}>{c.title}</div>
+                <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.55 }}>{c.desc}</div>
+              </div>
+            ))}
+          </div>
+
+          <div className="flex items-center gap-3 flex-wrap">
+            <Link to="/rewards" className="no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 11, padding: '13px 28px', fontSize: 15, fontWeight: 800 }}>
+              View rewards catalog
+            </Link>
+            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>Vouchers are fulfilled manually right now — your code lands in your inbox after we verify the redemption.</span>
+          </div>
+        </div>
+      </div>
+
       {/* ═══ UPCOMING GAMES PREVIEW ═══ */}
       {(cricketUp.length > 0 || footballUp.length > 0 || live.length > 0) && (
         <div style={{ borderTop: '1px solid var(--border)' }}>

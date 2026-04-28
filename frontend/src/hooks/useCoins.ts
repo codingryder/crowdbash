@@ -19,22 +19,42 @@ export interface Redemption {
   code: string | null;
 }
 
+export interface Tier {
+  name: string;
+  threshold: number;
+  multiplier: number;
+  lifetime_earned: number;
+  next: { name: string; threshold: number; multiplier: number; remaining: number } | null;
+}
+
+export interface CoinsPayload {
+  lifetime_coins: number;
+  lifetime_earned: number;
+  tier: Tier;
+  daily: { claimed_today: boolean; current_streak: number; base: number; next_amount: number };
+  rules: { signup_bonus: number; daily_base: number; top_finish: Record<string, number> };
+}
+
 export function useCoinBalance() {
   const user = useAuthStore((s) => s.user);
   const [balance, setBalance] = useState<number | null>(null);
+  const [coins, setCoins] = useState<CoinsPayload | null>(null);
   const [loading, setLoading] = useState(false);
 
   const refresh = useCallback(async () => {
     if (!user) {
       setBalance(null);
+      setCoins(null);
       return;
     }
     setLoading(true);
     try {
       const { data } = await api.get('/api/coins/balance');
       setBalance(data.lifetime_coins);
+      setCoins(data as CoinsPayload);
     } catch {
       setBalance(null);
+      setCoins(null);
     } finally {
       setLoading(false);
     }
@@ -44,7 +64,12 @@ export function useCoinBalance() {
     refresh();
   }, [refresh]);
 
-  return { balance, loading, refresh };
+  return { balance, coins, loading, refresh };
+}
+
+export async function claimDailyCheckin(): Promise<{ awarded: number; base: number; multiplier: number; current_streak: number; new_balance: number }> {
+  const { data } = await api.post('/api/coins/daily-checkin');
+  return data;
 }
 
 export function useRewards() {

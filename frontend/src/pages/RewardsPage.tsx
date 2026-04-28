@@ -1,18 +1,34 @@
 import { useState } from 'react';
 import { useAuth } from '../hooks/useAuth';
-import { useCoinBalance, useRewards, redeemReward, type Reward } from '../hooks/useCoins';
+import { useCoinBalance, useRewards, redeemReward, claimDailyCheckin, type Reward } from '../hooks/useCoins';
 
 export function RewardsPage() {
   const { user, openAuthModal } = useAuth();
-  const { balance, refresh: refreshBalance } = useCoinBalance();
+  const { balance, coins, refresh: refreshBalance } = useCoinBalance();
   const { rewards, loading, error, refresh: refreshRewards } = useRewards();
   const [confirming, setConfirming] = useState<Reward | null>(null);
   const [redeeming, setRedeeming] = useState(false);
+  const [claimingDaily, setClaimingDaily] = useState(false);
   const [toast, setToast] = useState<{ kind: 'ok' | 'err'; msg: string } | null>(null);
 
   function showToast(kind: 'ok' | 'err', msg: string) {
     setToast({ kind, msg });
     setTimeout(() => setToast(null), 4000);
+  }
+
+  async function handleDailyClaim() {
+    if (!user || claimingDaily || coins?.daily.claimed_today) return;
+    setClaimingDaily(true);
+    try {
+      const r = await claimDailyCheckin();
+      showToast('ok', `+${r.awarded} coins claimed! Streak: ${r.current_streak} day${r.current_streak !== 1 ? 's' : ''}.`);
+      await refreshBalance();
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string } } };
+      showToast('err', err?.response?.data?.detail || 'Daily claim failed');
+    } finally {
+      setClaimingDaily(false);
+    }
   }
 
   async function handleConfirm() {
@@ -70,6 +86,85 @@ export function RewardsPage() {
             </button>
           </div>
         )}
+
+        {/* ── Tier + Daily check-in (signed-in only) ── */}
+        {user && coins && (
+          <div className="grid gap-4 mb-8" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))' }}>
+            {/* Tier card */}
+            <div className="rounded-xl p-5" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--muted)' }}>Your Tier</div>
+              <div className="flex items-baseline gap-2">
+                <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: tierColor(coins.tier.name) }}>
+                  {tierEmoji(coins.tier.name)} {coins.tier.name}
+                </span>
+                <span className="text-[13px] font-bold" style={{ color: 'var(--green)' }}>{coins.tier.multiplier}× multiplier</span>
+              </div>
+              <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>Multiplier applies to top-3 + daily payouts.</div>
+              {coins.tier.next ? (
+                <>
+                  <div className="mt-4 mb-1.5 flex items-center justify-between text-[11px]">
+                    <span style={{ color: 'var(--muted)' }}>To {coins.tier.next.name} ({coins.tier.next.multiplier}×)</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 700 }}>{coins.tier.next.remaining} coins to go</span>
+                  </div>
+                  <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
+                    <div style={{
+                      height: '100%',
+                      width: `${Math.max(2, Math.min(100, ((coins.tier.lifetime_earned - coins.tier.threshold) / (coins.tier.next.threshold - coins.tier.threshold)) * 100))}%`,
+                      background: 'var(--green)',
+                    }} />
+                  </div>
+                </>
+              ) : (
+                <div className="text-[12px] mt-3" style={{ color: 'var(--green)' }}>Top tier — max multiplier active 🏆</div>
+              )}
+            </div>
+
+            {/* Daily check-in card */}
+            <div className="rounded-xl p-5 flex flex-col" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+              <div className="text-[10px] uppercase tracking-[1.5px] mb-2" style={{ color: 'var(--muted)' }}>Daily Check-in</div>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: '#f5c431' }}>
+                  +{coins.daily.next_amount}
+                </span>
+                <span className="text-[12px]" style={{ color: 'var(--muted)' }}>coins today</span>
+                {coins.tier.multiplier > 1 && (
+                  <span className="text-[10px] px-1.5 py-px rounded-full" style={{ background: 'rgba(45,214,122,0.12)', color: 'var(--green)', fontWeight: 700 }}>
+                    {coins.daily.base} × {coins.tier.multiplier}
+                  </span>
+                )}
+              </div>
+              {coins.daily.current_streak > 0 && (
+                <div className="text-[11px] mb-3" style={{ color: 'var(--muted)' }}>
+                  🔥 {coins.daily.current_streak}-day streak
+                </div>
+              )}
+              <button
+                onClick={handleDailyClaim}
+                disabled={coins.daily.claimed_today || claimingDaily}
+                className="btn btn-primary mt-auto"
+                style={{
+                  padding: '10px 16px',
+                  fontSize: 13,
+                  opacity: coins.daily.claimed_today ? 0.5 : 1,
+                  cursor: coins.daily.claimed_today ? 'not-allowed' : 'pointer',
+                }}
+              >
+                {claimingDaily ? 'Claiming…' : coins.daily.claimed_today ? '✓ Claimed today — back tomorrow' : `Claim ${coins.daily.next_amount} coins`}
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* ── How to earn (always shown) ── */}
+        <div className="rounded-xl p-5 mb-8" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+          <div className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: 'var(--muted)' }}>How to earn coins</div>
+          <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+            <EarnRule icon="🎁" title={`+${coins?.rules.signup_bonus ?? 50} signup bonus`} desc="One-time, when you verify your email." />
+            <EarnRule icon="🗓️" title={`+${coins?.rules.daily_base ?? 10} daily check-in`} desc="One claim per day. Multiplied by your tier." />
+            <EarnRule icon="🥇" title="+100 / +50 / +25 top-3 finish" desc="Earned per match for placing 1st / 2nd / 3rd." />
+            <EarnRule icon="⚡" title="Tier multipliers" desc="Bronze 1× · Silver 1.25× · Gold 1.5× · Platinum 2×" />
+          </div>
+        </div>
 
         {loading && <p style={{ color: 'var(--muted)' }}>Loading rewards…</p>}
         {error && <p style={{ color: '#ef4444' }}>{error}</p>}
@@ -181,4 +276,34 @@ export function RewardsPage() {
       )}
     </div>
   );
+}
+
+function EarnRule({ icon, title, desc }: { icon: string; title: string; desc: string }) {
+  return (
+    <div className="flex gap-3">
+      <div style={{ fontSize: 22, lineHeight: 1.2 }}>{icon}</div>
+      <div>
+        <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, color: 'var(--text)' }}>{title}</div>
+        <div className="text-[11px] mt-0.5" style={{ color: 'var(--muted)' }}>{desc}</div>
+      </div>
+    </div>
+  );
+}
+
+function tierEmoji(name: string): string {
+  switch (name) {
+    case 'Silver': return '🥈';
+    case 'Gold': return '🥇';
+    case 'Platinum': return '💎';
+    default: return '🟫';
+  }
+}
+
+function tierColor(name: string): string {
+  switch (name) {
+    case 'Silver': return '#c0c5d0';
+    case 'Gold': return '#f5c431';
+    case 'Platinum': return '#9ad9ff';
+    default: return '#cd8f5a';
+  }
 }

@@ -160,6 +160,8 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
     users_result = await db.execute(select(User).where(User.id.in_(user_ids)))
     users_by_id = {u.id: u for u in users_result.scalars().all()}
 
+    from app.services.rewards_service import get_lifetime_earned, get_tier
+
     top_score = sorted_games[0].total_points or 0
     winners = 0
     coins_awarded = 0
@@ -173,8 +175,12 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
             u.total_wins = (u.total_wins or 0) + 1
             winners += 1
 
-        delta = coin_payouts.get(g.rank or 0)
-        if delta and (g.total_points or 0) > 0:
+        base = coin_payouts.get(g.rank or 0)
+        if base and (g.total_points or 0) > 0:
+            # Apply tier multiplier based on lifetime earned (excludes redemptions)
+            earned = await get_lifetime_earned(db, u.id)
+            multiplier = get_tier(earned)["multiplier"]
+            delta = int(round(base * multiplier))
             u.lifetime_coins = (u.lifetime_coins or 0) + delta
             db.add(CoinTransaction(
                 user_id=u.id,
