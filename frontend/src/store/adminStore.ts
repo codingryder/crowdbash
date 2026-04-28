@@ -25,6 +25,7 @@ export interface AdminRoom {
   fan_count: number;
   created_at: string | null;
   edit_window_closes_at: string | null;
+  late_join_enabled?: boolean;
 }
 
 export interface UpcomingMatch {
@@ -66,6 +67,7 @@ interface AdminState {
   openEditWindow: (roomId: string, durationSeconds: number) => Promise<boolean>;
   closeEditWindow: (roomId: string) => Promise<boolean>;
   refreshSquads: (roomId: string) => Promise<{ players_added?: number; skipped_reason?: string } | null>;
+  setLateJoin: (roomId: string, enabled: boolean) => Promise<boolean>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -169,6 +171,17 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   closeEditWindow: async (roomId) => {
     try {
       await adminApi().post(`/api/admin/rooms/${roomId}/edit-window/close`);
+      await get().fetchRooms();
+      return true;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return false;
+    }
+  },
+
+  setLateJoin: async (roomId, enabled) => {
+    try {
+      await adminApi().post(`/api/admin/rooms/${roomId}/late-join`, { enabled });
       await get().fetchRooms();
       return true;
     } catch (err: unknown) {

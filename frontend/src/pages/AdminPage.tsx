@@ -21,7 +21,7 @@ export function AdminPage() {
   const {
     isLoggedIn, login, logout, rooms, loading,
     fetchRooms, createRoom, updateStatus, deleteRoom,
-    openEditWindow, closeEditWindow, refreshSquads,
+    openEditWindow, closeEditWindow, refreshSquads, setLateJoin,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create'>('rooms');
   const [reshuffleDurations, setReshuffleDurations] = useState<Record<string, number>>({});
@@ -278,10 +278,29 @@ export function AdminPage() {
                                   setSyncMsg(`Synced ${result.players_added ?? 0} players for ${r.match_name}.`);
                                 }
                               }}
-                              title="Pull current squad from live source (Gemini for football). May take 10-20s."
+                              title="Pull current squad from live source (ESPN for football, adapter chain for cricket). May take 10-20s."
                               style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(45,214,122,0.08)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.25)', cursor: syncBusy[r.id] ? 'not-allowed' : 'pointer', opacity: syncBusy[r.id] ? 0.5 : 1 }}
                             >
                               {syncBusy[r.id] ? 'Syncing…' : 'Sync squad'}
+                            </button>
+                            <button
+                              onClick={async () => {
+                                const enabled = !r.late_join_enabled;
+                                const ok = await setLateJoin(r.id, enabled);
+                                setSyncMsg(ok
+                                  ? `Late-join ${enabled ? 'enabled' : 'disabled'} for ${r.match_name}.`
+                                  : `Failed to update late-join for ${r.match_name}.`);
+                              }}
+                              title="Allow users to keep building/editing their XI even after the match has started."
+                              style={{
+                                padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                                background: r.late_join_enabled ? 'rgba(245,158,11,0.15)' : 'var(--surface2)',
+                                color: r.late_join_enabled ? 'var(--amber)' : 'var(--muted)',
+                                border: `1px solid ${r.late_join_enabled ? 'rgba(245,158,11,0.4)' : 'var(--border)'}`,
+                                cursor: 'pointer',
+                              }}
+                            >
+                              {r.late_join_enabled ? '⚡ Late-join ON' : 'Late-join OFF'}
                             </button>
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
                               Delete

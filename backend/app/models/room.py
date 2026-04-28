@@ -38,3 +38,7 @@ class Room(Base):
     # row was either populated manually via the legacy admin endpoint or
     # not at all. Used to detect stale rosters between transfer windows.
     squads_last_refreshed_at = Column(DateTime(timezone=True), nullable=True)
+    # Admin override: when true, the late-join window stays open for this
+    # specific room regardless of the hardcoded LATE_JOIN_ROOMS map. Lets
+    # admins extend team-build past kickoff without a code deploy.
+    late_join_enabled = Column(Boolean, default=False)

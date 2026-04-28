@@ -712,6 +712,19 @@ async def startup():
     except Exception as e:
         print(f"rooms.squads_last_refreshed_at migration failed: {e}")
 
+    # Self-heal: rooms.late_join_enabled — admin override flag for keeping
+    # the late-join window open on a specific room without a code change.
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text(
+                "ALTER TABLE rooms ADD COLUMN IF NOT EXISTS late_join_enabled BOOLEAN NOT NULL DEFAULT FALSE"
+            ))
+            await db.commit()
+            print("rooms.late_join_enabled ensured")
+    except Exception as e:
+        print(f"rooms.late_join_enabled migration failed: {e}")
+
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())
     asyncio.create_task(auto_close_past_rooms())

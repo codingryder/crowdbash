@@ -123,6 +123,14 @@ def is_late_join_open(room: Room | None) -> bool:
     """True if the room has an active late-join window based on current match progress."""
     if not room:
         return False
+
+    # Admin override: if the per-room late_join_enabled flag is set, the
+    # window stays open until match completion regardless of hardcoded caps.
+    # Lets admins extend team-build past kickoff for any room without
+    # editing LATE_JOIN_ROOMS and redeploying.
+    if getattr(room, "late_join_enabled", False) and room.status != "closed":
+        return True
+
     cfg = LATE_JOIN_ROOMS.get(str(room.id))
     if not cfg:
         return False

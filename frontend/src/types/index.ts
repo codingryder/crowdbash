@@ -31,6 +31,8 @@ export interface Room {
   completed_at?: string;
   late_join_open?: boolean;
   late_join_overs_remaining?: number;
+  /** Football late-join window: minutes remaining until cutoff (typically half-time at 45). */
+  late_join_minutes_remaining?: number;
   edit_window_closes_at?: string | null;
   playing_xi_announced_at?: string | null;
   playing_xi?: PlayingXI | null;

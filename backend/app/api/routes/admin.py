@@ -160,6 +160,7 @@ async def list_all_rooms(
             "edit_window_closes_at": (
                 r.edit_window_closes_at.isoformat() if r.edit_window_closes_at else None
             ),
+            "late_join_enabled": bool(getattr(r, "late_join_enabled", False)),
         }
         for r in rooms
     ]
@@ -245,6 +246,31 @@ async def admin_close_edit_window(
 
     was_active = await close_edit_window(room_id, source="admin", db=db)
     return {"room_id": room_id, "was_active": was_active}
+
+
+class LateJoinToggle(PydanticBaseModel):
+    enabled: bool
+
+
+@router.post("/rooms/{room_id}/late-join")
+async def admin_set_late_join(
+    room_id: str,
+    body: LateJoinToggle,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Admin override: enable or disable the late-join window for a specific
+    room. When enabled, users can keep joining and editing their XI even
+    after the match has started, regardless of the LATE_JOIN_ROOMS map.
+    """
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room.late_join_enabled = bool(body.enabled)
+    await db.commit()
+    return {"id": str(room.id), "late_join_enabled": bool(room.late_join_enabled)}
 
 
 @router.delete("/rooms/{room_id}")

@@ -334,24 +334,45 @@ export function CrowdbashRoomPage() {
   }
 
   // ── NORMAL ROOM VIEW ──
-  const scoreData = score as CricketScoreData | null;
+  const isFootballSport = room.sport === 'football';
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const scoreData = score as any;
+  const cricketScore = !isFootballSport ? (score as CricketScoreData | null) : null;
   const [t1, t2] = splitTeams(room.match_name);
   const fallbackAbbr = room.sport === 'cricket' ? cricketAbbr : teamAbbr;
   const a1 = fallbackAbbr(t1);
   const a2 = fallbackAbbr(t2);
 
   const isLive = room.status === 'locked';
-  const t1Score = scoreData?.team1?.score || (isLive ? '0/0' : '—');
-  const t2Score = scoreData?.team2?.score || '—';
-  const t1Overs = scoreData?.team1?.overs || (isLive ? '0.0' : '');
-  const t2Overs = scoreData?.team2?.overs || '';
-  const crr = scoreData?.current_rate || 0;
+  // Sport-specific score display. Cricket is "runs/wkts (overs)"; football
+  // is just goals with a separate minute label.
+  const t1Score = isFootballSport
+    ? (scoreData?.home?.goals !== undefined ? String(scoreData.home.goals) : (isLive ? '0' : '—'))
+    : (cricketScore?.team1?.score || (isLive ? '0/0' : '—'));
+  const t2Score = isFootballSport
+    ? (scoreData?.away?.goals !== undefined ? String(scoreData.away.goals) : (isLive ? '0' : '—'))
+    : (cricketScore?.team2?.score || '—');
+  const t1Overs = isFootballSport ? '' : (cricketScore?.team1?.overs || (isLive ? '0.0' : ''));
+  const t2Overs = isFootballSport ? '' : (cricketScore?.team2?.overs || '');
+  const crr = isFootballSport ? 0 : (cricketScore?.current_rate || 0);
 
-  // Current batting/bowling from scorecard
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const sd = scoreData as any;
-  const currentBatting = sd?.current_batting as Array<{ name: string; runs: number; balls: number }> | undefined;
-  const currentBowling = sd?.current_bowling as Array<{ name: string; wickets: number; runs: number; overs: string }> | undefined;
+  // Cricket-only: batting/bowling from scorecard.
+  const currentBatting = !isFootballSport
+    ? (scoreData?.current_batting as Array<{ name: string; runs: number; balls: number }> | undefined)
+    : undefined;
+  const currentBowling = !isFootballSport
+    ? (scoreData?.current_bowling as Array<{ name: string; wickets: number; runs: number; overs: string }> | undefined)
+    : undefined;
+  // Football-only: live minute, goals events, bookings.
+  const footballMinute = isFootballSport ? (scoreData?.minute as number | undefined) : undefined;
+  const footballGoals = isFootballSport
+    ? (scoreData?.goals as Array<{ scorer?: { name?: string }; minute?: number; type?: string }> | undefined)
+    : undefined;
+  const footballBookings = isFootballSport
+    ? (scoreData?.bookings as Array<{ player?: { name?: string }; card?: string; minute?: number }> | undefined)
+    : undefined;
+  const possessionHome = isFootballSport ? (scoreData?.possession_home as number | undefined) : undefined;
+  const possessionAway = isFootballSport ? (scoreData?.possession_away as number | undefined) : undefined;
 
   return (
     <>
@@ -395,7 +416,9 @@ export function CrowdbashRoomPage() {
                 <div className="mb-2 flex items-center gap-2 px-3 py-1.5 rounded" style={{ background: 'rgba(244,185,64,0.08)', border: '1px solid rgba(244,185,64,0.3)' }}>
                   <span style={{ fontSize: 12 }}>⚡</span>
                   <span className="text-[11px] font-semibold" style={{ color: 'var(--amber)' }}>
-                    Late-join open · {(room.late_join_overs_remaining ?? 0).toFixed(1)} overs left to build your XI
+                    {room.sport === 'football'
+                      ? `Late-join open · ${(room.late_join_minutes_remaining ?? 0).toFixed(0)} min left to build your XI`
+                      : `Late-join open · ${(room.late_join_overs_remaining ?? 0).toFixed(1)} overs left to build your XI`}
                   </span>
                 </div>
               )}
@@ -610,12 +633,16 @@ export function CrowdbashRoomPage() {
               </div>
             )}
 
-            {/* Scoreboard + CRR inline */}
+            {/* Scoreboard — sport-specific. Cricket shows runs/wickets (overs)
+                + CRR; football shows goals only with a live-minute pill. */}
             <div style={{ padding: '16px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
               <div className="flex items-center justify-between mb-3">
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--muted)' }}>MATCH SCORE</div>
                 <div className="flex items-center gap-2">
-                  {crr > 0 && <span className="text-[10px] font-semibold" style={{ color: 'var(--amber)' }}>CRR {crr.toFixed(2)}</span>}
+                  {!isFootballSport && crr > 0 && <span className="text-[10px] font-semibold" style={{ color: 'var(--amber)' }}>CRR {crr.toFixed(2)}</span>}
+                  {isFootballSport && isLive && footballMinute !== undefined && footballMinute > 0 && (
+                    <span className="text-[10px] font-semibold" style={{ color: 'var(--amber)' }}>{footballMinute}'</span>
+                  )}
                   {isLive && <span className="animate-pulse-slow" style={{ fontSize: 9, fontWeight: 700, color: 'var(--red)' }}>● LIVE</span>}
                   {!isLive && room.match_date && <span className="text-[10px]" style={{ color: 'var(--amber)' }}>{new Date(room.match_date).toLocaleString([], { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' })}</span>}
                 </div>
@@ -646,37 +673,88 @@ export function CrowdbashRoomPage() {
               </div>
             </div>
 
-            {/* Current batters */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>AT THE CREASE</div>
-              {currentBatting && currentBatting.length > 0 ? currentBatting.map((b, i) => (
-                <div key={i} className="flex items-center justify-between mb-2">
-                  <div className="text-[13px] font-medium">{b.name}</div>
-                  <div className="flex items-center gap-2">
-                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>{b.runs}</span>
-                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.balls}b)</span>
+            {/* Current batters — cricket only. */}
+            {!isFootballSport && (
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>AT THE CREASE</div>
+                {currentBatting && currentBatting.length > 0 ? currentBatting.map((b, i) => (
+                  <div key={i} className="flex items-center justify-between mb-2">
+                    <div className="text-[13px] font-medium">{b.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: 'var(--green)' }}>{b.runs}</span>
+                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.balls}b)</span>
+                    </div>
                   </div>
-                </div>
-              )) : (
-                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
-              )}
-            </div>
+                )) : (
+                  <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
+                )}
+              </div>
+            )}
 
-            {/* Current bowler */}
-            <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-              <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>BOWLING</div>
-              {currentBowling && currentBowling.length > 0 ? currentBowling.map((b, i) => (
-                <div key={i} className="flex items-center justify-between mb-2">
-                  <div className="text-[13px] font-medium">{b.name}</div>
-                  <div className="flex items-center gap-2">
-                    <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: 'var(--purple)' }}>{b.wickets}/{b.runs}</span>
-                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.overs} ov)</span>
+            {/* Current bowler — cricket only. */}
+            {!isFootballSport && (
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>BOWLING</div>
+                {currentBowling && currentBowling.length > 0 ? currentBowling.map((b, i) => (
+                  <div key={i} className="flex items-center justify-between mb-2">
+                    <div className="text-[13px] font-medium">{b.name}</div>
+                    <div className="flex items-center gap-2">
+                      <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, color: 'var(--purple)' }}>{b.wickets}/{b.runs}</span>
+                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>({b.overs} ov)</span>
+                    </div>
                   </div>
+                )) : (
+                  <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
+                )}
+              </div>
+            )}
+
+            {/* Football: goalscorers feed. */}
+            {isFootballSport && (
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>GOALSCORERS</div>
+                {footballGoals && footballGoals.length > 0 ? footballGoals.map((g, i) => (
+                  <div key={i} className="flex items-center justify-between mb-2">
+                    <div className="text-[13px] font-medium">⚽ {g.scorer?.name || 'Unknown'}</div>
+                    <div className="flex items-center gap-2">
+                      <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{g.minute ?? '?'}'</span>
+                    </div>
+                  </div>
+                )) : (
+                  <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'No goals yet' : 'Match not started'}</div>
+                )}
+              </div>
+            )}
+
+            {/* Football: bookings feed (yellow / red cards). */}
+            {isFootballSport && footballBookings && footballBookings.length > 0 && (
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>BOOKINGS</div>
+                {footballBookings.map((b, i) => (
+                  <div key={i} className="flex items-center justify-between mb-2">
+                    <div className="text-[13px] font-medium">
+                      {b.card === 'RED' ? '🟥' : '🟨'} {b.player?.name || 'Unknown'}
+                    </div>
+                    <span className="text-[10px]" style={{ color: 'var(--muted)' }}>{b.minute ?? '?'}'</span>
+                  </div>
+                ))}
+              </div>
+            )}
+
+            {/* Football: possession bar (only when both numbers present). */}
+            {isFootballSport && possessionHome !== undefined && possessionAway !== undefined && (
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>POSSESSION</div>
+                <div className="flex items-center justify-between mb-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>
+                  <span>{a1} {possessionHome}%</span>
+                  <span>{possessionAway}% {a2}</span>
                 </div>
-              )) : (
-                <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{isLive ? 'Waiting for data...' : 'Match not started'}</div>
-              )}
-            </div>
+                <div className="w-full h-1.5 rounded-full overflow-hidden flex" style={{ background: 'var(--surface)' }}>
+                  <div style={{ width: `${possessionHome}%`, background: 'var(--green)' }} />
+                  <div style={{ width: `${possessionAway}%`, background: 'var(--blue)' }} />
+                </div>
+              </div>
+            )}
 
             {/* Scorecard button */}
             <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
