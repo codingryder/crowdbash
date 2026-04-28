@@ -19,13 +19,24 @@ router = APIRouter()
 TOTAL_BUDGET = 33
 MAX_SQUAD_SIZE = 11
 
-# Per-team role caps. WK has no upper cap; the minimum of 1 is enforced separately.
+# Cricket — per-team role caps. WK has no upper cap; the minimum of 1 is
+# enforced separately.
 ROLE_CAPS = {"batsman": 6, "all-rounder": 3, "bowler": 5}
 MIN_WICKET_KEEPERS = 1
 
+# Football — (min, max) per role, summing to 11. Defaults assume a free-form
+# composition broadly compatible with 4-3-3, 4-4-2, 3-5-2, 5-3-2 etc.
+FOOTBALL_ROLE_CAPS: dict[str, tuple[int, int]] = {
+    "GK": (1, 1),
+    "DEF": (3, 5),
+    "MID": (3, 5),
+    "FW": (1, 3),
+}
+FOOTBALL_ROLE_LABELS = {"GK": "goalkeeper", "DEF": "defender", "MID": "midfielder", "FW": "forward"}
+
 
 def _role_key(role: str) -> str:
-    """Normalize player_role to a canonical key matching ROLE_CAPS."""
+    """Normalize player_role to a canonical cricket key matching ROLE_CAPS."""
     r = (role or "").lower()
     if "keep" in r or r == "wk":
         return "wicket-keeper"
@@ -38,8 +49,27 @@ def _role_key(role: str) -> str:
     return r
 
 
-def _validate_role_composition(roles: list[str]) -> str | None:
-    """Return an error message if the role mix violates caps; None if valid."""
+def _football_role_key(role: str) -> str:
+    """Normalize football player_role to a canonical key in FOOTBALL_ROLE_CAPS."""
+    r = (role or "").upper().strip()
+    if not r:
+        return ""
+    if r in {"GK", "G"} or "GOAL" in r or "KEEPER" in r:
+        return "GK"
+    if r in {"DEF", "D", "DF", "CB", "LB", "RB", "LWB", "RWB"} or "DEFEN" in r or "BACK" in r:
+        return "DEF"
+    if r in {"MID", "M", "MF", "CM", "CDM", "CAM", "LM", "RM"} or "MID" in r:
+        return "MID"
+    if r in {"FW", "F", "FWD", "ST", "CF", "LW", "RW"} or "FORW" in r or "ATTACK" in r or "STRIK" in r or "WING" in r:
+        return "FW"
+    return ""
+
+
+def _validate_role_composition(roles: list[str], sport: str = "cricket") -> str | None:
+    """Return an error message if the role mix violates the sport's caps; None if valid."""
+    if (sport or "cricket").lower() == "football":
+        return _validate_football_composition(roles)
+
     counts: dict[str, int] = {}
     for r in roles:
         k = _role_key(r)
@@ -50,6 +80,28 @@ def _validate_role_composition(roles: list[str]) -> str | None:
             return f"Too many {label}: max {cap} allowed."
     if counts.get("wicket-keeper", 0) < MIN_WICKET_KEEPERS:
         return f"Pick at least {MIN_WICKET_KEEPERS} wicket-keeper."
+    return None
+
+
+def _validate_football_composition(roles: list[str]) -> str | None:
+    counts: dict[str, int] = {k: 0 for k in FOOTBALL_ROLE_CAPS}
+    unknown = 0
+    for r in roles:
+        k = _football_role_key(r)
+        if k in counts:
+            counts[k] += 1
+        else:
+            unknown += 1
+    if unknown > 0:
+        return f"{unknown} player(s) have unrecognised positions. Pick players whose role is goalkeeper, defender, midfielder, or forward."
+    for role, (lo, hi) in FOOTBALL_ROLE_CAPS.items():
+        c = counts[role]
+        label = FOOTBALL_ROLE_LABELS[role]
+        plural_label = label + "s"
+        if c < lo:
+            return f"Pick at least {lo} {label if lo == 1 else plural_label}."
+        if c > hi:
+            return f"Too many {plural_label}: max {hi} allowed."
     return None
 
 
@@ -229,8 +281,12 @@ async def select_squad(
         if pid not in available:
             raise HTTPException(status_code=400, detail=f"Player {pid} not in match squads")
 
-    # Enforce role caps (max 6 BAT / 5 BOWL / 3 AR) and minimum 1 WK
-    role_error = _validate_role_composition([available[pid].player_role or "" for pid in body.player_ids])
+    # Enforce role caps. Cricket: max 6 BAT / 5 BOWL / 3 AR + min 1 WK.
+    # Football: GK exactly 1, DEF/MID 3-5, FW 1-3, must sum to 11.
+    role_error = _validate_role_composition(
+        [available[pid].player_role or "" for pid in body.player_ids],
+        sport=(room.sport if room else "cricket"),
+    )
     if role_error:
         raise HTTPException(status_code=400, detail=role_error)
 

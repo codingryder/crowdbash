@@ -1,110 +1,188 @@
 import type { SquadPlayer } from '../../types';
+import { PlayerAvatar } from '../ui/PlayerAvatar';
 import { usePlayingXi } from '../../hooks/usePlayingXi';
 
-const POSITIONS = [
-  { key: 'gk', label: 'GK', top: 90, left: 50, role: 'GK' },
-  { key: 'lb', label: 'LB', top: 72, left: 15, role: 'DEF' },
-  { key: 'cb1', label: 'CB', top: 72, left: 38, role: 'DEF' },
-  { key: 'cb2', label: 'CB', top: 72, left: 62, role: 'DEF' },
-  { key: 'rb', label: 'RB', top: 72, left: 85, role: 'DEF' },
-  { key: 'lm', label: 'LM', top: 48, left: 20, role: 'MID' },
-  { key: 'cm', label: 'CM', top: 48, left: 50, role: 'MID' },
-  { key: 'rm', label: 'RM', top: 48, left: 80, role: 'MID' },
-  { key: 'lw', label: 'LW', top: 22, left: 20, role: 'FWD' },
-  { key: 'st', label: 'ST', top: 22, left: 50, role: 'FWD' },
-  { key: 'rw', label: 'RW', top: 22, left: 80, role: 'FWD' },
+interface PosCoord {
+  top?: number | string;
+  bottom?: number | string;
+  left?: number | string;
+  right?: number | string;
+  tx?: string;
+  /** Short canonical role label shown when the slot is empty. */
+  label: string;
+  /** Position abbreviation (e.g. "LW", "CB", "CM") for the slot tooltip + sub-label. */
+  position: string;
+}
+
+// Default 4-3-3 layout. Slot index order matters (used by handleSlotClick) —
+// we keep it FW (top of screen) → MID → DEF → GK so the array reads top-down.
+const POS_COORDS: PosCoord[] = [
+  // Forward line
+  { top: '8%', left: '20%', label: 'FW', position: 'LW' },
+  { top: '6%', left: '50%', tx: '-50%', label: 'FW', position: 'ST' },
+  { top: '8%', right: '20%', label: 'FW', position: 'RW' },
+  // Midfield
+  { top: '34%', left: '22%', label: 'MID', position: 'LM' },
+  { top: '32%', left: '50%', tx: '-50%', label: 'MID', position: 'CM' },
+  { top: '34%', right: '22%', label: 'MID', position: 'RM' },
+  // Defence
+  { top: '60%', left: '12%', label: 'DEF', position: 'LB' },
+  { top: '62%', left: '36%', label: 'DEF', position: 'CB' },
+  { top: '62%', right: '36%', label: 'DEF', position: 'CB' },
+  { top: '60%', right: '12%', label: 'DEF', position: 'RB' },
+  // Goalkeeper
+  { bottom: '6%', left: '50%', tx: '-50%', label: 'GK', position: 'GK' },
 ];
 
 interface FootballPitchProps {
-  assignments: Record<string, string>;
-  allPlayers: SquadPlayer[];
-  onPositionTap: (positionKey: string) => void;
+  slots: (SquadPlayer | null)[];
+  powers: number[];
+  selectedPlayer: SquadPlayer | null;
+  phase: number;
+  onSlotClick: (index: number) => void;
+  hint: string;
+  activeSlot?: number | null;
 }
 
-export function FootballPitch({ assignments, allPlayers, onPositionTap }: FootballPitchProps) {
-  const playerMap = Object.fromEntries(allPlayers.map(p => [p.player_id, p]));
+export function FootballPitch({ slots, powers, selectedPlayer, phase, onSlotClick, hint, activeSlot }: FootballPitchProps) {
   const { announced: xiAnnounced, isInXi } = usePlayingXi();
-
   return (
-    <div style={{ position: 'relative', width: '100%', maxWidth: 360, aspectRatio: '0.65 / 1', margin: '0 auto' }}>
-      {/* Field */}
-      <div style={{
-        position: 'absolute', inset: 0, borderRadius: 14,
-        background: 'linear-gradient(180deg, rgba(45,214,122,0.05), rgba(45,214,122,0.02))',
-        border: '1.5px solid rgba(45,214,122,0.12)',
-      }} />
+    <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', position: 'relative', overflow: 'hidden', flex: 1 }}>
+      {/* Hint text */}
+      <div style={{ position: 'absolute', top: 14, fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: 2, color: 'var(--muted)', zIndex: 5 }}>
+        {hint}
+      </div>
 
-      {/* Halfway line */}
-      <div style={{ position: 'absolute', top: '50%', left: '10%', right: '10%', height: 1, background: 'rgba(45,214,122,0.1)' }} />
+      {/* Field container — slightly portrait so the football pitch reads
+          correctly without overflowing on mobile. */}
+      <div style={{ position: 'relative', width: '100%', maxWidth: 460, aspectRatio: '5 / 7', flexShrink: 0 }}>
+        {/* SVG field. viewBox is 500x700 so each marking is sized in
+            pitch-units rather than container pixels. */}
+        <svg
+          viewBox="0 0 500 700"
+          preserveAspectRatio="xMidYMid meet"
+          style={{ position: 'absolute', top: 0, left: 0, width: '100%', height: '100%', pointerEvents: 'none' }}
+        >
+          {/* Turf base */}
+          <rect x="0" y="0" width="500" height="700" fill="#0f1f10" />
+          {/* Subtle vertical mowing stripes for texture */}
+          {Array.from({ length: 7 }).map((_, i) => (
+            <rect
+              key={i}
+              x={i * 71}
+              y="0"
+              width="71"
+              height="700"
+              fill={i % 2 === 0 ? '#122412' : '#0f1f10'}
+              opacity="0.55"
+            />
+          ))}
+          {/* Outer pitch boundary */}
+          <rect x="20" y="20" width="460" height="660" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          {/* Halfway line */}
+          <line x1="20" y1="350" x2="480" y2="350" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          {/* Centre circle */}
+          <circle cx="250" cy="350" r="60" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          <circle cx="250" cy="350" r="3" fill="rgba(255,255,255,0.18)" />
 
-      {/* Center circle */}
-      <div style={{
-        position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-        width: 60, height: 60, borderRadius: '50%',
-        border: '1px solid rgba(45,214,122,0.1)',
-      }} />
+          {/* Top penalty area (opponent's end) */}
+          <rect x="120" y="20" width="260" height="100" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          <rect x="180" y="20" width="140" height="40" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          <rect x="220" y="10" width="60" height="10" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="2" />
+          <path d="M 200 120 A 60 60 0 0 0 300 120" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
 
-      {/* Goal area top */}
-      <div style={{ position: 'absolute', top: '2%', left: '30%', right: '30%', height: '12%', borderRadius: '0 0 8px 8px', border: '1px solid rgba(45,214,122,0.08)', borderTop: 'none' }} />
+          {/* Bottom penalty area (own end) */}
+          <rect x="120" y="580" width="260" height="100" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          <rect x="180" y="640" width="140" height="40" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
+          <rect x="220" y="680" width="60" height="10" fill="none" stroke="rgba(255,255,255,0.22)" strokeWidth="2" />
+          <path d="M 200 580 A 60 60 0 0 1 300 580" fill="none" stroke="rgba(255,255,255,0.18)" strokeWidth="2" />
 
-      {/* Goal area bottom */}
-      <div style={{ position: 'absolute', bottom: '2%', left: '30%', right: '30%', height: '12%', borderRadius: '8px 8px 0 0', border: '1px solid rgba(45,214,122,0.08)', borderBottom: 'none' }} />
+          {/* Directional labels — faint, mirrors CricketPitch's STRAIGHT/COVER text */}
+          <text x="250" y="60" textAnchor="middle" fill="rgba(255,255,255,0.07)" fontSize="11" fontFamily="Cabinet Grotesk,sans-serif" fontWeight="700" letterSpacing="3">ATTACK</text>
+          <text x="250" y="660" textAnchor="middle" fill="rgba(255,255,255,0.07)" fontSize="11" fontFamily="Cabinet Grotesk,sans-serif" fontWeight="700" letterSpacing="3">DEFENCE</text>
+        </svg>
 
-      {/* Position markers */}
-      {POSITIONS.map(pos => {
-        const playerId = assignments[pos.key];
-        const player = playerId ? playerMap[playerId] : null;
-        const filled = !!player;
-        const isBenched = filled && xiAnnounced && !isInXi(player!.player_name);
-        const initials = player
-          ? player.player_name.split(' ').map(w => w[0]).join('').slice(0, 2).toUpperCase()
-          : '+';
+        {/* Slots */}
+        {POS_COORDS.map((pos, i) => {
+          const player = slots[i];
+          const hasSel = !!selectedPlayer && phase === 1;
+          const filled = !!player;
+          const isBenched = filled && xiAnnounced && !isInXi(player!.player_name);
 
-        return (
-          <button
-            key={pos.key}
-            onClick={() => onPositionTap(pos.key)}
-            title={isBenched ? 'Not in announced XI' : undefined}
-            style={{
-              position: 'absolute',
-              top: `${pos.top}%`,
-              left: `${pos.left}%`,
-              transform: 'translate(-50%, -50%)',
-              display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 3,
-              background: 'none', border: 'none', cursor: 'pointer', padding: 0,
-            }}
-          >
-            <div style={{
-              width: 38, height: 38, borderRadius: '50%',
-              display: 'flex', alignItems: 'center', justifyContent: 'center',
-              background: isBenched
-                ? 'rgba(240,82,82,0.15)'
-                : filled ? 'rgba(59,130,246,0.15)' : 'rgba(255,255,255,0.03)',
-              border: isBenched
-                ? '2px solid var(--red)'
-                : filled ? '2px solid var(--blue)' : '1.5px dashed rgba(255,255,255,0.15)',
-              color: isBenched ? 'var(--red)' : filled ? 'var(--blue)' : 'var(--muted)',
-              fontSize: filled ? 11 : 16,
-              fontWeight: 800,
-              fontFamily: "'Cabinet Grotesk', sans-serif",
-              transition: 'all 0.2s',
-              boxShadow: isBenched ? '0 0 10px rgba(240,82,82,0.3)' : undefined,
-            }}>
-              {initials}
+          const style: React.CSSProperties = {
+            position: 'absolute', width: 'clamp(48px, 12vw, 64px)', height: 'clamp(48px, 12vw, 64px)', borderRadius: '50%',
+            border: isBenched
+              ? '2px solid var(--red)'
+              : (filled && activeSlot === i)
+                ? '2px solid var(--amber)'
+                : filled
+                  ? '1.5px solid rgba(255,255,255,0.1)'
+                  : '1.5px dashed rgba(255,255,255,0.11)',
+            borderStyle: filled ? 'solid' : 'dashed',
+            boxShadow: isBenched
+              ? '0 0 12px rgba(240,82,82,0.35)'
+              : (activeSlot === i)
+                ? '0 0 12px rgba(245,158,11,0.3)'
+                : 'none',
+            display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
+            cursor: 'pointer', transition: 'all 0.2s', zIndex: 10,
+            background: (hasSel && !filled) ? 'rgba(45,214,122,0.08)' : 'transparent',
+            borderColor: isBenched
+              ? 'var(--red)'
+              : (hasSel && !filled)
+                ? 'var(--green)'
+                : filled
+                  ? 'rgba(255,255,255,0.1)'
+                  : 'rgba(255,255,255,0.11)',
+          };
+
+          if (pos.top !== undefined) style.top = pos.top;
+          if ('bottom' in pos && pos.bottom !== undefined) style.bottom = pos.bottom;
+          if (pos.left !== undefined) style.left = pos.left;
+          if ('right' in pos && pos.right !== undefined) style.right = pos.right;
+          if ('tx' in pos) style.transform = `translateX(${pos.tx})`;
+
+          const lastName = player ? player.player_name.split(' ').pop() || '' : '';
+
+          return (
+            <div key={i} style={style} onClick={() => onSlotClick(i)} title={filled ? 'Click to remove' : pos.position}>
+              {filled && player ? (
+                <>
+                  <div style={{ position: 'relative', width: 34, height: 34 }}>
+                    <PlayerAvatar
+                      name={player.player_name}
+                      imageUrl={player.image_url}
+                      size={34}
+                      radius={17}
+                      fontSize={10}
+                    />
+                    <div style={{
+                      position: 'absolute', top: -4, right: -4, width: 17, height: 17,
+                      borderRadius: '50%', background: 'var(--amber)', color: '#000',
+                      fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 9, fontWeight: 900,
+                      display: 'flex', alignItems: 'center', justifyContent: 'center',
+                      border: '1.5px solid var(--bg)',
+                    }}>
+                      {powers[i]}
+                    </div>
+                  </div>
+                  <div style={{ fontSize: 9, fontWeight: 600, textAlign: 'center', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', width: 58, color: 'var(--text)', marginTop: 2 }}>
+                    {lastName}
+                  </div>
+                </>
+              ) : (
+                <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', lineHeight: 1.1 }}>
+                  <div style={{ fontSize: 10, color: 'var(--faint)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 800, letterSpacing: 0.5 }}>{pos.label}</div>
+                  <div style={{ fontSize: 7, marginTop: 2, color: 'rgba(255,255,255,0.18)', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700 }}>{pos.position}</div>
+                </div>
+              )}
             </div>
-            <div style={{
-              fontSize: 8, fontWeight: 600, letterSpacing: '0.5px',
-              color: isBenched ? 'var(--red)' : filled ? 'var(--blue)' : 'var(--muted)',
-              whiteSpace: 'nowrap',
-              fontFamily: "'Cabinet Grotesk', sans-serif",
-            }}>
-              {filled ? (player?.player_name.split(' ').pop() || '') : pos.label}
-            </div>
-          </button>
-        );
-      })}
+          );
+        })}
+      </div>
     </div>
   );
 }
 
-export { POSITIONS as FOOTBALL_POSITIONS };
+
+export { POS_COORDS };

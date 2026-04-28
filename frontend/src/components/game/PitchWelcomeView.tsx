@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react';
 import { CricketPitch } from './CricketPitch';
+import { FootballPitch } from './FootballPitch';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
 import { useGameStore } from '../../store/gameStore';
 import { useGame } from '../../hooks/useGame';
@@ -9,18 +10,45 @@ import { splitTeams } from '../../types';
 
 const TOTAL_B = 33, MAX_B = 6, MIN_B = 1, DEF_B = 3;
 
-type RoleKey = 'BAT' | 'AR' | 'BOWL' | 'WK';
-// Per-team role caps. Mirrors backend ROLE_CAPS in app/api/routes/game.py.
-const ROLE_CAPS: Record<RoleKey, number> = { BAT: 6, AR: 3, BOWL: 5, WK: 11 };
-const MIN_WK = 1;
+type CricketRoleKey = 'BAT' | 'AR' | 'BOWL' | 'WK';
+type FootballRoleKey = 'GK' | 'DEF' | 'MID' | 'FW';
+type RoleKey = CricketRoleKey | FootballRoleKey;
 
-function roleKeyOf(role: string): RoleKey | null {
+// Per-team role caps as [min, max]. Mirrors backend ROLE_CAPS /
+// FOOTBALL_ROLE_CAPS in app/api/routes/game.py — keep these in sync.
+const CRICKET_CAPS: Record<CricketRoleKey, [number, number]> = {
+  BAT: [0, 6], AR: [0, 3], BOWL: [0, 5], WK: [1, 11],
+};
+const FOOTBALL_CAPS: Record<FootballRoleKey, [number, number]> = {
+  GK: [1, 1], DEF: [3, 5], MID: [3, 5], FW: [1, 3],
+};
+
+// Role-bucket order shown in the chip strip. Cricket renders WK separately
+// (need-1 affordance), so the primary list omits it.
+const CRICKET_PRIMARY: CricketRoleKey[] = ['BAT', 'AR', 'BOWL'];
+const FOOTBALL_PRIMARY: FootballRoleKey[] = ['GK', 'DEF', 'MID', 'FW'];
+
+function cricketRoleKey(role: string): CricketRoleKey | null {
   const r = (role || '').toLowerCase();
   if (r.includes('keep') || r === 'wk') return 'WK';
   if (r.includes('all')) return 'AR';
   if (r.includes('bowl')) return 'BOWL';
   if (r.includes('bat')) return 'BAT';
   return null;
+}
+
+function footballRoleKey(role: string): FootballRoleKey | null {
+  const r = (role || '').toUpperCase().trim();
+  if (!r) return null;
+  if (r === 'GK' || r === 'G' || r.includes('GOAL') || r.includes('KEEPER')) return 'GK';
+  if (['DEF', 'D', 'DF', 'CB', 'LB', 'RB', 'LWB', 'RWB'].includes(r) || r.includes('DEFEN') || r.includes('BACK')) return 'DEF';
+  if (['MID', 'M', 'MF', 'CM', 'CDM', 'CAM', 'LM', 'RM'].includes(r) || r.includes('MID')) return 'MID';
+  if (['FW', 'F', 'FWD', 'ST', 'CF', 'LW', 'RW'].includes(r) || r.includes('FORW') || r.includes('ATTACK') || r.includes('STRIK') || r.includes('WING')) return 'FW';
+  return null;
+}
+
+function roleKeyOf(sport: Sport, role: string): RoleKey | null {
+  return sport === 'football' ? footballRoleKey(role) : cricketRoleKey(role);
 }
 
 interface PitchWelcomeViewProps {
@@ -30,7 +58,19 @@ interface PitchWelcomeViewProps {
   onComplete: () => void;
 }
 
-export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }: PitchWelcomeViewProps) {
+export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchWelcomeViewProps) {
+  const isFootball = sport === 'football';
+  const Pitch = isFootball ? FootballPitch : CricketPitch;
+  const ROLE_CAPS_PAIRS = isFootball ? FOOTBALL_CAPS : CRICKET_CAPS;
+  const PRIMARY_ROLES: RoleKey[] = isFootball ? FOOTBALL_PRIMARY : CRICKET_PRIMARY;
+  const ROLE_LABELS_LONG: Record<RoleKey, string> = {
+    BAT: 'batsman', AR: 'all-rounder', BOWL: 'bowler', WK: 'wicket-keeper',
+    GK: 'goalkeeper', DEF: 'defender', MID: 'midfielder', FW: 'forward',
+  };
+  // Cricket validates "min 1 wicket-keeper" separately; football validates
+  // every role's min via PRIMARY_ROLES + ROLE_CAPS_PAIRS.
+  const wkRequired = !isFootball;
+  const MIN_WK = 1;
   const { selectSquad, saveWeightages, lockSquad, fetchSquads, fetchGameState } = useGame(roomId);
   const availableSquads = useGameStore(s => s.availableSquads);
   const game = useGameStore(s => s.game);
@@ -128,26 +168,41 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     };
   }, []);
 
-  // Role composition counts — desktop uses slots, mobile step 1 uses mobileSelected
-  const roleCounts: Record<RoleKey, number> = { BAT: 0, AR: 0, BOWL: 0, WK: 0 };
-  slots.forEach(p => { if (p) { const k = roleKeyOf(p.player_role); if (k) roleCounts[k]++; } });
-  const mobileRoleCounts: Record<RoleKey, number> = { BAT: 0, AR: 0, BOWL: 0, WK: 0 };
+  // Role composition counts — desktop uses slots, mobile step 1 uses
+  // mobileSelected. Initialised with every key the active sport cares about
+  // so chip rendering can index the same Record without optional chaining.
+  const emptyCounts = (): Record<RoleKey, number> => {
+    const init: Partial<Record<RoleKey, number>> = {};
+    Object.keys(ROLE_CAPS_PAIRS).forEach(k => { init[k as RoleKey] = 0; });
+    return init as Record<RoleKey, number>;
+  };
+  const roleCounts: Record<RoleKey, number> = emptyCounts();
+  slots.forEach(p => { if (p) { const k = roleKeyOf(sport, p.player_role); if (k) roleCounts[k] = (roleCounts[k] || 0) + 1; } });
+  const mobileRoleCounts: Record<RoleKey, number> = emptyCounts();
   mobileSelected.forEach(pid => {
     const pl = allPlayers.find(p => p.player_id === pid);
-    if (pl) { const k = roleKeyOf(pl.player_role); if (k) mobileRoleCounts[k]++; }
+    if (pl) { const k = roleKeyOf(sport, pl.player_role); if (k) mobileRoleCounts[k] = (mobileRoleCounts[k] || 0) + 1; }
   });
   const activeRoleCounts = isMobile && mobileStep === 'pick' ? mobileRoleCounts : roleCounts;
-  const wkValid = activeRoleCounts.WK >= MIN_WK;
-  const canLock = pickCount === 11 && isBalanced && roleCounts.WK >= MIN_WK;
+  const wkValid = !wkRequired || (activeRoleCounts['WK' as RoleKey] || 0) >= MIN_WK;
+  // Football: composition is valid only when every primary role hits its
+  // min and stays under its max. Cricket: WK min + per-role max.
+  const compositionValid = isFootball
+    ? PRIMARY_ROLES.every(k => {
+        const [lo, hi] = ROLE_CAPS_PAIRS[k as keyof typeof ROLE_CAPS_PAIRS];
+        const c = roleCounts[k] || 0;
+        return c >= lo && c <= hi;
+      })
+    : (roleCounts['WK' as RoleKey] || 0) >= MIN_WK;
+  const canLock = pickCount === 11 && isBalanced && compositionValid;
 
+  const filterMatchesRole = (p: SquadPlayer): boolean => {
+    if (roleFilter === 'all') return true;
+    const k = roleKeyOf(sport, p.player_role);
+    return !!k && k.toLowerCase() === roleFilter.toLowerCase();
+  };
   const benchPlayers = allPlayers.filter(p => {
-    if (roleFilter !== 'all') {
-      const r = p.player_role.toLowerCase();
-      if (roleFilter === 'bat' && !r.includes('bat')) return false;
-      if (roleFilter === 'bowl' && !r.includes('bowl')) return false;
-      if (roleFilter === 'ar' && !r.includes('all')) return false;
-      if (roleFilter === 'wk' && !r.includes('keep') && !r.includes('wk')) return false;
-    }
+    if (!filterMatchesRole(p)) return false;
     if (search && !p.player_name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
@@ -196,21 +251,20 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
     setPowers(pw);
   }
 
-  function applyPreset(key: string) {
+  function applyPreset(presetRoleKey: RoleKey | 'balanced') {
     const placed = slots.map((p, i) => ({ p, i })).filter(x => x.p);
     if (!placed.length) return;
     const pw = [...powers];
     placed.forEach(({ i }) => { pw[i] = MIN_B; });
-    if (key === 'balanced') {
+    if (presetRoleKey === 'balanced') {
       placed.forEach(({ i }) => { pw[i] = DEF_B; });
     } else {
-      const roleMap: Record<string, string> = { bat: 'bat', bowl: 'bowl', ar: 'all' };
-      const targetRole = roleMap[key] || '';
-      const targets = placed.filter(x => x.p!.player_role.toLowerCase().includes(targetRole));
+      // Boost players whose canonical role matches the preset (sport-aware).
+      const targets = placed.filter(x => roleKeyOf(sport, x.p!.player_role) === presetRoleKey);
       let budget = TOTAL_B - (placed.length * MIN_B);
       targets.forEach(({ i }) => { const add = Math.min(MAX_B - MIN_B, budget); pw[i] += add; budget -= add; });
       let extra = TOTAL_B - pw.reduce((s, v, i) => slots[i] ? s + v : s, 0);
-      placed.filter(x => !x.p!.player_role.toLowerCase().includes(targetRole)).forEach(({ i }) => {
+      placed.filter(x => roleKeyOf(sport, x.p!.player_role) !== presetRoleKey).forEach(({ i }) => {
         if (extra <= 0) return; const add = Math.min(MAX_B - pw[i], extra); pw[i] += add; extra -= add;
       });
     }
@@ -220,8 +274,19 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
   async function handleLockTeam() {
     if (pickCount !== 11 || !isBalanced) return;
-    if (roleCounts.WK < MIN_WK) {
-      setError(`Pick at least ${MIN_WK} wicket-keeper.`);
+    if (!compositionValid) {
+      // Surface the first failing role so the user knows what to fix.
+      const failing = PRIMARY_ROLES.find(k => {
+        const [lo] = ROLE_CAPS_PAIRS[k as keyof typeof ROLE_CAPS_PAIRS];
+        return (roleCounts[k] || 0) < lo;
+      });
+      if (isFootball && failing) {
+        const [lo] = ROLE_CAPS_PAIRS[failing as keyof typeof ROLE_CAPS_PAIRS];
+        const label = ROLE_LABELS_LONG[failing];
+        setError(`Pick at least ${lo} ${lo === 1 ? label : label + 's'}.`);
+      } else {
+        setError(`Pick at least ${MIN_WK} ${ROLE_LABELS_LONG.WK}.`);
+      }
       return;
     }
     setLocking(true); setError('');
@@ -283,24 +348,31 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
   }
 
   const getRoleBg = (role: string) => {
-    const r = role.toLowerCase();
-    if (r.includes('bat')) return { bg: 'rgba(45,214,122,0.1)', color: 'var(--green)' };
-    if (r.includes('bowl')) return { bg: 'rgba(139,92,246,0.1)', color: 'var(--purple)' };
-    if (r.includes('all')) return { bg: 'rgba(245,158,11,0.1)', color: 'var(--amber)' };
+    const k = roleKeyOf(sport, role);
+    // Cricket palette: green=BAT, purple=BOWL, amber=AR, neutral=WK
+    // Football palette: red=GK, blue=DEF, amber=MID, green=FW
+    if (isFootball) {
+      if (k === 'GK') return { bg: 'rgba(240,82,82,0.1)', color: 'var(--red)' };
+      if (k === 'DEF') return { bg: 'rgba(59,130,246,0.1)', color: 'var(--blue)' };
+      if (k === 'MID') return { bg: 'rgba(245,158,11,0.1)', color: 'var(--amber)' };
+      if (k === 'FW') return { bg: 'rgba(45,214,122,0.1)', color: 'var(--green)' };
+      return { bg: 'rgba(192,194,200,0.08)', color: 'var(--muted)' };
+    }
+    if (k === 'BAT') return { bg: 'rgba(45,214,122,0.1)', color: 'var(--green)' };
+    if (k === 'BOWL') return { bg: 'rgba(139,92,246,0.1)', color: 'var(--purple)' };
+    if (k === 'AR') return { bg: 'rgba(245,158,11,0.1)', color: 'var(--amber)' };
     return { bg: 'rgba(192,194,200,0.08)', color: 'var(--muted)' };
   };
-  const roleTag = (role: string) => {
-    const r = role.toLowerCase();
-    if (r.includes('bat')) return 'BAT'; if (r.includes('bowl')) return 'BOWL';
-    if (r.includes('all')) return 'AR'; if (r.includes('keep') || r.includes('wk')) return 'WK';
-    return '?';
+  const roleTag = (role: string): string => {
+    const k = roleKeyOf(sport, role);
+    return k ?? '?';
   };
 
   if (allPlayers.length === 0) {
     return (
       <div className="flex items-center justify-center" style={{ height: '100dvh', paddingTop: 60 }}>
         <div className="text-center">
-          <div className="text-3xl mb-3 animate-pulse">🏏</div>
+          <div className="text-3xl mb-3 animate-pulse">{isFootball ? '⚽' : '🏏'}</div>
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Loading squads...</div>
           <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Fetching player data for {t1} vs {t2}</div>
         </div>
@@ -314,18 +386,24 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
       {(() => {
         const roleChips = (
           <div style={{ fontSize: isMobile ? 10 : 11, color: 'var(--muted)', display: 'flex', gap: isMobile ? 6 : 8, fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, flexWrap: 'wrap' }}>
-            {(['BAT', 'AR', 'BOWL'] as RoleKey[]).map(k => {
-              const at = activeRoleCounts[k];
-              const cap = ROLE_CAPS[k];
-              const over = at > cap;
-              const full = at === cap;
+            {PRIMARY_ROLES.map(k => {
+              const at = activeRoleCounts[k] || 0;
+              const [lo, hi] = ROLE_CAPS_PAIRS[k as keyof typeof ROLE_CAPS_PAIRS];
+              const over = at > hi;
+              const under = at < lo;
+              const full = at === hi;
+              const color = over ? 'var(--red)' : under ? 'var(--red)' : full ? 'var(--amber)' : 'var(--muted)';
               return (
-                <span key={k} style={{ color: over ? 'var(--red)' : full ? 'var(--amber)' : 'var(--muted)' }}>
-                  {k} {at}/{cap}
+                <span key={k} style={{ color }}>
+                  {k} {at}/{hi}{under && lo > 0 ? ` (need ${lo})` : ''}
                 </span>
               );
             })}
-            <span style={{ color: wkValid ? 'var(--green)' : 'var(--red)' }}>WK {activeRoleCounts.WK}{wkValid ? '' : ` (need ${MIN_WK})`}</span>
+            {wkRequired && (
+              <span style={{ color: wkValid ? 'var(--green)' : 'var(--red)' }}>
+                WK {activeRoleCounts['WK' as RoleKey] || 0}{wkValid ? '' : ` (need ${MIN_WK})`}
+              </span>
+            )}
           </div>
         );
         return (
@@ -383,9 +461,12 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                 </div>
               </div>
               <div style={{ display: 'flex', gap: 4, padding: '6px 12px', flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
-                {['all', 'bat', 'bowl', 'ar', 'wk'].map(r => (
+                {(isFootball
+                  ? [['all', 'All'], ['gk', 'GK'], ['def', 'DEF'], ['mid', 'MID'], ['fw', 'FW']]
+                  : [['all', 'All'], ['bat', 'Bat'], ['bowl', 'Bowl'], ['ar', 'AR'], ['wk', 'WK']]
+                ).map(([r, label]) => (
                   <button key={r} onClick={() => setRoleFilter(r)} style={{ fontSize: 11, padding: '4px 12px', borderRadius: 100, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, border: roleFilter === r ? '1px solid rgba(45,214,122,0.25)' : '1px solid var(--border)', background: roleFilter === r ? 'rgba(45,214,122,0.08)' : 'transparent', color: roleFilter === r ? 'var(--green)' : 'var(--muted)' }}>
-                    {r === 'all' ? 'All' : r === 'bat' ? 'Bat' : r === 'bowl' ? 'Bowl' : r === 'ar' ? 'AR' : 'WK'}
+                    {label}
                   </button>
                 ))}
               </div>
@@ -397,8 +478,11 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                       {benchPlayers.filter(p => p.team === team).map(player => {
                         const isSel = mobileSelected.has(player.player_id);
                         const rcBg = getRoleBg(player.player_role);
-                        const pRole = roleKeyOf(player.player_role);
-                        const capExceeded = !isSel && pRole !== null && mobileRoleCounts[pRole] >= ROLE_CAPS[pRole];
+                        const pRole = roleKeyOf(sport, player.player_role);
+                        const pRoleCap = pRole && (pRole as RoleKey) in ROLE_CAPS_PAIRS
+                          ? ROLE_CAPS_PAIRS[pRole as keyof typeof ROLE_CAPS_PAIRS][1]
+                          : Infinity;
+                        const capExceeded = !isSel && pRole !== null && (mobileRoleCounts[pRole] || 0) >= pRoleCap;
                         const canSelect = (mobileSelected.size < 11 || isSel) && !capExceeded;
                         return (
                           <div key={player.player_id} onClick={() => canSelect && mobileTogglePlayer(player.player_id)} style={{
@@ -444,9 +528,9 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
           ) : (
             /* ── STEP 2: PITCH VIEW + POWER DISTRIBUTION ── */
             <>
-              {/* Pitch with players placed */}
+              {/* Pitch with players placed (sport-aware) */}
               <div style={{ flexShrink: 0, padding: '0 8px' }}>
-                <CricketPitch slots={slots} powers={powers} selectedPlayer={null} phase={2} onSlotClick={(i) => setActiveSlot(activeSlot === i ? null : i)} hint="" activeSlot={activeSlot} />
+                <Pitch slots={slots} powers={powers} selectedPlayer={null} phase={2} onSlotClick={(i) => setActiveSlot(activeSlot === i ? null : i)} hint="" activeSlot={activeSlot} />
               </div>
 
               {/* Power adjuster for selected slot */}
@@ -465,10 +549,13 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                 );
               })()}
 
-              {/* Presets + power list */}
+              {/* Presets + power list — sport-aware boost targets */}
               <div style={{ padding: '10px 14px' }}>
                 <div style={{ display: 'flex', gap: 6, marginBottom: 10, flexWrap: 'wrap' }}>
-                  {[{ key: 'balanced', icon: '⚖️', label: 'Balance' }, { key: 'bat', icon: '🏏', label: 'Bat' }, { key: 'bowl', icon: '🎯', label: 'Bowl' }, { key: 'ar', icon: '⚡', label: 'AR' }].map(p => (
+                  {(isFootball
+                    ? [{ key: 'balanced' as const, icon: '⚖️', label: 'Balance' }, { key: 'FW' as const, icon: '⚡', label: 'Attack' }, { key: 'MID' as const, icon: '🎯', label: 'Midfield' }, { key: 'DEF' as const, icon: '🛡️', label: 'Defence' }]
+                    : [{ key: 'balanced' as const, icon: '⚖️', label: 'Balance' }, { key: 'BAT' as const, icon: '🏏', label: 'Bat' }, { key: 'BOWL' as const, icon: '🎯', label: 'Bowl' }, { key: 'AR' as const, icon: '⚡', label: 'AR' }]
+                  ).map(p => (
                     <button key={p.key} onClick={() => applyPreset(p.key)} style={{ padding: '5px 12px', borderRadius: 100, border: '1px solid var(--border)', background: 'var(--surface)', color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{p.icon} {p.label}</button>
                   ))}
                 </div>
@@ -527,9 +614,12 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
             <input value={search} onChange={e => setSearch(e.target.value)} placeholder="Search…" style={{ width: 120, background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 10px', fontSize: 13, color: 'var(--text)', outline: 'none' }} />
           </div>
           <div style={{ display: 'flex', gap: 4, padding: '6px 14px', flexShrink: 0, flexWrap: 'wrap', borderBottom: '1px solid var(--border)' }}>
-            {['all', 'bat', 'bowl', 'ar', 'wk'].map(r => (
+            {(isFootball
+              ? [['all', 'All'], ['gk', 'GK'], ['def', 'DEF'], ['mid', 'MID'], ['fw', 'FW']]
+              : [['all', 'All'], ['bat', 'Bat'], ['bowl', 'Bowl'], ['ar', 'AR'], ['wk', 'WK']]
+            ).map(([r, label]) => (
               <button key={r} onClick={() => setRoleFilter(r)} style={{ fontSize: 12, padding: '4px 12px', borderRadius: 100, cursor: 'pointer', fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, border: roleFilter === r ? '1px solid rgba(45,214,122,0.25)' : '1px solid var(--border)', background: roleFilter === r ? 'rgba(45,214,122,0.08)' : 'transparent', color: roleFilter === r ? 'var(--green)' : 'var(--muted)' }}>
-                {r === 'all' ? 'All' : r === 'bat' ? 'Bat' : r === 'bowl' ? 'Bowl' : r === 'ar' ? 'AR' : 'WK'}
+                {label}
               </button>
             ))}
           </div>
@@ -543,11 +633,14 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
                     const isSel = selectedPlayer?.player_id === player.player_id;
                     const rcBg = getRoleBg(player.player_role);
                     const fullName = player.player_name;
-                    const pRole = roleKeyOf(player.player_role);
-                    const capExceeded = !isPlaced && pRole !== null && roleCounts[pRole] >= ROLE_CAPS[pRole];
+                    const pRole = roleKeyOf(sport, player.player_role);
+                    const pRoleCap = pRole && (pRole as RoleKey) in ROLE_CAPS_PAIRS
+                      ? ROLE_CAPS_PAIRS[pRole as keyof typeof ROLE_CAPS_PAIRS][1]
+                      : Infinity;
+                    const capExceeded = !isPlaced && pRole !== null && (roleCounts[pRole] || 0) >= pRoleCap;
                     const disabled = isPlaced || capExceeded;
                     return (
-                      <div key={player.player_id} onClick={() => !disabled && handleBenchClick(player)} title={capExceeded ? `Max ${ROLE_CAPS[pRole!]} ${pRole} allowed` : undefined} style={{
+                      <div key={player.player_id} onClick={() => !disabled && handleBenchClick(player)} title={capExceeded ? `Max ${pRoleCap} ${pRole} allowed` : undefined} style={{
                         display: 'flex', alignItems: 'center', gap: 6,
                         padding: '6px 8px', borderRadius: 8,
                         border: isSel ? '1px solid var(--green)' : '1px solid var(--border)',
@@ -576,15 +669,23 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
 
           {/* Pitch area */}
           <div style={{ flex: 1, display: 'flex', flexDirection: 'column', position: 'relative' }}>
-            {/* Preset buttons floating on top */}
+            {/* Preset buttons floating on top — sport-aware boost groups */}
             {pickCount > 0 && (
               <div style={{ position: 'absolute', top: 12, left: '50%', transform: 'translateX(-50%)', zIndex: 20, display: 'flex', flexWrap: 'wrap', justifyContent: 'center', gap: 4, background: 'rgba(26,27,30,0.85)', backdropFilter: 'blur(8px)', borderRadius: 14, padding: '5px 8px', border: '1px solid var(--border)' }}>
-                {[
-                  { key: 'balanced', icon: '⚖️', label: 'Balance' },
-                  { key: 'bat', icon: '🏏', label: 'Batters' },
-                  { key: 'bowl', icon: '🎯', label: 'Bowlers' },
-                  { key: 'ar', icon: '⚡', label: 'All-rds' },
-                ].map(p => (
+                {(isFootball
+                  ? [
+                      { key: 'balanced' as const, icon: '⚖️', label: 'Balance' },
+                      { key: 'FW' as const, icon: '⚡', label: 'Attack' },
+                      { key: 'MID' as const, icon: '🎯', label: 'Midfield' },
+                      { key: 'DEF' as const, icon: '🛡️', label: 'Defence' },
+                    ]
+                  : [
+                      { key: 'balanced' as const, icon: '⚖️', label: 'Balance' },
+                      { key: 'BAT' as const, icon: '🏏', label: 'Batters' },
+                      { key: 'BOWL' as const, icon: '🎯', label: 'Bowlers' },
+                      { key: 'AR' as const, icon: '⚡', label: 'All-rds' },
+                    ]
+                ).map(p => (
                   <button key={p.key} onClick={() => applyPreset(p.key)} style={{
                     padding: '4px 10px', borderRadius: 100, border: 'none', background: 'transparent',
                     color: 'var(--muted)', fontSize: 11, fontWeight: 700, cursor: 'pointer',
@@ -599,8 +700,8 @@ export function PitchWelcomeView({ roomId, roomName, sport: _sport, onComplete }
               </div>
             )}
 
-            {/* Cricket pitch */}
-            <CricketPitch
+            {/* Pitch (sport-aware: Cricket or Football) */}
+            <Pitch
               slots={slots}
               powers={powers}
               selectedPlayer={selectedPlayer}
