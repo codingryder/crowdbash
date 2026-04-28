@@ -237,6 +237,18 @@ async def score_poller():
                         if last is not None and last.tzinfo is None:
                             last = last.replace(tzinfo=_tz2.utc)
                         stale = last is None or (_dt2.now(_tz2.utc) - last) > _td2(days=7)
+                        # If we synced the squad before kickoff, ESPN's
+                        # match-summary rosters[] would have been empty and
+                        # we'd have fallen back to full first-team data
+                        # (Gemini / team-roster). Now that we're past
+                        # kickoff, ESPN has the announced matchday squad
+                        # (starters + named subs) — trigger a re-sync to
+                        # narrow the picker down so users can't pick a
+                        # player who wasn't in the matchday 18.
+                        if not stale and last is not None and room.match_date is not None:
+                            md = room.match_date if room.match_date.tzinfo else room.match_date.replace(tzinfo=_tz2.utc)
+                            if last < md:
+                                stale = True
                         if not stale:
                             # Cheap check: does any row for this room have a
                             # blank or non-canonical role? If so, treat as stale.
@@ -579,6 +591,32 @@ async def playing_xi_poller():
                                 "announced_at": now.isoformat(),
                             }
                         })
+
+                    # Football: now that team sheets are out, re-sync the
+                    # match-day squad from ESPN so the player picker only
+                    # offers starters + named subs (excluding players who
+                    # didn't make the matchday 18). Cricket stays on
+                    # whatever squad source it had — cricket squads don't
+                    # change on team-sheet drop the way football does.
+                    if sport == "football":
+                        from app.api.routes.admin import _populate_match_squads
+                        for r in rooms:
+                            if r.id in _SYNCING_SQUADS:
+                                continue
+                            _SYNCING_SQUADS.add(r.id)
+                            async def _bg(rid):
+                                try:
+                                    async with AsyncSessionLocal() as bg_db:
+                                        bg_room = (await bg_db.execute(
+                                            select(Room).where(Room.id == rid)
+                                        )).scalar_one_or_none()
+                                        if bg_room:
+                                            await _populate_match_squads(bg_db, bg_room)
+                                except Exception as bg_e:
+                                    print(f"Post-XI squad sync failed for {rid}: {bg_e}")
+                                finally:
+                                    _SYNCING_SQUADS.discard(rid)
+                            asyncio.create_task(_bg(r.id))
 
                 if announced:
                     await db.commit()
