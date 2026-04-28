@@ -668,23 +668,103 @@ async def get_espn_football_score(event_id: str, league_slug: str) -> dict | Non
                 except (ValueError, TypeError):
                     minute = 0
 
-            # Goals + bookings — pull from header competitors' details so we
-            # can populate the side-panel goalscorers / bookings sections.
+            # Goals + bookings — ESPN puts these on commentary[] for soccer
+            # (competitor.details is empty for football matches). Each goal
+            # commentary item has the shape:
+            #   { time: {displayValue: "17'"}, text: "Goal! TeamA 0, TeamB 1. Player Name (TeamB) ..." }
+            import re as _re
             goals: list[dict] = []
             bookings: list[dict] = []
-            for c in comps:
-                team_name = (c.get("team") or {}).get("displayName") or ""
-                for detail in c.get("details") or []:
-                    dtype = (detail.get("type") or {}).get("text", "")
-                    ath = (detail.get("athletesInvolved") or [{}])[0]
-                    pname = ath.get("displayName") or ath.get("shortName") or ""
-                    dminute = detail.get("clock", {}).get("value") or detail.get("minute") or 0
-                    if isinstance(dminute, dict):
-                        dminute = dminute.get("value", 0)
-                    if "goal" in dtype.lower():
-                        goals.append({"scorer": {"name": pname}, "minute": int(float(dminute or 0)), "type": dtype, "team": team_name})
-                    elif "yellow" in dtype.lower() or "red" in dtype.lower():
-                        bookings.append({"player": {"name": pname}, "card": "RED" if "red" in dtype.lower() else "YELLOW", "minute": int(float(dminute or 0)), "team": team_name})
+            commentary = data.get("commentary") or []
+            # Regex captures the player name between the score line and the team
+            # parenthesis: ". Harry Kane (FC Bayern München)" → "Harry Kane".
+            goal_re = _re.compile(r"Goal!.*?\.\s*([^()]+?)\s*\(([^)]+)\)")
+            yc_re = _re.compile(r"(?:Yellow card|Booking|Second yellow card)[^.]*?(?:to|for|shown to)\s+([^,.()]+?)(?:\s*\(|[,.])", _re.IGNORECASE)
+            rc_re = _re.compile(r"(?:Red card|Second yellow card)[^.]*?(?:to|for|shown to)\s+([^,.()]+?)(?:\s*\(|[,.])", _re.IGNORECASE)
+            for item in commentary:
+                text = (item.get("text") or "").strip()
+                if not text:
+                    continue
+                disp = ((item.get("time") or {}).get("displayValue") or "").strip()
+                # Parse "23'" or "45+2'" → integer minutes
+                m_min = 0
+                if disp:
+                    try:
+                        cleaned = disp.replace("'", "").strip()
+                        if "+" in cleaned:
+                            base, extra = cleaned.split("+", 1)
+                            m_min = int(base) + int(extra)
+                        else:
+                            m_min = int(float(cleaned))
+                    except (ValueError, TypeError):
+                        m_min = 0
+                t_lower = text.lower()
+                if t_lower.startswith("goal!"):
+                    m = goal_re.search(text)
+                    if m:
+                        scorer = m.group(1).strip()
+                        team = m.group(2).strip()
+                        # Skip own-goal duplicates ("Own Goal!") — those start
+                        # with "Own Goal" and have a different shape.
+                        if "own goal" not in t_lower:
+                            goals.append({
+                                "scorer": {"name": scorer},
+                                "minute": m_min,
+                                "team": team,
+                                "type": "REGULAR",
+                            })
+                elif "yellow card" in t_lower or "second yellow" in t_lower or "red card" in t_lower:
+                    is_red = "red card" in t_lower or "second yellow" in t_lower
+                    pattern = rc_re if is_red else yc_re
+                    m = pattern.search(text)
+                    name = m.group(1).strip() if m else ""
+                    if name:
+                        bookings.append({
+                            "player": {"name": name},
+                            "card": "RED" if is_red else "YELLOW",
+                            "minute": m_min,
+                        })
+
+            # Team statistics — boxscore.teams[].statistics has 28 metrics per
+            # team (possession, shots, corners, fouls, etc.). Surface a curated
+            # subset on the score response so the scorecard modal can render a
+            # comparison table.
+            STAT_LABELS = {
+                "possessionPct": "Possession",
+                "totalShots": "Shots",
+                "shotsOnTarget": "Shots on target",
+                "wonCorners": "Corners",
+                "foulsCommitted": "Fouls",
+                "yellowCards": "Yellow cards",
+                "redCards": "Red cards",
+                "offsides": "Offsides",
+                "saves": "Saves",
+                "passPct": "Pass accuracy",
+                "totalPasses": "Total passes",
+            }
+            home_stats: dict[str, str] = {}
+            away_stats: dict[str, str] = {}
+            possession_home = None
+            possession_away = None
+            for tb in (data.get("boxscore") or {}).get("teams") or []:
+                tag = "home" if tb.get("homeAway") == "home" else "away"
+                target = home_stats if tag == "home" else away_stats
+                for s in tb.get("statistics") or []:
+                    name = s.get("name") or ""
+                    label = STAT_LABELS.get(name)
+                    if not label:
+                        continue
+                    val = s.get("displayValue") or ""
+                    target[label] = val
+                    if name == "possessionPct":
+                        try:
+                            v = float(s.get("value", 0))
+                            if tag == "home":
+                                possession_home = v
+                            else:
+                                possession_away = v
+                        except (ValueError, TypeError):
+                            pass
 
             score_data = {
                 "homeTeam": {"name": home_name},
@@ -694,6 +774,9 @@ async def get_espn_football_score(event_id: str, league_slug: str) -> dict | Non
                 "status": status,
                 "goals": goals,
                 "bookings": bookings,
+                "stats": {"home": home_stats, "away": away_stats},
+                "possession_home": possession_home,
+                "possession_away": possession_away,
                 "source": "espn",
             }
             # Cache short — match data changes by the minute when live. Final

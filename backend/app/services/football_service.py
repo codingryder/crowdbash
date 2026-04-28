@@ -246,6 +246,58 @@ class FootballAdapter(SportAdapter):
         minute = match_data.get("minute", 0) or 0
         half = 1 if minute <= 45 else 2
 
+        # Pass-through enrichment fields when the upstream source (currently
+        # ESPN) supplies them — goals / bookings / team stats / possession.
+        # These let the scorecard modal show a real match-detail page
+        # instead of just a score line.
+        raw_goals = match_data.get("goals") or []
+        raw_bookings = match_data.get("bookings") or []
+
+        # Transform goals + bookings into the "events" timeline shape the
+        # ScorecardModal already knows how to render (combined chrono list
+        # of icons keyed on is_goal / is_yellow / is_red, with the home/away
+        # tag computed from the team name match).
+        def _team_side(team_name: str) -> str:
+            if not team_name:
+                return ""
+            tn = team_name.strip().lower()
+            if home_team and tn == home_team.strip().lower():
+                return "home"
+            if away_team and tn == away_team.strip().lower():
+                return "away"
+            # Loose match — ESPN sometimes uses "FC Bayern München" while
+            # the room name has "Bayern Munich". Compare on shared tokens.
+            if home_team and any(t for t in tn.split() if t and t in home_team.lower()):
+                return "home"
+            if away_team and any(t for t in tn.split() if t and t in away_team.lower()):
+                return "away"
+            return ""
+
+        events: list[dict] = []
+        for g in raw_goals:
+            scorer = (g.get("scorer") or {}).get("name") or ""
+            events.append({
+                "minute": int(g.get("minute") or 0),
+                "type": "Goal",
+                "player": scorer,
+                "team": _team_side(g.get("team") or ""),
+                "is_goal": True,
+                "is_own_goal": (g.get("type") or "").lower() == "own_goal",
+                "is_penalty": (g.get("type") or "").lower() == "penalty",
+            })
+        for b in raw_bookings:
+            player = (b.get("player") or {}).get("name") or ""
+            card = (b.get("card") or "").upper()
+            events.append({
+                "minute": int(b.get("minute") or 0),
+                "type": "Red card" if card == "RED" else "Yellow card",
+                "player": player,
+                "team": _team_side(b.get("team") or ""),
+                "is_yellow": card == "YELLOW",
+                "is_red": card == "RED",
+            })
+        events.sort(key=lambda e: e.get("minute", 0))
+
         return {
             "sport": "football",
             "home": {"name": home_team, "goals": home_goals},
@@ -253,6 +305,13 @@ class FootballAdapter(SportAdapter):
             "minute": minute,
             "half": half,
             "status": status,
+            "is_live": status == "IN_PLAY",
+            "events": events,
+            "goals": raw_goals,
+            "bookings": raw_bookings,
+            "stats": match_data.get("stats") or {},
+            "possession_home": match_data.get("possession_home"),
+            "possession_away": match_data.get("possession_away"),
         }
 
     def extract_match_progress(self, match_data: dict) -> dict:
