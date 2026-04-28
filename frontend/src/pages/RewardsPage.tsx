@@ -221,8 +221,14 @@ export function RewardsPage() {
                     {outOfStock ? 'Out of stock' : !user ? 'Sign in' : !canAfford ? 'Not enough' : 'Redeem'}
                   </button>
                 </div>
-                {r.stock !== null && !outOfStock && (
-                  <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 8 }}>{r.stock} left</div>
+                {/* Affordability hint — replaces the old "X left" stock line.
+                    Stock counts were confusing (admins seed arbitrary numbers
+                    and they read like a deficit). Now we surface what
+                    actually matters: how many Bashpoints you still need. */}
+                {user && balance !== null && balance < r.coin_cost && !outOfStock && (
+                  <div style={{ color: 'var(--muted)', fontSize: 11, marginTop: 8 }}>
+                    Earn <span style={{ color: '#f5c431', fontWeight: 700 }}>{r.coin_cost - balance}</span> more Bashpoint{r.coin_cost - balance !== 1 ? 's' : ''} to redeem
+                  </div>
                 )}
               </div>
             );

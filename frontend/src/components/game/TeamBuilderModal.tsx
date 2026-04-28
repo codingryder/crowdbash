@@ -56,6 +56,40 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
     for (const p of players as SquadPlayer[]) allPlayers.push(p);
   }
 
+  // ── Composition validation (mirrors backend role caps) ─────────────────
+  // Backend rejects squads that violate caps with a clear error, but until
+  // now the client showed nothing until the user hit "Assign Power →" and
+  // got back an after-the-fact toast. Compute the same checks here so the
+  // user sees the constraints live.
+  const ROLE_CAP_VALUES = { batsman: 6, 'all-rounder': 3, bowler: 5 } as const;
+  const MIN_WK = 1;
+
+  function _roleKey(role: string): 'batsman' | 'all-rounder' | 'bowler' | 'wicket-keeper' | 'unknown' {
+    const r = (role || '').toLowerCase();
+    if (r.includes('keep') || r === 'wk') return 'wicket-keeper';
+    if (r.includes('all')) return 'all-rounder';
+    if (r.includes('bowl')) return 'bowler';
+    if (r.includes('bat')) return 'batsman';
+    return 'unknown';
+  }
+
+  const roleCounts: Record<string, number> = { batsman: 0, 'all-rounder': 0, bowler: 0, 'wicket-keeper': 0, unknown: 0 };
+  for (const pid of selectedPlayerIds) {
+    const p = allPlayers.find(x => x.player_id === pid);
+    roleCounts[_roleKey(p?.player_role || '')]++;
+  }
+
+  // Build a single, actionable error message — first violation wins, same
+  // ordering as the backend so the message matches what the API would say.
+  let compositionError: string | null = null;
+  if (count === 11) {
+    if (roleCounts.batsman > ROLE_CAP_VALUES.batsman) compositionError = `Too many batters: max ${ROLE_CAP_VALUES.batsman} allowed.`;
+    else if (roleCounts['all-rounder'] > ROLE_CAP_VALUES['all-rounder']) compositionError = `Too many all-rounders: max ${ROLE_CAP_VALUES['all-rounder']} allowed.`;
+    else if (roleCounts.bowler > ROLE_CAP_VALUES.bowler) compositionError = `Too many bowlers: max ${ROLE_CAP_VALUES.bowler} allowed.`;
+    else if (roleCounts['wicket-keeper'] < MIN_WK) compositionError = `Pick at least ${MIN_WK} wicket-keeper.`;
+  }
+  const compositionValid = compositionError === null;
+
   // Filter for bench
   const filteredPlayers = allPlayers.filter((p) => {
     if (roleFilter !== 'all' && (p.player_role || '').toLowerCase() !== roleFilter) return false;
@@ -176,7 +210,8 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
           {step === 'pick' && (
             <button
               onClick={handleConfirmSquad}
-              disabled={count !== 11 || loading}
+              disabled={count !== 11 || !compositionValid || loading}
+              title={count !== 11 ? `Pick ${11 - count} more player${11 - count !== 1 ? 's' : ''}` : compositionError || ''}
               className="font-cabinet text-[13px] font-extrabold border-none rounded-[8px] px-5 py-2 transition-all disabled:opacity-30"
               style={{ background: 'var(--green)', color: '#071a0e' }}
             >
@@ -200,6 +235,42 @@ export function TeamBuilderModal({ roomName: _roomName, onSelectSquad, onSaveWei
       {error && (
         <div className="text-[12px] px-6 py-2" style={{ background: 'rgba(240,82,82,0.1)', color: 'var(--red)' }}>
           {error}
+        </div>
+      )}
+
+      {/* Live composition strip (pick step only) — gives users immediate
+          feedback on role caps so they know WHY the Assign Power button is
+          gated, instead of clicking and getting an after-the-fact error. */}
+      {step === 'pick' && (
+        <div className="flex items-center gap-2 flex-wrap px-4 md:px-6 py-2 shrink-0" style={{ borderBottom: '1px solid var(--b1)', background: 'var(--bg2)' }}>
+          <span className="text-[10px] uppercase tracking-[1px]" style={{ color: 'var(--mu)' }}>Squad mix:</span>
+          {([
+            { role: 'wicket-keeper', label: 'WK', current: roleCounts['wicket-keeper'], rule: `min ${MIN_WK}`, ok: roleCounts['wicket-keeper'] >= MIN_WK },
+            { role: 'batsman', label: 'BAT', current: roleCounts.batsman, rule: `max ${ROLE_CAP_VALUES.batsman}`, ok: roleCounts.batsman <= ROLE_CAP_VALUES.batsman },
+            { role: 'all-rounder', label: 'AR', current: roleCounts['all-rounder'], rule: `max ${ROLE_CAP_VALUES['all-rounder']}`, ok: roleCounts['all-rounder'] <= ROLE_CAP_VALUES['all-rounder'] },
+            { role: 'bowler', label: 'BOWL', current: roleCounts.bowler, rule: `max ${ROLE_CAP_VALUES.bowler}`, ok: roleCounts.bowler <= ROLE_CAP_VALUES.bowler },
+          ]).map(c => (
+            <div
+              key={c.role}
+              className="flex items-center gap-1 rounded-[6px] px-2 py-1 text-[10px] font-bold"
+              style={{
+                background: c.ok ? 'rgba(45,214,122,0.08)' : 'rgba(240,82,82,0.12)',
+                color: c.ok ? 'var(--green)' : 'var(--red)',
+                border: `1px solid ${c.ok ? 'rgba(45,214,122,0.25)' : 'rgba(240,82,82,0.4)'}`,
+                fontFamily: "'Cabinet Grotesk', sans-serif",
+              }}
+            >
+              <span>{c.label}</span>
+              <span style={{ fontWeight: 900 }}>{c.current}</span>
+              <span style={{ opacity: 0.6 }}>· {c.rule}</span>
+              <span>{c.ok ? '✓' : '✕'}</span>
+            </div>
+          ))}
+          {compositionError && (
+            <div className="text-[11px] ml-auto px-2.5 py-1 rounded-[6px]" style={{ background: 'rgba(240,82,82,0.12)', color: 'var(--red)', fontWeight: 600 }}>
+              ⚠ {compositionError}
+            </div>
+          )}
         </div>
       )}
 
