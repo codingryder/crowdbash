@@ -218,7 +218,7 @@ async def get_available_squads(
             try:
                 adapter = get_adapter(room.sport)
                 if hasattr(adapter, 'set_match_context'):
-                    adapter.set_match_context(room.match_name)
+                    adapter.set_match_context(room.match_name, room.league or '')
                 api_players = await adapter.get_match_players(room.match_id)
                 for p in api_players:
                     sq = MatchSquad(

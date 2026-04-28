@@ -218,7 +218,7 @@ async def score_poller():
 
                     # Set match context for Gemini fallback
                     if hasattr(adapter, 'set_match_context'):
-                        adapter.set_match_context(room.match_name)
+                        adapter.set_match_context(room.match_name, room.league or '')
 
                     # Self-heal: any football room that's gone live without
                     # ever syncing its match-day squad gets one populated from

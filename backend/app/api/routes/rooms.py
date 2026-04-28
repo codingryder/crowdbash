@@ -134,7 +134,7 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
     try:
         adapter = get_adapter(room.sport)
         if hasattr(adapter, 'set_match_context'):
-            adapter.set_match_context(room.match_name)
+            adapter.set_match_context(room.match_name, room.league or '')
         match_data = await adapter.get_match_score(room.match_id)
         if match_data:
             normalized = adapter.normalize_score(match_data, room.match_name)

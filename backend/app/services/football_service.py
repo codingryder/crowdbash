@@ -16,9 +16,12 @@ class FootballAdapter(SportAdapter):
     """Football adapter: Football-Data.org primary → Gemini fallback."""
 
     _current_match_name: str = ""
+    _current_league: str = ""
 
-    def set_match_context(self, match_name: str):
+    def set_match_context(self, match_name: str, league: str = ""):
         self._current_match_name = match_name
+        if league:
+            self._current_league = league
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
         """
@@ -72,23 +75,41 @@ class FootballAdapter(SportAdapter):
         return all_matches
 
     async def get_match_score(self, match_id: str) -> Dict[str, Any]:
-        """Get match score: Football-Data.org → Gemini fallback."""
+        """Get match score: ESPN (for espn_* match ids) → Football-Data.org → Gemini fallback."""
         cache_key = f"football:score:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached:
             return cached
 
-        score_data = {}
+        score_data: Dict[str, Any] = {}
 
-        # Layer 1: Try Football-Data.org
-        try:
-            from app.services.footballdata_service import get_match_detail
-            fd_data = await get_match_detail(match_id)
-            if fd_data and fd_data.get("homeTeam"):
-                score_data = fd_data
-                print(f"Football score from Football-Data.org: {match_id}")
-        except Exception as e:
-            print(f"Football-Data.org match detail error: {e}")
+        # Layer 1: ESPN — when the match was discovered via ESPN, the match_id
+        # is "espn_<event_id>" and Football-Data.org won't recognise it. ESPN
+        # is also faster and free, so prefer it whenever the room has the
+        # corresponding league configured.
+        if match_id and match_id.startswith("espn_"):
+            try:
+                from app.services.espn_service import get_espn_football_score, FOOTBALL_LEAGUES
+                event_id = match_id.replace("espn_", "")
+                league_slug = FOOTBALL_LEAGUES.get(self._current_league or "")
+                if league_slug:
+                    espn_data = await get_espn_football_score(event_id, league_slug)
+                    if espn_data and espn_data.get("homeTeam"):
+                        score_data = espn_data
+                        print(f"Football score from ESPN: {match_id}")
+            except Exception as e:
+                print(f"ESPN football score error: {e}")
+
+        # Layer 2: Football-Data.org (fallback for fd-prefixed ids or when ESPN failed)
+        if not score_data:
+            try:
+                from app.services.footballdata_service import get_match_detail
+                fd_data = await get_match_detail(match_id)
+                if fd_data and fd_data.get("homeTeam"):
+                    score_data = fd_data
+                    print(f"Football score from Football-Data.org: {match_id}")
+            except Exception as e:
+                print(f"Football-Data.org match detail error: {e}")
 
         # Layer 2: Gemini fallback
         if not score_data:

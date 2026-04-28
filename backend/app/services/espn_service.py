@@ -601,6 +601,110 @@ async def get_espn_match_players(event_id: str, series_id: str = "8048") -> list
     return None
 
 
+async def get_espn_football_score(event_id: str, league_slug: str) -> dict | None:
+    """
+    Fetch the live (or final) score for a football match from ESPN's soccer
+    summary endpoint. Returns the same dict shape FootballAdapter.normalize_score
+    expects (homeTeam.name / awayTeam.name / score.fullTime / minute / status /
+    goals / bookings) so the adapter can drop ESPN in as a primary source
+    alongside Football-Data.org.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+    if not event_id or not league_slug:
+        return None
+    cache_key = f"espn:football:score:v2:{event_id}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f"{ESPN_FOOTBALL_BASE}/{league_slug}/summary",
+                params={"event": event_id},
+                headers=HEADERS, timeout=10,
+            )
+            if res.status_code != 200:
+                return None
+            data = res.json()
+            header = data.get("header") or {}
+            comp = (header.get("competitions") or [{}])[0]
+            comps = comp.get("competitors") or []
+            home_obj: dict = {}
+            away_obj: dict = {}
+            for c in comps:
+                if c.get("homeAway") == "home":
+                    home_obj = c
+                elif c.get("homeAway") == "away":
+                    away_obj = c
+            home_name = (home_obj.get("team") or {}).get("displayName") or ""
+            away_name = (away_obj.get("team") or {}).get("displayName") or ""
+            home_goals = int(home_obj.get("score") or 0)
+            away_goals = int(away_obj.get("score") or 0)
+
+            status_obj = comp.get("status") or {}
+            status_type = status_obj.get("type") or {}
+            state = status_type.get("state", "")
+            # Map ESPN states to Football-Data.org-style strings the adapter
+            # already understands.
+            espn_state_map = {
+                "pre": "TIMED",
+                "in": "IN_PLAY",
+                "post": "FINISHED",
+            }
+            status = espn_state_map.get(state, status_type.get("description", "").upper())
+
+            # Parse displayClock ("75'", "45+2'") into a numeric minute the
+            # frontend can render cleanly.
+            minute = 0
+            display_clock = (status_obj.get("displayClock") or status_type.get("detail") or "").strip()
+            if display_clock:
+                try:
+                    cleaned = display_clock.replace("'", "").strip()
+                    if "+" in cleaned:
+                        base, extra = cleaned.split("+", 1)
+                        minute = int(base) + int(extra)
+                    else:
+                        minute = int(float(cleaned))
+                except (ValueError, TypeError):
+                    minute = 0
+
+            # Goals + bookings — pull from header competitors' details so we
+            # can populate the side-panel goalscorers / bookings sections.
+            goals: list[dict] = []
+            bookings: list[dict] = []
+            for c in comps:
+                team_name = (c.get("team") or {}).get("displayName") or ""
+                for detail in c.get("details") or []:
+                    dtype = (detail.get("type") or {}).get("text", "")
+                    ath = (detail.get("athletesInvolved") or [{}])[0]
+                    pname = ath.get("displayName") or ath.get("shortName") or ""
+                    dminute = detail.get("clock", {}).get("value") or detail.get("minute") or 0
+                    if isinstance(dminute, dict):
+                        dminute = dminute.get("value", 0)
+                    if "goal" in dtype.lower():
+                        goals.append({"scorer": {"name": pname}, "minute": int(float(dminute or 0)), "type": dtype, "team": team_name})
+                    elif "yellow" in dtype.lower() or "red" in dtype.lower():
+                        bookings.append({"player": {"name": pname}, "card": "RED" if "red" in dtype.lower() else "YELLOW", "minute": int(float(dminute or 0)), "team": team_name})
+
+            score_data = {
+                "homeTeam": {"name": home_name},
+                "awayTeam": {"name": away_name},
+                "score": {"fullTime": {"home": home_goals, "away": away_goals}},
+                "minute": minute,
+                "status": status,
+                "goals": goals,
+                "bookings": bookings,
+                "source": "espn",
+            }
+            # Cache short — match data changes by the minute when live. Final
+            # scores are stable so a 45s TTL is fine either way.
+            await redis_set_json(cache_key, score_data, ex=45)
+            return score_data
+    except Exception as e:
+        print(f"ESPN football score fetch error: {e}")
+    return None
+
+
 async def _fetch_espn_team_role_map(client: httpx.AsyncClient, league_slug: str, team_id: str) -> dict[str, str]:
     """
     Hit ESPN's team-roster endpoint and build {athlete_id: canonical_role}.
