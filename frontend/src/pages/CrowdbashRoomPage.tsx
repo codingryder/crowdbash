@@ -261,29 +261,56 @@ export function CrowdbashRoomPage() {
                   </span>
                 </div>
               )}
-              <div className="flex items-center justify-between">
-                <div>
-                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>{room.match_name}</div>
-                  <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
-                    {room.league || ''} · {room.match_format || room.sport} · {room.venue || ''}
+              {isMobile ? (
+                /* Mobile: stack title above actions so the title can use full
+                   width (3-line venue strings used to push the action row
+                   into the title and look cluttered). */
+                <>
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0 flex-1">
+                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, letterSpacing: '-0.5px', lineHeight: 1.15 }}>{room.match_name}</div>
+                      <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
+                        {room.league || ''} · {room.match_format || room.sport} · {room.venue || ''}
+                      </div>
+                    </div>
+                    {isLive && (
+                      <span className="badge badge-live shrink-0 mt-1" style={{ fontSize: 9 }}>
+                        <span className="animate-pulse-slow">●</span> LIVE
+                      </span>
+                    )}
                   </div>
-                </div>
-                <div className="flex items-center gap-2">
-                  {isLive && <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>}
-                  {isMobile && (
+                  <div className="flex items-center gap-2 mt-3">
                     <button
                       onClick={() => setShowMatchInfo(true)}
-                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '5px 10px', fontSize: 10, fontWeight: 700, color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4 }}
+                      style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 7, padding: '6px 12px', fontSize: 11, fontWeight: 700, color: 'var(--muted)', cursor: 'pointer', display: 'flex', alignItems: 'center', gap: 4, flex: 1, justifyContent: 'center' }}
                     >
                       📊 Score
                     </button>
-                  )}
-                  <ShareRoomButton roomId={room.id} matchName={room.match_name} small={isMobile} />
-                  {canEditTeam && game && (
-                    <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: isMobile ? 11 : 12, padding: isMobile ? '5px 10px' : '7px 14px' }}>Edit XI</button>
-                  )}
+                    <ShareRoomButton roomId={room.id} matchName={room.match_name} small />
+                    {canEditTeam && game && (
+                      <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 11, padding: '6px 14px', flex: 1.2, justifyContent: 'center' }}>
+                        Edit XI
+                      </button>
+                    )}
+                  </div>
+                </>
+              ) : (
+                <div className="flex items-center justify-between">
+                  <div>
+                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 900, letterSpacing: '-0.5px' }}>{room.match_name}</div>
+                    <div className="text-[11px] mt-1" style={{ color: 'var(--muted)' }}>
+                      {room.league || ''} · {room.match_format || room.sport} · {room.venue || ''}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    {isLive && <span className="badge badge-live" style={{ fontSize: 10 }}><span className="animate-pulse-slow">●</span> LIVE</span>}
+                    <ShareRoomButton roomId={room.id} matchName={room.match_name} />
+                    {canEditTeam && game && (
+                      <button onClick={() => setPitchView(true)} className="btn btn-ghost" style={{ fontSize: 12, padding: '7px 14px' }}>Edit XI</button>
+                    )}
+                  </div>
                 </div>
-              </div>
+              )}
             </div>
 
             {/* Tabs */}
