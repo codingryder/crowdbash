@@ -7,6 +7,7 @@ import { formatMatchDate, splitTeams, teamAbbr, cricketAbbr } from '../types';
 export function HomePage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [_loading, setLoading] = useState(true);
+  const [howItWorksSport, setHowItWorksSport] = useState<'cricket' | 'football'>('cricket');
 
   useEffect(() => {
     async function fetchData(retry = 0) {
@@ -105,14 +106,47 @@ export function HomePage() {
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '96px 36px' }}>
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', color: 'var(--green)', marginBottom: 14 }}>HOW IT WORKS</div>
           <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(30px,4.5vw,50px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.08, marginBottom: 14 }}>Four steps.<br />Infinite strategy.</h2>
-          <p style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.7, maxWidth: 460, marginBottom: 56 }}>Unlike any fantasy game you've played before — strategy runs live, not just at kickoff.</p>
+          <p style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.7, maxWidth: 460, marginBottom: 28 }}>Unlike any fantasy game you've played before — strategy runs live, not just at kickoff.</p>
+
+          {/* Sport toggle */}
+          <div className="inline-flex items-center gap-0.5 rounded-full mb-9" style={{ background: 'var(--surface)', padding: 4, border: '1px solid var(--border)' }}>
+            {([
+              { key: 'cricket' as const, icon: '🏏', label: 'Cricket' },
+              { key: 'football' as const, icon: '⚽', label: 'Football' },
+            ]).map(t => {
+              const active = howItWorksSport === t.key;
+              return (
+                <button
+                  key={t.key}
+                  onClick={() => setHowItWorksSport(t.key)}
+                  className="flex items-center gap-1.5 rounded-full cursor-pointer border-none"
+                  style={{
+                    padding: '7px 18px',
+                    fontFamily: "'Cabinet Grotesk', sans-serif",
+                    fontSize: 13,
+                    fontWeight: 700,
+                    background: active ? 'var(--surface3)' : 'transparent',
+                    color: active ? 'var(--text)' : 'var(--muted)',
+                  }}
+                >
+                  <span style={{ fontSize: 14 }}>{t.icon}</span> {t.label}
+                </button>
+              );
+            })}
+          </div>
+
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3.5">
-            {[
-              { n: '01', i: '🏟️', t: 'Pick a match', d: 'Cricket or football — join a live room or create your own with custom stakes.' },
-              { n: '02', i: '🎯', t: 'Build your squad', d: 'Select 11 players on an interactive field. Position them where you want.' },
-              { n: '03', i: '⚡', t: 'Assign power', d: 'Distribute 33 power across your squad via sliders. Max 6x, min 1x per player.' },
-              { n: '04', i: '🔄', t: 'Reshuffle live', d: 'Every 5 overs a blind window opens. Reshuffle power before opponents see your move.' },
-            ].map(c => (
+            {(howItWorksSport === 'cricket' ? [
+              { n: '01', i: '🏟️', t: 'Pick a match', d: 'Join a live cricket room (IPL, internationals, T20 leagues) or create your own.' },
+              { n: '02', i: '🎯', t: 'Build your XI', d: 'Pick 11 from both squads. Caps: max 6 batters, max 5 bowlers, max 3 all-rounders, ≥1 keeper.' },
+              { n: '03', i: '⚡', t: 'Assign power', d: 'Distribute 33 power across your XI via sliders. Max 6×, min 1× per player.' },
+              { n: '04', i: '🔄', t: 'Reshuffle live', d: 'Three blind windows: after 10 overs of innings 1, at the innings break, and after 10 overs of innings 2.' },
+            ] : [
+              { n: '01', i: '🏟️', t: 'Pick a match', d: 'Join a live football room — EPL, La Liga, Serie A, Bundesliga, Champions League and more.' },
+              { n: '02', i: '🎯', t: 'Build your XI', d: 'Pick 11 from both teams across GK, DEF, MID, FWD. Real lineups load before kickoff.' },
+              { n: '03', i: '⚡', t: 'Assign power', d: 'Distribute 33 power across your XI via sliders. Max 6×, min 1× per player.' },
+              { n: '04', i: '🔄', t: 'Reshuffle live', d: 'Half-time blind window opens to redistribute power based on how the match is unfolding.' },
+            ]).map(c => (
               <div key={c.n} className="transition-all hover:-translate-y-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '26px 22px' }}>
                 <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 48, fontWeight: 900, color: 'var(--faint)', letterSpacing: '-2px', lineHeight: 1, marginBottom: 16 }}>{c.n}</div>
                 <div style={{ fontSize: 26, marginBottom: 12 }}>{c.i}</div>
@@ -120,6 +154,15 @@ export function HomePage() {
                 <div style={{ fontSize: 13, color: 'var(--text2)', lineHeight: 1.6 }}>{c.d}</div>
               </div>
             ))}
+          </div>
+
+          {/* Sport-specific scoring footnote */}
+          <div className="mt-8 text-[12px]" style={{ color: 'var(--muted)', maxWidth: 720, lineHeight: 1.6 }}>
+            {howItWorksSport === 'cricket' ? (
+              <><span style={{ color: 'var(--text)', fontWeight: 700 }}>Scoring:</span> 1pt/run · 4pt/four · 6pt/six + milestones (50/100). Bowling: 25pt/wicket · 10pt/maiden. Fielding: 10pt/catch · 15pt/stumping. Your score = fantasy points × power.</>
+            ) : (
+              <><span style={{ color: 'var(--text)', fontWeight: 700 }}>Scoring:</span> 6pt/goal · 3pt/assist · 4pt/clean sheet (DEF/GK) · 1pt/match played. Cards: −1 yellow, −3 red. Own goal: −2. Your score = fantasy points × power.</>
+            )}
           </div>
         </div>
       </div>
@@ -132,8 +175,28 @@ export function HomePage() {
           <p style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.7, maxWidth: 460, marginBottom: 56 }}>Cricket and football are live now. More sports coming as the platform grows.</p>
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
             {[
-              { icon: '🏏', name: 'Cricket', desc: 'ODIs, T20s, Tests — fantasy powered by the Power mechanic with per-over reshuffle windows.', features: ['Live during ODIs, T20s and Tests', 'Reshuffle every 5 overs', 'Points: runs × power, wickets × power'], live: true },
-              { icon: '⚽', name: 'Football', desc: 'EPL, La Liga, Serie A — reshuffle at half-time and during tactical windows throughout the match.', features: ['EPL, La Liga, Serie A, Champions League', 'Reshuffle at half-time + 60 min window', 'Points: goals, assists, clean sheets × power'], live: true },
+              {
+                icon: '🏏',
+                name: 'Cricket',
+                desc: 'IPL, internationals, T20 leagues — fantasy powered by the Power mechanic with three blind reshuffle windows per match.',
+                features: [
+                  'Live during ODIs, T20s and Tests',
+                  '3 reshuffles: 10 ov in, innings break, 10 ov in chase',
+                  'Points: 1pt/run · 4/4s · 6/6s · 25pt/wicket × power',
+                ],
+                live: true,
+              },
+              {
+                icon: '⚽',
+                name: 'Football',
+                desc: 'EPL, La Liga, Serie A, Bundesliga, Champions League — reshuffle your power at half-time based on how the match is unfolding.',
+                features: [
+                  'EPL, La Liga, Serie A, Bundesliga, UCL & more',
+                  'Half-time blind reshuffle window',
+                  'Points: 6/goal · 3/assist · 4/clean sheet × power',
+                ],
+                live: true,
+              },
             ].map(s => (
               <Link key={s.name} to="/games" className="block no-underline transition-all hover:-translate-y-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', padding: 32, position: 'relative', overflow: 'hidden' }}>
                 {s.live && <div className="absolute top-5 right-5"><span className="badge badge-green">● LIVE</span></div>}
@@ -230,9 +293,9 @@ export function HomePage() {
       {/* ═══ CTA ═══ */}
       <div className="text-center" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '80px 36px' }}>
         <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(32px,5vw,56px)', fontWeight: 900, letterSpacing: '-1.5px', marginBottom: 14 }}>Ready to play smarter?</h2>
-        <p className="text-[16px] mb-9" style={{ color: 'var(--text2)' }}>Join 14,000+ players already on Crowdbash across cricket and football.</p>
+        <p className="text-[16px] mb-9" style={{ color: 'var(--text2)' }}>Pick a live cricket or football room and start banking coins.</p>
         <Link to="/games" className="inline-block no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 11, padding: '15px 36px', fontSize: 16, fontWeight: 800 }}>
-          Find a live game →
+          Find a live game room →
         </Link>
       </div>
     </div>
