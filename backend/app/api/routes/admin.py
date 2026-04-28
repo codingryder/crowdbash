@@ -952,7 +952,10 @@ async def _populate_match_squads(db: AsyncSession, room: Room) -> dict:
             league_slug = FOOTBALL_LEAGUES.get(room.league or "")
             event_id = (room.match_id or "").replace("espn_", "").strip()
             if league_slug and event_id:
-                result = await get_espn_football_squad(event_id, league_slug)
+                # force=True so admin refreshes always re-query ESPN — the
+                # cache TTL is 6h and we don't want a stale entry pinning the
+                # roster when an admin explicitly asked for a refresh.
+                result = await get_espn_football_squad(event_id, league_slug, force=True)
                 if isinstance(result, list) and len(result) > 0:
                     players = result
                     print(f"Squad sync (football) for {room.match_name}: ESPN returned {len(players)} players")

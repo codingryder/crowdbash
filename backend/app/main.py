@@ -223,15 +223,35 @@ async def score_poller():
                     # Self-heal: any football room that's gone live without
                     # ever syncing its match-day squad gets one populated from
                     # ESPN now. Re-syncs anything older than 7 days too
-                    # (transfer windows). Debounced via _SYNCING_SQUADS so we
-                    # don't spawn a new ESPN/Gemini call on every 15s tick
-                    # while the first one is still in flight.
+                    # (transfer windows). Also re-syncs when the existing
+                    # rows have unknown roles ("?") so a fix to the position
+                    # mapper retroactively cleans up older synced rooms.
+                    # Debounced via _SYNCING_SQUADS so we don't spawn a new
+                    # ESPN/Gemini call on every 15s tick while the first one
+                    # is still in flight.
                     if room.sport == "football":
                         from datetime import datetime as _dt2, timezone as _tz2, timedelta as _td2
+                        from app.models.match_squad import MatchSquad as _MS
+                        from sqlalchemy import or_ as _or
                         last = room.squads_last_refreshed_at
                         if last is not None and last.tzinfo is None:
                             last = last.replace(tzinfo=_tz2.utc)
                         stale = last is None or (_dt2.now(_tz2.utc) - last) > _td2(days=7)
+                        if not stale:
+                            # Cheap check: does any row for this room have a
+                            # blank or non-canonical role? If so, treat as stale.
+                            empty_count = (await db.execute(
+                                select(_MS).where(
+                                    _MS.room_id == room.id,
+                                    _or(
+                                        _MS.player_role == None,
+                                        _MS.player_role == "",
+                                        ~_MS.player_role.in_(["GK", "DEF", "MID", "FW"]),
+                                    ),
+                                )
+                            )).scalars().first()
+                            if empty_count is not None:
+                                stale = True
                         if stale and room.id not in _SYNCING_SQUADS:
                             _SYNCING_SQUADS.add(room.id)
                             from app.api.routes.admin import _populate_match_squads

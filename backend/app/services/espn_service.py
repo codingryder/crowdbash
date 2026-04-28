@@ -601,23 +601,56 @@ async def get_espn_match_players(event_id: str, series_id: str = "8048") -> list
     return None
 
 
-async def get_espn_football_squad(event_id: str, league_slug: str) -> list | None:
+async def _fetch_espn_team_role_map(client: httpx.AsyncClient, league_slug: str, team_id: str) -> dict[str, str]:
+    """
+    Hit ESPN's team-roster endpoint and build {athlete_id: canonical_role}.
+    Used to fill in roles for substitutes — the match-summary endpoint tags
+    every named sub as position=SUB with no role info, so we cross-reference
+    against the team's first-team roster which DOES have proper positions
+    for everyone (~25-31 players per club).
+    """
+    try:
+        res = await client.get(
+            f"{ESPN_FOOTBALL_BASE}/{league_slug}/teams/{team_id}/roster",
+            headers=HEADERS, timeout=10,
+        )
+        if res.status_code != 200:
+            return {}
+        data = res.json()
+        out: dict[str, str] = {}
+        for ath in data.get("athletes") or []:
+            aid = str(ath.get("id") or "")
+            pos = (ath.get("position") or {}).get("abbreviation") or ""
+            role = _map_espn_football_position(pos)
+            if aid and role:
+                out[aid] = role
+        return out
+    except Exception as e:
+        print(f"ESPN team roster fetch error (team={team_id}): {e}")
+        return {}
+
+
+async def get_espn_football_squad(event_id: str, league_slug: str, force: bool = False) -> list | None:
     """
     Pull the full match-day squad for both teams from ESPN's soccer summary
-    endpoint. ESPN tracks rosters per fixture (starters + named subs) which
-    is exactly what fantasy needs, and the data is current — that's why this
-    is the primary source for football, with grounded Gemini as fallback.
+    endpoint, with substitute roles filled in from the team-roster endpoint
+    so every player ends up with a real GK/DEF/MID/FW tag (not "?").
 
     Returns a list of {player_id, player_name, team, role} with canonical
-    role keys GK/DEF/MID/FW. Cached 6 hours per event.
+    role keys. Cached 6 hours per event. Pass force=True from explicit
+    admin refreshes so the cache can't pin a stale roster.
     """
     from app.core.redis import redis_get_json, redis_set_json
     if not event_id or not league_slug:
         return None
-    cache_key = f"espn:football:squad:{event_id}"
-    cached = await redis_get_json(cache_key)
-    if cached:
-        return cached
+    # v2 cache key: bumping the version invalidates the previous mapping that
+    # left every SUB tagged with role="" because the old code didn't merge in
+    # team-roster data. Old "v1" entries stay sealed off until they TTL out.
+    cache_key = f"espn:football:squad:v2:{event_id}"
+    if not force:
+        cached = await redis_get_json(cache_key)
+        if cached:
+            return cached
     try:
         async with httpx.AsyncClient() as client:
             res = await client.get(
@@ -631,14 +664,33 @@ async def get_espn_football_squad(event_id: str, league_slug: str) -> list | Non
                 return None
             data = res.json()
             rosters = data.get("rosters") or []
+
+            # Pre-fetch each team's full roster in parallel so we can resolve
+            # the position of every SUB without N+1 player calls.
+            team_role_maps: dict[str, dict[str, str]] = {}
+            tasks = []
+            for team_block in rosters:
+                tid = str((team_block.get("team") or {}).get("id") or "")
+                if tid:
+                    tasks.append((tid, _fetch_espn_team_role_map(client, league_slug, tid)))
+            for tid, coro in tasks:
+                team_role_maps[tid] = await coro
+
             players: list[dict] = []
             for team_block in rosters:
-                team_name = (team_block.get("team") or {}).get("displayName") or "Unknown"
+                team = team_block.get("team") or {}
+                team_name = team.get("displayName") or "Unknown"
+                team_id = str(team.get("id") or "")
+                role_map = team_role_maps.get(team_id, {})
                 for entry in team_block.get("roster") or []:
                     ath = entry.get("athlete") or {}
                     pos_obj = entry.get("position") or ath.get("position") or {}
                     pos_abbr = (pos_obj.get("abbreviation") or pos_obj.get("name") or "").upper()
                     role = _map_espn_football_position(pos_abbr)
+                    # Substitutes show up as position=SUB with no real role —
+                    # fill that in from the team-roster lookup.
+                    if not role:
+                        role = role_map.get(str(ath.get("id") or "")) or ""
                     name = ath.get("displayName") or ath.get("fullName") or ""
                     if not name:
                         continue
@@ -670,8 +722,10 @@ def _map_espn_football_position(abbr: str) -> str:
     # Midfielders: CM / DM / AM / CDM / CAM / LM / RM / M / MID, with -L/-R suffixes.
     if "DM" in a or "CM" in a or "AM" in a or a in ("LM", "RM", "M", "MID"):
         return "MID"
-    # Forwards: ST / CF / LW / RW / F / FW / SS / W, plus -L/-R suffixed wings.
-    if a.startswith("LW") or a.startswith("RW") or a in ("ST", "CF", "F", "FW", "SS", "W"):
+    # Forwards: covers ST / CF / F / FW / SS, wings (LW/RW with -L/-R suffixes),
+    # AND the LF / RF / LWF / RWF variants ESPN uses for left/right forwards.
+    if (a.startswith("LW") or a.startswith("RW") or a.startswith("LF") or a.startswith("RF")
+            or a in ("ST", "CF", "F", "FW", "SS", "W", "LWF", "RWF", "WF")):
         return "FW"
     return ""
 
