@@ -160,6 +160,73 @@ async def get_room_match_info(room_id: str, db: AsyncSession = Depends(get_db)):
     return {"info": info}
 
 
+@router.get("/{room_id}/mvp")
+async def get_room_mvp(room_id: str, db: AsyncSession = Depends(get_db)):
+    """
+    Top fantasy contributors in this room — players whose collective points
+    earned (across everyone who picked them) are highest. Position #1 is the
+    fantasy "Man of the Match" for this room. Used by the completed-match view.
+    """
+    try:
+        rid = uuid.UUID(room_id)
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Invalid room ID")
+
+    from app.models.game import Game, PlayerWeightage
+    from sqlalchemy import func
+
+    total_picks_subq = (
+        select(func.count(Game.id))
+        .where(Game.room_id == rid, Game.squad_locked == True)
+        .scalar_subquery()
+    )
+
+    rows = await db.execute(
+        select(
+            PlayerWeightage.player_id,
+            PlayerWeightage.player_name,
+            PlayerWeightage.team,
+            PlayerWeightage.player_role,
+            func.sum(PlayerWeightage.points_earned).label("total_points"),
+            func.count(PlayerWeightage.game_id).label("pick_count"),
+        )
+        .join(Game, Game.id == PlayerWeightage.game_id)
+        .where(
+            Game.room_id == rid,
+            PlayerWeightage.selected == True,
+            PlayerWeightage.points_earned > 0,
+        )
+        .group_by(
+            PlayerWeightage.player_id,
+            PlayerWeightage.player_name,
+            PlayerWeightage.team,
+            PlayerWeightage.player_role,
+        )
+        .order_by(func.sum(PlayerWeightage.points_earned).desc())
+        .limit(5)
+    )
+    result = rows.all()
+
+    total_picks_res = await db.execute(select(total_picks_subq))
+    total_squads = int(total_picks_res.scalar() or 0)
+
+    return {
+        "total_squads": total_squads,
+        "top_players": [
+            {
+                "player_id": r[0],
+                "player_name": r[1],
+                "team": r[2],
+                "role": r[3] or "",
+                "total_points": int(r[4] or 0),
+                "pick_count": int(r[5] or 0),
+                "pick_pct": round((int(r[5]) / total_squads) * 100) if total_squads else 0,
+            }
+            for r in result
+        ],
+    }
+
+
 @router.get("/{room_id}")
 async def get_room(room_id: str, db: AsyncSession = Depends(get_db)):
     """Get a specific room."""

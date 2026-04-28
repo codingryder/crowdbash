@@ -3,6 +3,8 @@ import { Link } from 'react-router-dom';
 import api from '../../lib/api';
 import type { Room } from '../../types';
 import { formatMatchDate } from '../../types';
+import { useAuthStore } from '../../store/authStore';
+import { LeaderboardTab } from './LeaderboardTab';
 
 interface MatchDetails {
   status: string;
@@ -35,6 +37,26 @@ interface MatchDetails {
   detailed_bowlers?: Array<{ name: string; wickets: number; runs: number }>;
 }
 
+interface MvpPlayer {
+  player_id: string;
+  player_name: string;
+  team: string;
+  role: string;
+  total_points: number;
+  pick_count: number;
+  pick_pct: number;
+}
+
+interface MyTeamPlayer {
+  player_id: string;
+  player_name: string;
+  team: string;
+  weightage: number;
+  points_earned: number;
+  player_role: string;
+  selected: boolean;
+}
+
 interface CompletedMatchViewProps {
   room: Room;
 }
@@ -42,6 +64,10 @@ interface CompletedMatchViewProps {
 export function CompletedMatchView({ room }: CompletedMatchViewProps) {
   const [details, setDetails] = useState<MatchDetails | null>(null);
   const [loading, setLoading] = useState(true);
+  const [mvp, setMvp] = useState<{ total_squads: number; top_players: MvpPlayer[] } | null>(null);
+  const [myTeam, setMyTeam] = useState<{ total_points: number; players: MyTeamPlayer[] } | null>(null);
+  const [myRank, setMyRank] = useState<{ rank: number; total: number } | null>(null);
+  const user = useAuthStore((s) => s.user);
 
   useEffect(() => {
     // First try match_progress from room data
@@ -49,25 +75,48 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
     if (progress.status === 'closed') {
       setDetails(progress as unknown as MatchDetails);
       setLoading(false);
-      return;
+    } else {
+      // Otherwise fetch room detail
+      (async () => {
+        try {
+          const { data } = await api.get(`/api/rooms/${room.id}`);
+          const mp = data.match_progress || {};
+          if (mp.status === 'closed') setDetails(mp as MatchDetails);
+        } catch { /* no details available */ }
+        finally { setLoading(false); }
+      })();
     }
 
-    // Otherwise fetch from API
-    async function fetchDetails() {
+    // Fantasy MVP — top contributors across all squads in this room
+    (async () => {
       try {
-        const { data } = await api.get(`/api/rooms/${room.id}`);
-        const mp = data.match_progress || {};
-        if (mp.status === 'closed') {
-          setDetails(mp as MatchDetails);
-        }
-      } catch {
-        // No details available
-      } finally {
-        setLoading(false);
-      }
+        const { data } = await api.get(`/api/rooms/${room.id}/mvp`);
+        setMvp(data);
+      } catch { /* mvp endpoint may not be deployed yet */ }
+    })();
+
+    // My team + my rank (only if signed in)
+    if (user?.id) {
+      (async () => {
+        try {
+          const { data } = await api.get(`/api/game/${room.id}/team/${user.id}`);
+          const players = (data.player_weightages || []) as MyTeamPlayer[];
+          setMyTeam({
+            total_points: data.total_points || 0,
+            players: players.sort((a, b) => b.points_earned - a.points_earned),
+          });
+        } catch { /* user didn't play this match */ }
+      })();
+      (async () => {
+        try {
+          const { data } = await api.get(`/api/leaderboard/${room.id}`);
+          const total = Array.isArray(data) ? data.length : 0;
+          const idx = Array.isArray(data) ? data.findIndex((e: { user_id: string }) => e.user_id === user.id) : -1;
+          if (idx >= 0) setMyRank({ rank: idx + 1, total });
+        } catch { /* leaderboard not available */ }
+      })();
     }
-    fetchDetails();
-  }, [room]);
+  }, [room, user?.id]);
 
   if (loading) {
     return (
@@ -78,7 +127,7 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
   }
 
   return (
-    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 800 }}>
+    <div className="px-4 md:px-8 py-6 md:py-7 mx-auto" style={{ maxWidth: 920 }}>
       {/* Breadcrumb */}
       <div className="flex items-center gap-2 mb-6">
         <Link to="/" className="text-xs no-underline" style={{ color: 'var(--gold)' }}>Home</Link>
@@ -122,6 +171,106 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
             </div>
           </div>
         )}
+      </div>
+
+      {/* ── Your Final Position + Fantasy MVP (side by side on md+) ── */}
+      {(myRank || (mvp && mvp.top_players.length > 0)) && (
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6">
+          {myRank && myTeam && (
+            <div className="rounded-[14px] p-5" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+              <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>Your Final Position</div>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 36, fontWeight: 900, color: myRank.rank === 1 ? 'var(--amber)' : 'var(--text)', lineHeight: 1 }}>
+                  #{myRank.rank}
+                </span>
+                <span className="text-[12px]" style={{ color: 'var(--mu)' }}>of {myRank.total}</span>
+                {myRank.rank === 1 && <span style={{ fontSize: 20 }}>🥇</span>}
+                {myRank.rank === 2 && <span style={{ fontSize: 20 }}>🥈</span>}
+                {myRank.rank === 3 && <span style={{ fontSize: 20 }}>🥉</span>}
+              </div>
+              <div className="flex items-center gap-4 mt-3 pt-3" style={{ borderTop: '0.5px solid var(--b1)' }}>
+                <div>
+                  <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Total points</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{myTeam.total_points.toLocaleString()}</div>
+                </div>
+                {myTeam.players[0] && myTeam.players[0].points_earned > 0 && (
+                  <div className="flex-1">
+                    <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Your top scorer</div>
+                    <div className="text-[13px] font-semibold truncate" style={{ color: 'var(--green)' }}>
+                      {myTeam.players[0].player_name} <span style={{ color: 'var(--mu)', fontWeight: 400 }}>· +{myTeam.players[0].points_earned}</span>
+                    </div>
+                  </div>
+                )}
+              </div>
+              <div className="text-[10px] mt-3" style={{ color: 'var(--faint)' }}>🪙 Coin rewards coming soon</div>
+            </div>
+          )}
+
+          {mvp && mvp.top_players.length > 0 && (
+            <div className="rounded-[14px] p-5" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+              <div className="text-[10px] uppercase tracking-[1px] mb-3" style={{ color: 'var(--mu)' }}>🏆 Fantasy Man of the Match</div>
+              <div className="flex items-baseline gap-2 mb-1">
+                <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, color: 'var(--text)' }}>
+                  {mvp.top_players[0].player_name}
+                </span>
+              </div>
+              <div className="text-[11px] mb-3" style={{ color: 'var(--mu)' }}>
+                {mvp.top_players[0].team}{mvp.top_players[0].role ? ` · ${mvp.top_players[0].role}` : ''}
+              </div>
+              <div className="flex items-center gap-4 pt-3" style={{ borderTop: '0.5px solid var(--b1)' }}>
+                <div>
+                  <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Total points generated</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: 'var(--amber)' }}>+{mvp.top_players[0].total_points}</div>
+                </div>
+                <div>
+                  <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Picked by</div>
+                  <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 20, fontWeight: 800, color: 'var(--text)' }}>{mvp.top_players[0].pick_pct}%</div>
+                </div>
+              </div>
+              {mvp.top_players.length > 1 && (
+                <div className="mt-3 pt-3" style={{ borderTop: '0.5px solid var(--b1)' }}>
+                  <div className="text-[10px] mb-2" style={{ color: 'var(--mu)' }}>Other top scorers</div>
+                  {mvp.top_players.slice(1, 4).map(p => (
+                    <div key={p.player_id} className="flex items-center justify-between py-1">
+                      <div className="text-[12px] truncate" style={{ color: 'var(--text)' }}>{p.player_name} <span className="text-[10px]" style={{ color: 'var(--mu)' }}>· {p.team}</span></div>
+                      <div className="text-[12px] font-bold" style={{ color: 'var(--green)' }}>+{p.total_points}</div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* ── Your Squad (collapsible-style block) ── */}
+      {myTeam && myTeam.players.length > 0 && (
+        <div className="rounded-[14px] p-5 mb-6" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+          <div className="flex items-center justify-between mb-3">
+            <div className="text-[10px] uppercase tracking-[1px]" style={{ color: 'var(--mu)' }}>Your Squad ({myTeam.players.length})</div>
+            <div className="text-[11px]" style={{ color: 'var(--mu)' }}>Sorted by points</div>
+          </div>
+          <div>
+            {myTeam.players.map((p, i) => (
+              <div key={p.player_id} className="flex items-center gap-3 py-2.5" style={{ borderBottom: i < myTeam.players.length - 1 ? '0.5px solid var(--b1)' : 'none' }}>
+                <div style={{ width: 18, fontSize: 11, color: 'var(--mu)', textAlign: 'right', fontFamily: "'Cabinet Grotesk', sans-serif" }}>{i + 1}</div>
+                <div className="flex-1 min-w-0">
+                  <div className="text-[13px] font-semibold truncate" style={{ color: 'var(--text)' }}>{p.player_name}</div>
+                  <div className="text-[10px]" style={{ color: 'var(--mu)' }}>{p.team}{p.player_role ? ` · ${p.player_role}` : ''}</div>
+                </div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800, color: 'var(--amber)', minWidth: 32, textAlign: 'right' }}>{p.weightage}x</div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 900, color: p.points_earned > 0 ? 'var(--green)' : 'var(--mu)', minWidth: 50, textAlign: 'right' }}>
+                  {p.points_earned > 0 ? `+${p.points_earned}` : '0'}
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* ── Final Leaderboard ── */}
+      <div className="rounded-[14px] mb-6 overflow-hidden" style={{ background: 'var(--s1)', border: '0.5px solid var(--b1)' }}>
+        <LeaderboardTab roomId={room.id} matchStarted={true} />
       </div>
 
       {/* Match info */}
