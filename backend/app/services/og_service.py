@@ -88,20 +88,26 @@ def share_html_for_room(room: Room, frontend_url: str) -> str:
     a2 = _team_abbr(t2, sport)
     title = f"{a1} vs {a2} · {league} · Crowdbash"
 
+    # All descriptions lead with the free-to-play framing for safer social
+    # unfurls. Avoid any "win money / earn rewards" verbs in public-facing
+    # text — vouchers are intentionally omitted from share previews and
+    # only mentioned inside authenticated app surfaces.
     if room.status == "locked":
         desc = (
-            f"{room.match_name} is live now. Join the fantasy room and "
-            "reshuffle your power before the next blind window."
+            f"🆓 Free-to-play, skill-based fan game. {room.match_name} is "
+            "live — join the fantasy room and reshuffle your power before "
+            "the next blind window."
         )
     elif room.status == "closed":
         desc = (
-            f"Match result for {room.match_name}. See the final leaderboard, "
-            "fantasy MVP, and squad recap."
+            f"🆓 Free-to-play, skill-based fan game. Match result for "
+            f"{room.match_name} — see the final leaderboard and squad recap."
         )
     else:
         desc = (
-            f"Build your fantasy XI for {room.match_name}, assign 33 power "
-            "across your players, and reshuffle live."
+            f"🆓 Free-to-play, skill-based fan game. Build your fantasy XI "
+            f"for {room.match_name}, assign 33 power across your players, "
+            "and reshuffle live."
         )
 
     def esc(s: str) -> str:

@@ -19,6 +19,7 @@ class SignupRequest(BaseModel):
     last_name: str
     email: EmailStr
     phone: str = ""
+    terms_accepted: bool = False
 
 
 class VerifyOTPRequest(BaseModel):
@@ -33,6 +34,13 @@ class SigninRequest(BaseModel):
 @router.post("/signup")
 async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
     """Register a new user and send OTP to email."""
+    # Gate: must explicitly accept Terms (incl. 18+ clause) and Privacy.
+    if not body.terms_accepted:
+        raise HTTPException(
+            status_code=400,
+            detail="You must accept the Terms (incl. 18+) and Privacy Policy to sign up.",
+        )
+
     # Check if email already exists
     result = await db.execute(select(User).where(User.email == body.email))
     existing = result.scalar_one_or_none()
@@ -50,6 +58,7 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
         existing.phone = body.phone
         existing.otp_code = otp
         existing.otp_expires_at = expires
+        existing.terms_accepted_at = datetime.now(timezone.utc)
         user = existing
     else:
         # Create new user
@@ -67,6 +76,7 @@ async def signup(body: SignupRequest, db: AsyncSession = Depends(get_db)):
             username=username,
             otp_code=otp,
             otp_expires_at=expires,
+            terms_accepted_at=datetime.now(timezone.utc),
         )
         db.add(user)
 
@@ -180,7 +190,28 @@ async def get_me(
         "total_wins": user.total_wins,
         "weightage_balance": user.weightage_balance,
         "payment_status": user.payment_status,
+        "terms_accepted_at": user.terms_accepted_at.isoformat() if user.terms_accepted_at else None,
     }
+
+
+@router.post("/accept-terms")
+async def accept_terms(
+    user_id: uuid.UUID = Depends(get_current_user_id),
+    db: AsyncSession = Depends(get_db),
+):
+    """Record acceptance of the Terms + Privacy Policy for an existing user.
+
+    Used by the one-time prompt that surfaces on first sign-in after the
+    legal pages were introduced. Idempotent: re-calling just refreshes the
+    timestamp.
+    """
+    result = await db.execute(select(User).where(User.id == user_id))
+    user = result.scalar_one_or_none()
+    if not user:
+        raise HTTPException(status_code=404, detail="User not found")
+    user.terms_accepted_at = datetime.now(timezone.utc)
+    await db.commit()
+    return {"terms_accepted_at": user.terms_accepted_at.isoformat()}
 
 
 class UpdateProfileRequest(BaseModel):

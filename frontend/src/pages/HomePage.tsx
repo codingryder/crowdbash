@@ -47,7 +47,7 @@ export function HomePage() {
         <div className="relative z-10 text-center w-full" style={{ maxWidth: 860 }}>
           <div className="inline-flex items-center gap-2 rounded-full mb-9 animate-fadeup" style={{ background: 'var(--surface)', border: '1px solid var(--border2)', padding: '6px 18px', fontSize: 12, fontWeight: 600, color: 'var(--text2)' }}>
             <div className="w-1.5 h-1.5 rounded-full animate-pulse-slow" style={{ background: 'var(--green)' }} />
-            India's boldest sports fantasy platform
+            🆓 Free to play · Skill-based sports fantasy
           </div>
 
           <h1 className="animate-fadeup" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(50px,8.5vw,94px)', fontWeight: 900, lineHeight: 0.98, letterSpacing: '-3px', marginBottom: 28, animationDelay: '.1s' }}>
@@ -217,20 +217,27 @@ export function HomePage() {
         </div>
       </div>
 
-      {/* ═══ REWARDS ═══ */}
+      {/* ═══ BASHPOINTS ═══
+          Public-facing section. We deliberately do NOT mention vouchers,
+          cash rewards, or redemption value here — that framing only
+          appears for signed-in users on /rewards and inside game rooms.
+          Public messaging stays focused on free-to-play + skill-based
+          fan engagement. */}
       <div style={{ borderTop: '1px solid var(--border)' }}>
         <div style={{ maxWidth: 1080, margin: '0 auto', padding: '96px 36px' }}>
-          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', color: 'var(--green)', marginBottom: 14 }}>REWARDS</div>
-          <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(30px,4.5vw,50px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.08, marginBottom: 14 }}>Earn coins.<br />Redeem real rewards.</h2>
+          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 11, fontWeight: 700, letterSpacing: '2.5px', color: 'var(--green)', marginBottom: 14 }}>BASHPOINTS</div>
+          <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(30px,4.5vw,50px)', fontWeight: 900, letterSpacing: '-1.5px', lineHeight: 1.08, marginBottom: 14 }}>Earn Bashpoints.<br />Climb the leaderboard.</h2>
           <p style={{ fontSize: 15, color: 'var(--text2)', lineHeight: 1.7, maxWidth: 540, marginBottom: 56 }}>
-            Every match is a chance to bank coins. Top finishers get the biggest payouts, and signing in daily keeps your streak alive — climb tiers to multiply everything.
+            🆓 100% free to play. Bashpoints are your fan-engagement score —
+            earned by skill: building strong fantasy XIs, allocating power
+            wisely, and reshuffling at the right moments.
           </p>
 
           <div className="grid gap-4 mb-10" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             {[
               { icon: '🎁', title: '+50 signup bonus', desc: 'One-time, when you verify your email.' },
-              { icon: '🗓️', title: '+10 daily check-in', desc: 'One claim per day — multiplied by your tier.' },
-              { icon: '🥇', title: 'Top-3 match payouts', desc: '+100 / +50 / +25 coins for 1st / 2nd / 3rd place per match.' },
+              { icon: '🗓️', title: '+10 daily check-in', desc: 'Sign in each day to keep your streak alive.' },
+              { icon: '🥇', title: 'Top-3 match recognition', desc: 'Place 1st / 2nd / 3rd in a room to earn extra Bashpoints.' },
               { icon: '⚡', title: 'Tier multipliers', desc: 'Bronze 1× · Silver 1.25× · Gold 1.5× · Platinum 2×' },
             ].map(c => (
               <div key={c.title} className="transition-all hover:-translate-y-1" style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 'var(--radius)', padding: '22px 20px' }}>
@@ -241,12 +248,9 @@ export function HomePage() {
             ))}
           </div>
 
-          <div className="flex items-center gap-3 flex-wrap">
-            <Link to="/rewards" className="no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 11, padding: '13px 28px', fontSize: 15, fontWeight: 800 }}>
-              View rewards catalog
-            </Link>
-            <span className="text-[12px]" style={{ color: 'var(--muted)' }}>Vouchers are fulfilled manually right now — your code lands in your inbox after we verify the redemption.</span>
-          </div>
+          <Link to="/rewards" className="inline-block no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 11, padding: '13px 28px', fontSize: 15, fontWeight: 800 }}>
+            View your Bashpoints
+          </Link>
         </div>
       </div>
 
@@ -293,7 +297,7 @@ export function HomePage() {
       {/* ═══ CTA ═══ */}
       <div className="text-center" style={{ background: 'var(--surface)', borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', padding: '80px 36px' }}>
         <h2 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 'clamp(32px,5vw,56px)', fontWeight: 900, letterSpacing: '-1.5px', marginBottom: 14 }}>Ready to play smarter?</h2>
-        <p className="text-[16px] mb-9" style={{ color: 'var(--text2)' }}>Pick a live cricket or football room and start banking coins.</p>
+        <p className="text-[16px] mb-9" style={{ color: 'var(--text2)' }}>🆓 100% free — pick a live cricket or football room and start earning Bashpoints.</p>
         <Link to="/games" className="inline-block no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 11, padding: '15px 36px', fontSize: 16, fontWeight: 800 }}>
           Find a live game room →
         </Link>

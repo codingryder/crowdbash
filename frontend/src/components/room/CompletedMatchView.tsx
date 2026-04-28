@@ -204,7 +204,7 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
               </div>
               {myRank.rank <= 3 && (myTeam.total_points > 0) && (
                 <div className="text-[10px] mt-3" style={{ color: 'var(--green)' }}>
-                  🪙 You earned {myRank.rank === 1 ? '+100' : myRank.rank === 2 ? '+50' : '+25'} coins (× tier multiplier)
+                  🪙 You earned {myRank.rank === 1 ? '+100' : myRank.rank === 2 ? '+50' : '+25'} Bashpoints (× tier multiplier)
                 </div>
               )}
             </div>

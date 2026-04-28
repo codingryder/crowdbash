@@ -2,6 +2,7 @@ import { BrowserRouter, Routes, Route, useLocation } from 'react-router-dom';
 import { TopNav } from './components/layout/TopNav';
 import { Footer } from './components/layout/Footer';
 import { AuthModal } from './components/auth/AuthModal';
+import { TermsAcceptModal } from './components/auth/TermsAcceptModal';
 import { HomePage } from './pages/HomePage';
 import { GamesPage } from './pages/GamesPage';
 import { LeaguePage } from './pages/LeaguePage';
@@ -10,6 +11,7 @@ import { LeaderboardPage } from './pages/LeaderboardPage';
 import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
 import { RewardsPage } from './pages/RewardsPage';
+import { TermsPage, PrivacyPage } from './pages/LegalPages';
 
 function AppContent() {
   const location = useLocation();
@@ -19,6 +21,7 @@ function AppContent() {
     <div className="flex flex-col" style={{ minHeight: '100vh', background: 'var(--bg)' }}>
       <TopNav />
       <AuthModal />
+      <TermsAcceptModal />
       <div className="flex-1 flex flex-col overflow-hidden">
         <Routes>
           <Route path="/" element={<HomePage />} />
@@ -29,6 +32,8 @@ function AppContent() {
           <Route path="/leaderboard/:roomId" element={<LeaderboardPage />} />
           <Route path="/profile" element={<ProfilePage />} />
           <Route path="/rewards" element={<RewardsPage />} />
+          <Route path="/terms" element={<TermsPage />} />
+          <Route path="/privacy" element={<PrivacyPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>

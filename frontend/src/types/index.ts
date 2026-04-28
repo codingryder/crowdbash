@@ -3,10 +3,14 @@ export type Sport = 'cricket' | 'football';
 export interface User {
   id: string;
   username: string;
+  first_name?: string;
+  last_name?: string;
+  email?: string;
   avatar_url?: string;
   total_games: number;
   total_wins: number;
   weightage_balance: number;
+  terms_accepted_at?: string | null;
 }
 
 export interface Room {

@@ -57,13 +57,23 @@ export function useAuth() {
     }
   }
 
-  async function signup(firstName: string, lastName: string, email: string, phone: string) {
+  async function signup(firstName: string, lastName: string, email: string, phone: string, termsAccepted: boolean) {
     const { data } = await api.post('/api/auth/signup', {
       first_name: firstName,
       last_name: lastName,
       email,
       phone,
+      terms_accepted: termsAccepted,
     });
+    return data;
+  }
+
+  async function acceptTerms() {
+    const { data } = await api.post('/api/auth/accept-terms');
+    if (data.terms_accepted_at) {
+      const u = useAuthStore.getState().user;
+      if (u) setUser({ ...u, terms_accepted_at: data.terms_accepted_at } as typeof u);
+    }
     return data;
   }
 
@@ -99,5 +109,6 @@ export function useAuth() {
     openAuthModal,
     closeAuthModal,
     logout,
+    acceptTerms,
   };
 }

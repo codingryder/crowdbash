@@ -209,9 +209,9 @@ export function GamesPage() {
             <div>
               <h1 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 38, fontWeight: 900, letterSpacing: '-1.5px', marginBottom: 4 }}>Games</h1>
               <div className="text-[13px]" style={{ color: 'var(--muted)' }}>
-                {tab === 'cricket' && '🏏 Cricket — Live scores & upcoming matches'}
-                {tab === 'football' && '⚽ Football — Live scores & upcoming matches'}
-                {tab === 'rooms' && '🏟️ Fantasy rooms — Build your team & compete'}
+                {tab === 'cricket' && '🆓 Free to play · 🏏 Cricket — live scores & upcoming matches'}
+                {tab === 'football' && '🆓 Free to play · ⚽ Football — live scores & upcoming matches'}
+                {tab === 'rooms' && '🆓 Free to play · 🏟️ Fantasy rooms — build your team & compete'}
               </div>
             </div>
             <div className="flex items-center gap-2.5">

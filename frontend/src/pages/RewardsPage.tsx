@@ -21,7 +21,7 @@ export function RewardsPage() {
     setClaimingDaily(true);
     try {
       const r = await claimDailyCheckin();
-      showToast('ok', `+${r.awarded} coins claimed! Streak: ${r.current_streak} day${r.current_streak !== 1 ? 's' : ''}.`);
+      showToast('ok', `+${r.awarded} Bashpoints claimed! Streak: ${r.current_streak} day${r.current_streak !== 1 ? 's' : ''}.`);
       await refreshBalance();
     } catch (e: unknown) {
       const err = e as { response?: { data?: { detail?: string } } };
@@ -54,10 +54,12 @@ export function RewardsPage() {
         <div className="flex items-end justify-between flex-wrap gap-4 mb-8">
           <div>
             <h1 style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 32, fontWeight: 900, letterSpacing: '-0.5px', margin: 0 }}>
-              Rewards
+              Bashpoints
             </h1>
             <p style={{ color: 'var(--muted)', fontSize: 14, marginTop: 6 }}>
-              Earn coins by finishing in the top 3 of a room. Redeem them here.
+              {user
+                ? 'Your fan-engagement score. Earn Bashpoints by playing — climb tiers, top the leaderboard.'
+                : '🆓 Free-to-play, skill-based fan-engagement. Sign in to view your Bashpoints.'}
             </p>
           </div>
           {user && (
@@ -73,14 +75,14 @@ export function RewardsPage() {
               <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 800, fontSize: 18, color: '#f5c431' }}>
                 {balance ?? 0}
               </span>
-              <span style={{ fontSize: 12, color: 'var(--muted)' }}>coins</span>
+              <span style={{ fontSize: 12, color: 'var(--muted)' }}>Bashpoints</span>
             </div>
           )}
         </div>
 
         {!user && (
           <div className="rounded-xl text-center py-10 px-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p style={{ color: 'var(--muted)', marginBottom: 16 }}>Sign in to view your balance and redeem rewards.</p>
+            <p style={{ color: 'var(--muted)', marginBottom: 16 }}>Sign in to view your Bashpoints, climb the leaderboard, and unlock fan perks.</p>
             <button onClick={openAuthModal} className="btn btn-primary" style={{ padding: '10px 24px' }}>
               Sign in
             </button>
@@ -104,7 +106,7 @@ export function RewardsPage() {
                 <>
                   <div className="mt-4 mb-1.5 flex items-center justify-between text-[11px]">
                     <span style={{ color: 'var(--muted)' }}>To {coins.tier.next.name} ({coins.tier.next.multiplier}×)</span>
-                    <span style={{ color: 'var(--text)', fontWeight: 700 }}>{coins.tier.next.remaining} coins to go</span>
+                    <span style={{ color: 'var(--text)', fontWeight: 700 }}>{coins.tier.next.remaining} Bashpoints to go</span>
                   </div>
                   <div className="h-1.5 rounded-full overflow-hidden" style={{ background: 'rgba(255,255,255,0.06)' }}>
                     <div style={{
@@ -126,7 +128,7 @@ export function RewardsPage() {
                 <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 28, fontWeight: 900, color: '#f5c431' }}>
                   +{coins.daily.next_amount}
                 </span>
-                <span className="text-[12px]" style={{ color: 'var(--muted)' }}>coins today</span>
+                <span className="text-[12px]" style={{ color: 'var(--muted)' }}>Bashpoints today</span>
                 {coins.tier.multiplier > 1 && (
                   <span className="text-[10px] px-1.5 py-px rounded-full" style={{ background: 'rgba(45,214,122,0.12)', color: 'var(--green)', fontWeight: 700 }}>
                     {coins.daily.base} × {coins.tier.multiplier}
@@ -149,7 +151,7 @@ export function RewardsPage() {
                   cursor: coins.daily.claimed_today ? 'not-allowed' : 'pointer',
                 }}
               >
-                {claimingDaily ? 'Claiming…' : coins.daily.claimed_today ? '✓ Claimed today — back tomorrow' : `Claim ${coins.daily.next_amount} coins`}
+                {claimingDaily ? 'Claiming…' : coins.daily.claimed_today ? '✓ Claimed today — back tomorrow' : `Claim ${coins.daily.next_amount} Bashpoints`}
               </button>
             </div>
           </div>
@@ -157,7 +159,7 @@ export function RewardsPage() {
 
         {/* ── How to earn (always shown) ── */}
         <div className="rounded-xl p-5 mb-8" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-          <div className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: 'var(--muted)' }}>How to earn coins</div>
+          <div className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: 'var(--muted)' }}>How to earn Bashpoints</div>
           <div className="grid gap-3" style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
             <EarnRule icon="🎁" title={`+${coins?.rules.signup_bonus ?? 50} signup bonus`} desc="One-time, when you verify your email." />
             <EarnRule icon="🗓️" title={`+${coins?.rules.daily_base ?? 10} daily check-in`} desc="One claim per day. Multiplied by your tier." />
@@ -166,16 +168,25 @@ export function RewardsPage() {
           </div>
         </div>
 
-        {loading && <p style={{ color: 'var(--muted)' }}>Loading rewards…</p>}
-        {error && <p style={{ color: '#ef4444' }}>{error}</p>}
+        {/* Voucher catalog — gated to signed-in users only. The catalog
+            is the only place vouchers are mentioned publicly; logged-out
+            visitors don't see SKUs or any "redeem for ₹" framing. */}
+        {user && (
+          <>
+            <div className="text-[10px] uppercase tracking-[1.5px] mb-3" style={{ color: 'var(--muted)' }}>Fan perks · redeem your Bashpoints</div>
+            {loading && <p style={{ color: 'var(--muted)' }}>Loading…</p>}
+            {error && <p style={{ color: '#ef4444' }}>{error}</p>}
 
-        {!loading && !error && rewards.length === 0 && (
-          <div className="rounded-xl text-center py-10 px-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
-            <p style={{ color: 'var(--muted)' }}>No rewards available yet. Check back soon.</p>
-          </div>
+            {!loading && !error && rewards.length === 0 && (
+              <div className="rounded-xl text-center py-10 px-6" style={{ background: 'var(--surface)', border: '1px solid var(--border)' }}>
+                <p style={{ color: 'var(--muted)' }}>No fan perks available yet. Check back soon.</p>
+              </div>
+            )}
+          </>
         )}
 
-        {/* Grid */}
+        {/* Grid (signed-in only) */}
+        {user && (
         <div className="grid gap-4" style={{ gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))' }}>
           {rewards.map((r) => {
             const canAfford = user && balance !== null && balance >= r.coin_cost;
@@ -217,6 +228,7 @@ export function RewardsPage() {
             );
           })}
         </div>
+        )}
       </div>
 
       {/* Confirm modal */}

@@ -13,6 +13,7 @@ interface AuthUser {
   total_games: number;
   total_wins: number;
   weightage_balance: number;
+  terms_accepted_at?: string | null;
 }
 
 interface AuthStore {

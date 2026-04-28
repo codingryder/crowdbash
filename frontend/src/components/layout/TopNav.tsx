@@ -35,7 +35,7 @@ export function TopNav() {
               <Link
                 to="/rewards"
                 className="flex items-center gap-1 no-underline rounded-full"
-                title="View rewards"
+                title="View Bashpoints"
                 style={{
                   padding: '5px 10px',
                   background: 'rgba(245,196,49,0.12)',

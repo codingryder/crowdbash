@@ -327,7 +327,7 @@ export function CrowdbashRoomPage() {
                 { key: 'myteam' as const, label: 'My Team' },
                 { key: 'leaderboard' as const, label: 'Leaderboard' },
                 { key: 'chat' as const, label: 'Chat' },
-                { key: 'rewards' as const, label: '🪙 Rewards' },
+                { key: 'rewards' as const, label: '🪙 Bashpoints' },
                 { key: 'rules' as const, label: 'How to Play' },
               ]).map(tab => (
                 <div

@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../../hooks/useAuth';
 
 type AuthStep = 'form' | 'otp';
@@ -15,6 +16,7 @@ export function AuthModal() {
   const [otp, setOtp] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
+  const [termsAccepted, setTermsAccepted] = useState(false);
 
   if (!showAuthModal) return null;
 
@@ -28,7 +30,12 @@ export function AuthModal() {
           setLoading(false);
           return;
         }
-        await signup(firstName.trim(), lastName.trim(), email.trim(), phone.trim());
+        if (!termsAccepted) {
+          setError('Please accept the Terms (incl. 18+) and Privacy Policy to continue.');
+          setLoading(false);
+          return;
+        }
+        await signup(firstName.trim(), lastName.trim(), email.trim(), phone.trim(), termsAccepted);
       } else {
         if (!email.trim()) {
           setError('Please enter your email');
@@ -152,6 +159,24 @@ export function AuthModal() {
                 </div>
               )}
 
+              {mode === 'signup' && (
+                <label className="flex items-start gap-2 mb-4 cursor-pointer" style={{ fontSize: 12, color: 'var(--mu)', lineHeight: 1.5 }}>
+                  <input
+                    type="checkbox"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                    style={{ marginTop: 3, accentColor: '#2dd67a', cursor: 'pointer' }}
+                  />
+                  <span>
+                    I'm 18+ and agree to the{' '}
+                    <Link to="/terms" target="_blank" style={{ color: 'var(--green)' }}>Terms</Link>
+                    {' '}and{' '}
+                    <Link to="/privacy" target="_blank" style={{ color: 'var(--green)' }}>Privacy Policy</Link>.
+                    Crowdbash is a free-to-play, skill-based fan-engagement game.
+                  </span>
+                </label>
+              )}
+
               {error && (
                 <div className="text-[12px] mb-3 px-3 py-2 rounded-lg" style={{ background: 'rgba(240,90,90,0.1)', color: 'var(--red)' }}>
                   {error}
@@ -160,7 +185,7 @@ export function AuthModal() {
 
               <button
                 onClick={handleSubmitForm}
-                disabled={loading}
+                disabled={loading || (mode === 'signup' && !termsAccepted)}
                 className="w-full py-3 rounded-lg text-[14px] font-bold cursor-pointer font-syne border-none disabled:opacity-50"
                 style={{ background: 'var(--gold)', color: '#09090F' }}
               >

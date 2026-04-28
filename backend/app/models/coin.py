@@ -22,13 +22,22 @@ class CoinTransaction(Base):
 
 class Reward(Base):
     __tablename__ = "rewards"
-    __table_args__ = (CheckConstraint("coin_cost > 0", name="reward_cost_positive"),)
+    __table_args__ = (
+        CheckConstraint("coin_cost > 0", name="reward_cost_positive"),
+        CheckConstraint("value_inr IS NULL OR value_inr <= 250", name="rewards_value_cap"),
+    )
 
     id = Column(UUID(as_uuid=True), primary_key=True, default=uuid.uuid4)
     sku = Column(String(64), unique=True, nullable=False)
     title = Column(String(120), nullable=False)
     description = Column(Text, nullable=True)
     coin_cost = Column(Integer, nullable=False)
+    # Rupee face value of the voucher. Capped at ₹250 by the DB CHECK
+    # constraint (rewards_value_cap) so admins can't accidentally seed a
+    # higher-value SKU and trip the legal positioning around "moderate
+    # rewards". NULL allowed only for legacy rows from before this column
+    # existed.
+    value_inr = Column(Integer, nullable=True)
     stock = Column(Integer, nullable=True)
     active = Column(Boolean, nullable=False, default=True)
     created_at = Column(DateTime(timezone=True), server_default=func.now())
