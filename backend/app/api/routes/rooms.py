@@ -12,10 +12,24 @@ router = APIRouter()
 def _room_to_dict(r: Room) -> dict:
     from app.api.routes.game import is_late_join_open, LATE_JOIN_ROOMS
     late_join = is_late_join_open(r)
-    cfg = LATE_JOIN_ROOMS.get(str(r.id))
+    cfg = LATE_JOIN_ROOMS.get(str(r.id)) or {}
     progress = r.match_progress or {}
-    over = float(progress.get("over", 0) or 0)
-    overs_remaining = (cfg["max_over"] - over) if (cfg and late_join) else 0
+
+    # Late-join "remaining" countdown is sport-specific. Cricket configs use
+    # max_over (overs left in innings 1), football configs use max_minute
+    # (minutes until half-time). Both are surfaced as separate fields so the
+    # frontend can render the right unit.
+    cfg_sport = (cfg.get("sport") or r.sport or "cricket").lower()
+    overs_remaining = 0.0
+    minutes_remaining = 0.0
+    if cfg and late_join:
+        if cfg_sport == "football":
+            minute = float(progress.get("minute", 0) or 0)
+            minutes_remaining = max(float(cfg.get("max_minute", 0)) - minute, 0)
+        else:
+            over = float(progress.get("over", 0) or 0)
+            overs_remaining = max(float(cfg.get("max_over", 0)) - over, 0)
+
     return {
         "id": str(r.id),
         "match_id": r.match_id,
@@ -33,7 +47,8 @@ def _room_to_dict(r: Room) -> dict:
         "created_at": r.created_at.isoformat() if r.created_at else None,
         "completed_at": r.completed_at.isoformat() if r.completed_at else None,
         "late_join_open": late_join,
-        "late_join_overs_remaining": round(max(overs_remaining, 0), 1),
+        "late_join_overs_remaining": round(overs_remaining, 1),
+        "late_join_minutes_remaining": round(minutes_remaining, 1),
         "edit_window_closes_at": (
             r.edit_window_closes_at.isoformat()
             if getattr(r, "edit_window_closes_at", None) else None
