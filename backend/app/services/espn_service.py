@@ -601,6 +601,81 @@ async def get_espn_match_players(event_id: str, series_id: str = "8048") -> list
     return None
 
 
+async def get_espn_football_squad(event_id: str, league_slug: str) -> list | None:
+    """
+    Pull the full match-day squad for both teams from ESPN's soccer summary
+    endpoint. ESPN tracks rosters per fixture (starters + named subs) which
+    is exactly what fantasy needs, and the data is current — that's why this
+    is the primary source for football, with grounded Gemini as fallback.
+
+    Returns a list of {player_id, player_name, team, role} with canonical
+    role keys GK/DEF/MID/FW. Cached 6 hours per event.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+    if not event_id or not league_slug:
+        return None
+    cache_key = f"espn:football:squad:{event_id}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f"{ESPN_FOOTBALL_BASE}/{league_slug}/summary",
+                params={"event": event_id},
+                headers=HEADERS,
+                timeout=15,
+            )
+            if res.status_code != 200:
+                print(f"ESPN football summary error {res.status_code} for {event_id}")
+                return None
+            data = res.json()
+            rosters = data.get("rosters") or []
+            players: list[dict] = []
+            for team_block in rosters:
+                team_name = (team_block.get("team") or {}).get("displayName") or "Unknown"
+                for entry in team_block.get("roster") or []:
+                    ath = entry.get("athlete") or {}
+                    pos_obj = entry.get("position") or ath.get("position") or {}
+                    pos_abbr = (pos_obj.get("abbreviation") or pos_obj.get("name") or "").upper()
+                    role = _map_espn_football_position(pos_abbr)
+                    name = ath.get("displayName") or ath.get("fullName") or ""
+                    if not name:
+                        continue
+                    players.append({
+                        "player_id": str(ath.get("id") or entry.get("playerId") or f"espn_{event_id}_{len(players)}"),
+                        "player_name": name,
+                        "team": team_name,
+                        "role": role,
+                    })
+            if players:
+                await redis_set_json(cache_key, players, ex=60 * 60 * 6)
+                return players
+    except Exception as e:
+        print(f"ESPN football squad fetch error: {e}")
+    return None
+
+
+def _map_espn_football_position(abbr: str) -> str:
+    """Map ESPN soccer position abbreviation to our canonical GK/DEF/MID/FW."""
+    a = (abbr or "").upper().strip()
+    if not a:
+        return ""
+    if a in ("G", "GK"):
+        return "GK"
+    # Defenders: CB / CD / LB / RB / LWB / RWB / SW / D / DEF, plus tagged
+    # variants like "CD-L" / "CD-R" that ESPN uses for Champions League.
+    if a.startswith("CD") or a.startswith("CB") or a in ("LB", "RB", "LWB", "RWB", "SW", "D", "DEF"):
+        return "DEF"
+    # Midfielders: CM / DM / AM / CDM / CAM / LM / RM / M / MID, with -L/-R suffixes.
+    if "DM" in a or "CM" in a or "AM" in a or a in ("LM", "RM", "M", "MID"):
+        return "MID"
+    # Forwards: ST / CF / LW / RW / F / FW / SS / W, plus -L/-R suffixed wings.
+    if a.startswith("LW") or a.startswith("RW") or a in ("ST", "CF", "F", "FW", "SS", "W"):
+        return "FW"
+    return ""
+
+
 def _map_espn_position(abbr: str, name: str) -> str:
     """Map ESPN cricket position to our role format."""
     abbr = abbr.upper()

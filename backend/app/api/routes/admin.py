@@ -942,18 +942,33 @@ async def _populate_match_squads(db: AsyncSession, room: Room) -> dict:
 
     players: list[dict] = []
     if room.sport == "football":
-        # Football: Gemini grounded search is the only reliable path for
-        # current rosters. Football-Data.org only exposes lineups inside
-        # match details and only ~60 min before kickoff.
-        # force=True skips the 7-day Redis cache so an explicit admin refresh
-        # always re-queries Gemini instead of returning a stale or empty hit.
+        # Football: try ESPN's match summary first — it carries the actual
+        # match-day squads (starters + named subs, with current 2025/26
+        # rosters) and is way more reliable than Gemini guessing. Only fall
+        # back to grounded Gemini if ESPN doesn't return a roster (e.g. the
+        # event id wasn't an ESPN id, or ESPN hasn't published rosters yet).
         try:
-            result = await fetch_squad_via_gemini(room.match_name, "football", force=True)
-            print(f"Squad sync (football) for {room.match_name}: gemini returned {len(result) if isinstance(result, list) else 'None'} players")
-            if isinstance(result, list):
-                players = result
+            from app.services.espn_service import get_espn_football_squad, FOOTBALL_LEAGUES
+            league_slug = FOOTBALL_LEAGUES.get(room.league or "")
+            event_id = (room.match_id or "").replace("espn_", "").strip()
+            if league_slug and event_id:
+                result = await get_espn_football_squad(event_id, league_slug)
+                if isinstance(result, list) and len(result) > 0:
+                    players = result
+                    print(f"Squad sync (football) for {room.match_name}: ESPN returned {len(players)} players")
         except Exception as e:
-            print(f"Squad sync (football, gemini) failed for {room.match_name}: {e}")
+            print(f"Squad sync (football, ESPN) failed for {room.match_name}: {e}")
+
+        if not players:
+            # force=True skips the 7-day Redis cache so an explicit admin refresh
+            # always re-queries Gemini instead of returning a stale or empty hit.
+            try:
+                result = await fetch_squad_via_gemini(room.match_name, "football", force=True)
+                print(f"Squad sync (football) for {room.match_name}: Gemini fallback returned {len(result) if isinstance(result, list) else 'None'} players")
+                if isinstance(result, list):
+                    players = result
+            except Exception as e:
+                print(f"Squad sync (football, gemini) failed for {room.match_name}: {e}")
     else:
         # Cricket: lean on the adapter's own player-lookup chain.
         try:

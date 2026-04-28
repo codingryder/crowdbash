@@ -188,6 +188,11 @@ async def websocket_endpoint(websocket: WebSocket, room_id: str):
         })
 
 
+# Tracks room ids whose squad sync is currently in flight, so the score
+# poller doesn't spawn a second ESPN call before the first one finishes.
+_SYNCING_SQUADS: set = set()
+
+
 async def score_poller():
     """
     Multi-sport score poller. Polls live matches for all sports,
@@ -214,6 +219,35 @@ async def score_poller():
                     # Set match context for Gemini fallback
                     if hasattr(adapter, 'set_match_context'):
                         adapter.set_match_context(room.match_name)
+
+                    # Self-heal: any football room that's gone live without
+                    # ever syncing its match-day squad gets one populated from
+                    # ESPN now. Re-syncs anything older than 7 days too
+                    # (transfer windows). Debounced via _SYNCING_SQUADS so we
+                    # don't spawn a new ESPN/Gemini call on every 15s tick
+                    # while the first one is still in flight.
+                    if room.sport == "football":
+                        from datetime import datetime as _dt2, timezone as _tz2, timedelta as _td2
+                        last = room.squads_last_refreshed_at
+                        if last is not None and last.tzinfo is None:
+                            last = last.replace(tzinfo=_tz2.utc)
+                        stale = last is None or (_dt2.now(_tz2.utc) - last) > _td2(days=7)
+                        if stale and room.id not in _SYNCING_SQUADS:
+                            _SYNCING_SQUADS.add(room.id)
+                            from app.api.routes.admin import _populate_match_squads
+                            async def _bg(rid):
+                                try:
+                                    async with AsyncSessionLocal() as bg_db:
+                                        bg_room = (await bg_db.execute(
+                                            select(Room).where(Room.id == rid)
+                                        )).scalar_one_or_none()
+                                        if bg_room:
+                                            await _populate_match_squads(bg_db, bg_room)
+                                except Exception as bg_e:
+                                    print(f"Auto squad sync failed for {rid}: {bg_e}")
+                                finally:
+                                    _SYNCING_SQUADS.discard(rid)
+                            asyncio.create_task(_bg(room.id))
 
                     # ── ESPN status check (truth source) ──
                     try:
