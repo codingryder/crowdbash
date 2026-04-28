@@ -71,7 +71,7 @@ export function RewardsRoomTab() {
             </div>
           ))}
         </div>
-        <div className="text-[10px] mt-3" style={{ color: 'var(--faint)' }}>Awarded automatically when the match closes — only if your final points are &gt; 0.</div>
+        <div className="text-[11px] mt-3" style={{ color: 'var(--muted)' }}>Awarded automatically when the match closes — only if your final points are &gt; 0.</div>
       </div>
 
       {/* Tier card */}

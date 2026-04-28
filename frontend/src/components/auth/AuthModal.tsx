@@ -114,7 +114,7 @@ export function AuthModal() {
                       type="text"
                       value={firstName}
                       onChange={(e) => setFirstName(e.target.value)}
-                      placeholder="Rakesh"
+                      placeholder="CXXX"
                       className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none"
                       style={{ background: 'var(--s2)', border: '0.5px solid var(--b2)', color: 'var(--tx)', fontFamily: "'DM Sans', sans-serif" }}
                     />
@@ -125,7 +125,7 @@ export function AuthModal() {
                       type="text"
                       value={lastName}
                       onChange={(e) => setLastName(e.target.value)}
-                      placeholder="Gogoi"
+                      placeholder="RXXX"
                       className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none"
                       style={{ background: 'var(--s2)', border: '0.5px solid var(--b2)', color: 'var(--tx)', fontFamily: "'DM Sans', sans-serif" }}
                     />
@@ -152,7 +152,7 @@ export function AuthModal() {
                     type="tel"
                     value={phone}
                     onChange={(e) => setPhone(e.target.value)}
-                    placeholder="+91 98765 43210"
+                    placeholder="+9198XXXXXXXX"
                     className="w-full px-3 py-2.5 rounded-lg text-[13px] outline-none"
                     style={{ background: 'var(--s2)', border: '0.5px solid var(--b2)', color: 'var(--tx)', fontFamily: "'DM Sans', sans-serif" }}
                   />
