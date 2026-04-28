@@ -945,8 +945,11 @@ async def _populate_match_squads(db: AsyncSession, room: Room) -> dict:
         # Football: Gemini grounded search is the only reliable path for
         # current rosters. Football-Data.org only exposes lineups inside
         # match details and only ~60 min before kickoff.
+        # force=True skips the 7-day Redis cache so an explicit admin refresh
+        # always re-queries Gemini instead of returning a stale or empty hit.
         try:
-            result = await fetch_squad_via_gemini(room.match_name, "football")
+            result = await fetch_squad_via_gemini(room.match_name, "football", force=True)
+            print(f"Squad sync (football) for {room.match_name}: gemini returned {len(result) if isinstance(result, list) else 'None'} players")
             if isinstance(result, list):
                 players = result
         except Exception as e:

@@ -147,7 +147,7 @@ RULES:
     return data
 
 
-async def fetch_squad_via_gemini(match_name: str, sport: str = "cricket") -> list | None:
+async def fetch_squad_via_gemini(match_name: str, sport: str = "cricket", force: bool = False) -> list | None:
     """Get squad/lineup for a match via Gemini.
 
     Football uses grounded Google Search so the response reflects the *current*
@@ -155,14 +155,19 @@ async def fetch_squad_via_gemini(match_name: str, sport: str = "cricket") -> lis
     training-cutoff roster (e.g. Messi/Ramos still at PSG long after they left).
     Cached longer for football because club rosters only change at transfer
     windows.
+
+    Pass force=True to skip the cache read (still writes the fresh result back).
+    Used by the admin refresh-squads endpoint so an explicit refresh always
+    re-queries the source instead of being pinned to a stale 7-day cache.
     """
     from app.core.redis import redis_get_json, redis_set_json
     from datetime import datetime
 
     cache_key = f"gemini:squad:{sport}:{match_name}"
-    cached = await redis_get_json(cache_key)
-    if cached:
-        return cached
+    if not force:
+        cached = await redis_get_json(cache_key)
+        if cached:
+            return cached
 
     if sport == "cricket":
         prompt = f"""List the full playing squad for both teams in: {match_name}
