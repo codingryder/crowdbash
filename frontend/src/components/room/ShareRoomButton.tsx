@@ -17,8 +17,15 @@ interface ShareRoomButtonProps {
 export function ShareRoomButton({ roomId, matchName, small }: ShareRoomButtonProps) {
   const [toast, setToast] = useState<string | null>(null);
 
-  const apiBase = (import.meta.env.VITE_API_URL || 'http://localhost:8000').replace(/\/$/, '');
-  const shareUrl = `${apiBase}/share/room/${roomId}`;
+  // Build the share URL against the frontend's own origin so it lands on
+  // crowdbash.codingryder.com instead of the Render backend domain. Vercel
+  // is configured to rewrite /share/* through to the backend (vercel.json),
+  // so the user sees the branded URL while the actual HTML is rendered by
+  // FastAPI.
+  const origin = (typeof window !== 'undefined' && window.location.origin)
+    ? window.location.origin.replace(/\/$/, '')
+    : 'https://crowdbash.codingryder.com';
+  const shareUrl = `${origin}/share/room/${roomId}`;
 
   async function handleShare() {
     // Prefer the native share sheet on mobile / supported browsers.
