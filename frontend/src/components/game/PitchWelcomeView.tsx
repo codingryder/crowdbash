@@ -299,17 +299,48 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
     try {
       const playerIds = slots.filter(Boolean).map(p => p!.player_id);
       const weightages = slots.map((p, i) => p ? { player_id: p.player_id, weightage: powers[i] } : null).filter(Boolean) as Array<{ player_id: string; weightage: number }>;
-      // Reshuffle path (squad already locked, room is live): players can't be
-      // changed — only weightages are redistributed. selectSquad would 400
-      // because room.status === 'locked', and lockSquad would 400 "Already
-      // locked". Save weightages only.
-      const isReshuffle = !!game?.squad_locked;
-      if (!isReshuffle) {
-        await selectSquad(playerIds, { skipRefetch: true });
+
+      // Decide which sub-calls are needed based on (a) whether the squad is
+      // already locked and (b) whether the user actually changed any players.
+      // Three cases:
+      //   - First-time pick (squad_locked=false): full flow — selectSquad,
+      //     saveWeightages, lockSquad.
+      //   - Football late-join window (squad_locked=true but the backend
+      //     allows changes because room.late_join_open=true) and the user
+      //     swapped a player: selectSquad to persist swap, saveWeightages,
+      //     re-lock via lockSquad. The previous version skipped selectSquad
+      //     here, which is why "save powers" silently dropped XI swaps for
+      //     PSG vs Bayern.
+      //   - Cricket reshuffle (squad_locked=true, no swap): saveWeightages
+      //     only. selectSquad would 400 "Match has started" with no
+      //     late_join window, so we don't even try.
+      const savedIds = (game?.player_weightages || []).filter(pw => pw.selected).map(pw => pw.player_id).sort();
+      const currentIds = [...playerIds].sort();
+      const squadDiffers = savedIds.length !== currentIds.length || savedIds.some((id, i) => id !== currentIds[i]);
+      const wasLocked = !!game?.squad_locked;
+
+      if (!wasLocked || squadDiffers) {
+        try {
+          await selectSquad(playerIds, { skipRefetch: true });
+        } catch (e) {
+          // If the user didn't actually swap and the backend rejected the
+          // call (e.g. cricket reshuffle without late_join), it's benign —
+          // proceed to weightages so a power-only edit still saves.
+          if (squadDiffers) throw e;
+          console.warn('selectSquad rejected, continuing', e);
+        }
       }
       await saveWeightages(weightages, { skipRefetch: true });
-      if (!isReshuffle) {
-        await lockSquad({ skipRefetch: true });
+      // Re-lock when we either picked for the first time, or just re-selected
+      // during a late-join swap (which the backend silently unlocked). Cricket
+      // reshuffle (squad still locked, no swap) skips this — squad stays
+      // locked already.
+      if (!wasLocked || squadDiffers) {
+        try {
+          await lockSquad({ skipRefetch: true });
+        } catch (e) {
+          console.warn('lockSquad rejected (likely already locked), continuing', e);
+        }
       }
       // Single refetch at the end so the room view sees updated weightages immediately.
       await fetchGameState();
