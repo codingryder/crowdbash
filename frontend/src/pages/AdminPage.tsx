@@ -23,7 +23,26 @@ export function AdminPage() {
     fetchRooms, createRoom, updateStatus, deleteRoom,
     openEditWindow, closeEditWindow, refreshSquads, setLateJoin,
   } = useAdminStore();
-  const [tab, setTab] = useState<'rooms' | 'create'>('rooms');
+  const [tab, setTab] = useState<'rooms' | 'create' | 'custom'>('rooms');
+
+  // Custom-room form state — used by the "Custom" tab to spin up a test
+  // room with an arbitrary match_id (e.g. "espn_740922" for a real ESPN
+  // fixture so the football squad sync pulls real rosters).
+  const [customSport, setCustomSport] = useState<'cricket' | 'football'>('football');
+  const [customMatchName, setCustomMatchName] = useState('Chelsea vs Manchester United');
+  const [customLeague, setCustomLeague] = useState('Premier League');
+  const [customFormat, setCustomFormat] = useState('Premier League');
+  const [customVenue, setCustomVenue] = useState('Stamford Bridge');
+  const [customSeason, setCustomSeason] = useState('2025-26');
+  const [customMatchId, setCustomMatchId] = useState('espn_740922');
+  const [customMatchDate, setCustomMatchDate] = useState(() => {
+    // Default to ~5 days from now so the room stays "open" while testing.
+    const d = new Date();
+    d.setDate(d.getDate() + 5);
+    d.setHours(19, 0, 0, 0);
+    return d.toISOString().slice(0, 16);
+  });
+  const [customSubmitting, setCustomSubmitting] = useState(false);
   const [reshuffleDurations, setReshuffleDurations] = useState<Record<string, number>>({});
   const [reshuffleBusy, setReshuffleBusy] = useState<Record<string, boolean>>({});
   const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
@@ -155,14 +174,14 @@ export function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 24 }}>
-          {(['rooms', 'create'] as const).map(t => (
+          {(['rooms', 'create', 'custom'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif",
               background: tab === t ? 'var(--surface3)' : 'transparent',
               color: tab === t ? 'var(--text)' : 'var(--muted)',
               border: 'none', borderRadius: 7, cursor: 'pointer',
             }}>
-              {t === 'rooms' ? 'All Rooms' : 'Create Room'}
+              {t === 'rooms' ? 'All Rooms' : t === 'create' ? 'Create Room' : 'Custom (test)'}
             </button>
           ))}
         </div>
@@ -440,8 +459,124 @@ export function AdminPage() {
             )}
           </div>
         )}
+
+        {/* ═══ TAB: CUSTOM (TEST) ROOM ═══ */}
+        {tab === 'custom' && (
+          <div>
+            <div style={{ marginBottom: 16 }}>
+              <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>
+                Spin up a custom test room
+              </div>
+              <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                Useful for QA / E2E flows where the live-matches feed doesn't carry the fixture you want.
+                For football: paste an ESPN event id (e.g. <code style={{ background: 'var(--surface2)', padding: '1px 5px', borderRadius: 4 }}>espn_740922</code> for a recent Chelsea v Man Utd) so the squad sync pulls real ESPN rosters.
+              </div>
+            </div>
+
+            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, maxWidth: 720 }}>
+              <CustomField label="Sport">
+                <select value={customSport} onChange={e => setCustomSport(e.target.value as 'cricket' | 'football')} style={fieldStyle}>
+                  <option value="football">Football</option>
+                  <option value="cricket">Cricket</option>
+                </select>
+              </CustomField>
+              <CustomField label="Match name">
+                <input value={customMatchName} onChange={e => setCustomMatchName(e.target.value)} placeholder="Chelsea vs Manchester United" style={fieldStyle} />
+              </CustomField>
+              <CustomField label="League">
+                <input value={customLeague} onChange={e => setCustomLeague(e.target.value)} placeholder="Premier League" style={fieldStyle} />
+              </CustomField>
+              <CustomField label="Format">
+                <input value={customFormat} onChange={e => setCustomFormat(e.target.value)} placeholder="Premier League / T20" style={fieldStyle} />
+              </CustomField>
+              <CustomField label="Venue">
+                <input value={customVenue} onChange={e => setCustomVenue(e.target.value)} placeholder="Stamford Bridge" style={fieldStyle} />
+              </CustomField>
+              <CustomField label="Season">
+                <input value={customSeason} onChange={e => setCustomSeason(e.target.value)} placeholder="2025-26" style={fieldStyle} />
+              </CustomField>
+              <CustomField label="Match ID (e.g. espn_740922)" hint="Use espn_<event_id> so the squad auto-sync pulls real ESPN rosters. Any unique string also works (Gemini fallback).">
+                <input value={customMatchId} onChange={e => setCustomMatchId(e.target.value)} placeholder="espn_740922" style={fieldStyle} />
+              </CustomField>
+              <CustomField label="Kickoff (local time)">
+                <input type="datetime-local" value={customMatchDate} onChange={e => setCustomMatchDate(e.target.value)} style={fieldStyle} />
+              </CustomField>
+            </div>
+
+            <div style={{ marginTop: 20, display: 'flex', gap: 12 }}>
+              <button
+                disabled={customSubmitting || !customMatchName.trim()}
+                onClick={async () => {
+                  setCustomSubmitting(true);
+                  setCreateMsg('');
+                  // Convert local datetime-input value into ISO with timezone.
+                  const isoDate = customMatchDate ? new Date(customMatchDate).toISOString() : undefined;
+                  const result = await createRoom({
+                    sport: customSport,
+                    match_name: customMatchName.trim(),
+                    match_format: customFormat.trim(),
+                    venue: customVenue.trim(),
+                    league: customLeague.trim(),
+                    season: customSeason.trim(),
+                    match_date: isoDate,
+                    match_id: customMatchId.trim() || undefined,
+                  });
+                  setCustomSubmitting(false);
+                  if (result) {
+                    setCreateMsg(`Test room created: ${result.match_name}. Squad sync runs in the background — refresh "All Rooms" in ~30s.`);
+                    setTab('rooms');
+                  } else {
+                    setCreateMsg('Failed to create test room — check the match_id and try again.');
+                  }
+                }}
+                className="btn btn-primary"
+                style={{ padding: '10px 28px', fontSize: 14, fontWeight: 700 }}
+              >
+                {customSubmitting ? 'Creating...' : 'Create test room'}
+              </button>
+              <button
+                onClick={() => {
+                  // Quick-fill: Chelsea vs Manchester United, ESPN ev 740922.
+                  setCustomSport('football');
+                  setCustomMatchName('Chelsea vs Manchester United');
+                  setCustomLeague('Premier League');
+                  setCustomFormat('Premier League');
+                  setCustomVenue('Stamford Bridge');
+                  setCustomSeason('2025-26');
+                  setCustomMatchId('espn_740922');
+                }}
+                style={{ padding: '10px 18px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}
+              >
+                Reset to Chelsea v Man Utd preset
+              </button>
+            </div>
+          </div>
+        )}
       </div>
     </div>
+  );
+}
+
+const fieldStyle: React.CSSProperties = {
+  width: '100%',
+  background: 'var(--surface2)',
+  border: '1px solid var(--border)',
+  borderRadius: 'var(--radius-sm)',
+  padding: '10px 12px',
+  fontSize: 13,
+  color: 'var(--text)',
+  outline: 'none',
+  boxSizing: 'border-box',
+  fontFamily: 'inherit',
+};
+
+function CustomField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
+  return (
+    <label style={{ display: 'block' }}>
+      <div style={{ fontSize: 11, fontWeight: 700, color: 'var(--muted)', marginBottom: 6, fontFamily: "'Cabinet Grotesk', sans-serif", letterSpacing: '0.5px' }}>{label.toUpperCase()}</div>
+      {children}
+      {hint && <div style={{ fontSize: 10, color: 'var(--faint)', marginTop: 4, lineHeight: 1.4 }}>{hint}</div>}
+    </label>
   );
 }
 
