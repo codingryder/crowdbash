@@ -146,7 +146,23 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
+    is_espn = bool(room.match_id and room.match_id.startswith("espn_"))
+    espn_event_id = room.match_id.replace("espn_", "") if is_espn else ""
+
     try:
+        # Football ESPN rooms: prefer ESPN's rich scorecard endpoint, which
+        # carries league / venue / kickoff / broadcasts / recent form /
+        # per-team stats. The football adapter (Football-Data.org → Gemini)
+        # doesn't surface any of that, so going through it makes the in-room
+        # modal much sparser than the same modal opened from the Games tab.
+        if is_espn and room.sport == "football":
+            from app.api.routes.matches import _get_espn_scorecard
+            scorecard = await _get_espn_scorecard("football", espn_event_id, room.match_name)
+            if scorecard:
+                return {"scorecard": scorecard}
+            # ESPN miss (wrong id, cache cold, etc.) — fall through to the
+            # adapter so we at least return what Football-Data.org has.
+
         adapter = get_adapter(room.sport)
         if hasattr(adapter, 'set_match_context'):
             adapter.set_match_context(room.match_name, room.league or '')
@@ -155,12 +171,11 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
             normalized = adapter.normalize_score(match_data, room.match_name)
             return {"scorecard": normalized}
 
-        # Fallback for ESPN cricket pre-match (toss done but no innings yet):
-        # build a stub scorecard with team names + status from the scoreboard event.
-        if room.sport == "cricket" and room.match_id and room.match_id.startswith("espn_"):
+        # Cricket ESPN pre-match fallback (toss done but no innings yet):
+        # build a stub scorecard with team names + status from scoreboard.
+        if is_espn and room.sport == "cricket":
             from app.api.routes.matches import _get_espn_scorecard
-            event_id = room.match_id.replace("espn_", "")
-            stub = await _get_espn_scorecard("cricket", event_id, room.match_name)
+            stub = await _get_espn_scorecard("cricket", espn_event_id, room.match_name)
             if stub:
                 return {"scorecard": stub}
 
