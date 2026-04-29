@@ -384,15 +384,61 @@ export function CrowdbashRoomPage() {
     ? (scoreData?.current_bowling as Array<{ name: string; wickets: number; runs: number; overs: string }> | undefined)
     : undefined;
   // Football-only: live minute, goals events, bookings.
+  // The room scorecard payload now comes from ESPN (richer shape), but we
+  // still support the older Football-Data flat shape so we work whichever
+  // path the backend used. Goals/bookings are derived from ESPN's `events`
+  // list when the flat `goals`/`bookings` keys aren't present.
   const footballMinute = isFootballSport ? (scoreData?.minute as number | undefined) : undefined;
+  type EspnEvent = {
+    minute?: number; player?: string; team?: 'home' | 'away'; type?: string;
+    is_goal?: boolean; is_yellow?: boolean; is_red?: boolean; is_own_goal?: boolean; is_penalty?: boolean;
+  };
+  const footballEvents = isFootballSport ? (scoreData?.events as EspnEvent[] | undefined) : undefined;
   const footballGoals = isFootballSport
-    ? (scoreData?.goals as Array<{ scorer?: { name?: string }; minute?: number; type?: string }> | undefined)
+    ? (
+      (scoreData?.goals as Array<{ scorer?: { name?: string }; minute?: number; type?: string }> | undefined)
+      || footballEvents?.filter(e => e.is_goal).map(e => ({
+        scorer: { name: e.player },
+        minute: e.minute,
+        type: e.is_own_goal ? 'OWN_GOAL' : e.is_penalty ? 'PENALTY' : 'REGULAR',
+      }))
+    )
     : undefined;
   const footballBookings = isFootballSport
-    ? (scoreData?.bookings as Array<{ player?: { name?: string }; card?: string; minute?: number }> | undefined)
+    ? (
+      (scoreData?.bookings as Array<{ player?: { name?: string }; card?: string; minute?: number }> | undefined)
+      || footballEvents?.filter(e => e.is_yellow || e.is_red).map(e => ({
+        player: { name: e.player },
+        card: e.is_red ? 'RED' : 'YELLOW',
+        minute: e.minute,
+      }))
+    )
     : undefined;
-  const possessionHome = isFootballSport ? (scoreData?.possession_home as number | undefined) : undefined;
-  const possessionAway = isFootballSport ? (scoreData?.possession_away as number | undefined) : undefined;
+  // ESPN stats are strings with units ("55%", "10"); normalize to ints. Flat
+  // possession_home/away from the old adapter shape wins when present.
+  const espnStats = isFootballSport
+    ? (scoreData?.stats as { home?: Record<string, string>; away?: Record<string, string> } | undefined)
+    : undefined;
+  const parseStatNum = (v: unknown): number | undefined => {
+    if (v === undefined || v === null) return undefined;
+    if (typeof v === 'number') return Number.isFinite(v) ? v : undefined;
+    const n = parseInt(String(v), 10);
+    return Number.isNaN(n) ? undefined : n;
+  };
+  const possessionHome = isFootballSport
+    ? (parseStatNum(scoreData?.possession_home) ?? parseStatNum(espnStats?.home?.possessionPct))
+    : undefined;
+  const possessionAway = isFootballSport
+    ? (parseStatNum(scoreData?.possession_away) ?? parseStatNum(espnStats?.away?.possessionPct))
+    : undefined;
+  const shotsHome = parseStatNum(espnStats?.home?.totalShots);
+  const shotsAway = parseStatNum(espnStats?.away?.totalShots);
+  const onTargetHome = parseStatNum(espnStats?.home?.shotsOnTarget);
+  const onTargetAway = parseStatNum(espnStats?.away?.shotsOnTarget);
+  const cornersHome = parseStatNum(espnStats?.home?.wonCorners);
+  const cornersAway = parseStatNum(espnStats?.away?.wonCorners);
+  const foulsHome = parseStatNum(espnStats?.home?.foulsCommitted);
+  const foulsAway = parseStatNum(espnStats?.away?.foulsCommitted);
 
   return (
     <>
@@ -794,20 +840,46 @@ export function CrowdbashRoomPage() {
               </div>
             )}
 
-            {/* Football: possession bar (only when both numbers present). */}
-            {isFootballSport && possessionHome !== undefined && possessionAway !== undefined && (
-              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>POSSESSION</div>
-                <div className="flex items-center justify-between mb-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>
-                  <span>{a1} {possessionHome}%</span>
-                  <span>{possessionAway}% {a2}</span>
+            {/* Football: team stats — possession + shots/on target/corners/fouls.
+                Skip individual rows where both teams are 0 (early-match noise),
+                hide the whole section if nothing is meaningful yet. */}
+            {isFootballSport && (() => {
+              const rows: Array<{ label: string; home?: number; away?: number; suffix?: string }> = [
+                { label: 'Possession', home: possessionHome, away: possessionAway, suffix: '%' },
+                { label: 'Shots', home: shotsHome, away: shotsAway },
+                { label: 'On Target', home: onTargetHome, away: onTargetAway },
+                { label: 'Corners', home: cornersHome, away: cornersAway },
+                { label: 'Fouls', home: foulsHome, away: foulsAway },
+              ];
+              const visible = rows.filter(r =>
+                ((r.home ?? 0) > 0) || ((r.away ?? 0) > 0)
+              );
+              if (visible.length === 0) return null;
+              return (
+                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                  <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>TEAM STATS</div>
+                  {visible.map(r => {
+                    const h = r.home ?? 0;
+                    const a = r.away ?? 0;
+                    const total = h + a;
+                    const hPct = total > 0 ? (h / total) * 100 : 50;
+                    return (
+                      <div key={r.label} style={{ marginBottom: 8 }}>
+                        <div className="flex items-center justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}>
+                          <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: 'var(--text)' }}>{h}{r.suffix || ''}</span>
+                          <span>{r.label}</span>
+                          <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: 'var(--text)' }}>{a}{r.suffix || ''}</span>
+                        </div>
+                        <div className="w-full h-1 rounded-full overflow-hidden flex" style={{ background: 'var(--surface)' }}>
+                          <div style={{ width: `${hPct}%`, background: 'var(--green)' }} />
+                          <div style={{ width: `${100 - hPct}%`, background: 'var(--blue)' }} />
+                        </div>
+                      </div>
+                    );
+                  })}
                 </div>
-                <div className="w-full h-1.5 rounded-full overflow-hidden flex" style={{ background: 'var(--surface)' }}>
-                  <div style={{ width: `${possessionHome}%`, background: 'var(--green)' }} />
-                  <div style={{ width: `${possessionAway}%`, background: 'var(--blue)' }} />
-                </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Scorecard button */}
             <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
