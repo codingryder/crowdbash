@@ -78,7 +78,14 @@ interface AdminState {
   broadcastRoomInvite: (
     roomId: string,
     body: { subject?: string; intro?: string; test_email?: string },
-  ) => Promise<{ sent: number; failed: number; total: number; test?: boolean; error?: string } | null>;
+  ) => Promise<{
+    sent: number;
+    failed: number;
+    total: number;
+    test?: boolean;
+    error?: string;
+    failures?: { email: string; error: string }[];
+  } | null>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({

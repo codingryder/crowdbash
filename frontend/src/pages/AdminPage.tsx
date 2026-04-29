@@ -852,7 +852,14 @@ function BroadcastModal({
   send: (
     roomId: string,
     body: { subject?: string; intro?: string; test_email?: string },
-  ) => Promise<{ sent: number; failed: number; total: number; test?: boolean; error?: string } | null>;
+  ) => Promise<{
+    sent: number;
+    failed: number;
+    total: number;
+    test?: boolean;
+    error?: string;
+    failures?: { email: string; error: string }[];
+  } | null>;
 }) {
   const [subject, setSubject] = useState(`Join the ${room.match_name} room on Crowdbash`);
   const [intro, setIntro] = useState(
@@ -862,6 +869,7 @@ function BroadcastModal({
   const [recipientCount, setRecipientCount] = useState<number | null>(null);
   const [busy, setBusy] = useState<'test' | 'all' | null>(null);
   const [result, setResult] = useState<string>('');
+  const [failedList, setFailedList] = useState<{ email: string; error: string }[]>([]);
 
   useEffect(() => {
     let alive = true;
@@ -873,6 +881,7 @@ function BroadcastModal({
     if (!testEmail.trim()) return;
     setBusy('test');
     setResult('');
+    setFailedList([]);
     const r = await send(room.id, { subject, intro, test_email: testEmail.trim() });
     setBusy(null);
     if (!r) setResult('Request failed.');
@@ -885,10 +894,14 @@ function BroadcastModal({
     if (!confirm(`Send this email to ${recipientCount} user${recipientCount === 1 ? '' : 's'}?`)) return;
     setBusy('all');
     setResult('');
+    setFailedList([]);
     const r = await send(room.id, { subject, intro });
     setBusy(null);
     if (!r) setResult('Broadcast failed.');
-    else setResult(`Sent ${r.sent} of ${r.total} (${r.failed} failed).`);
+    else {
+      setResult(`Sent ${r.sent} of ${r.total} (${r.failed} failed).`);
+      setFailedList(r.failures || []);
+    }
   };
 
   return (
@@ -955,6 +968,21 @@ function BroadcastModal({
           <div style={{ marginTop: 16, fontSize: 13, color: result.includes('failed') || result.includes('Failed') ? 'var(--red)' : 'var(--green)' }}>
             {result}
           </div>
+        )}
+        {failedList.length > 0 && (
+          <details style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+            <summary style={{ cursor: 'pointer', color: 'var(--text2)' }}>
+              Show {failedList.length} failed address{failedList.length === 1 ? '' : 'es'}
+            </summary>
+            <ul style={{ margin: '8px 0 0 0', paddingLeft: 20, lineHeight: 1.5 }}>
+              {failedList.map((f, i) => (
+                <li key={i}>
+                  <span style={{ color: 'var(--text2)' }}>{f.email}</span>
+                  <span style={{ color: 'var(--faint)' }}> — {f.error}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
         )}
 
         <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>

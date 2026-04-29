@@ -572,19 +572,28 @@ async def broadcast_room_invite(
     )
     users = users_res.scalars().all()
 
+    # Resend's default rate limit is 2 requests/second. A concurrent
+    # fan-out trips it on anything past ~2 users; we go sequential with
+    # spacing so the limiter stays happy even if the user base grows.
     sent = 0
-    failed = 0
-
-    async def _send_one(addr: str):
-        nonlocal sent, failed
+    failures: list[dict] = []  # each: {"email", "error"}
+    for u in users:
         try:
-            await send_room_invite_email(addr, **common)
+            await send_room_invite_email(u.email, **common)
             sent += 1
-        except Exception:
-            failed += 1
+        except Exception as e:
+            failures.append({"email": u.email, "error": str(e)})
+        await asyncio.sleep(0.55)
 
-    await asyncio.gather(*[_send_one(u.email) for u in users])
-    return {"sent": sent, "failed": failed, "total": len(users), "test": False}
+    result: dict = {
+        "sent": sent,
+        "failed": len(failures),
+        "total": len(users),
+        "test": False,
+    }
+    if failures:
+        result["failures"] = failures
+    return result
 
 
 @router.post("/fetch-matches")
