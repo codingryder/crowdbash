@@ -26,6 +26,7 @@ export function AdminPage() {
     refreshSquads, setLateJoin,
     announceXi, clearXi,
     broadcastRecipients, broadcastRoomInvite,
+    setMatchSquads,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create' | 'custom'>('rooms');
 
@@ -55,6 +56,7 @@ export function AdminPage() {
   const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
   const [syncMsg, setSyncMsg] = useState('');
   const [broadcastRoom, setBroadcastRoom] = useState<AdminRoom | null>(null);
+  const [csvRoom, setCsvRoom] = useState<AdminRoom | null>(null);
 
   // Tick every 5s so the "Active Xs left" badge counts down without manual refresh.
   const [now, setNow] = useState(() => Date.now());
@@ -309,6 +311,13 @@ export function AdminPage() {
                               style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(45,214,122,0.08)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.25)', cursor: syncBusy[r.id] ? 'not-allowed' : 'pointer', opacity: syncBusy[r.id] ? 0.5 : 1 }}
                             >
                               {syncBusy[r.id] ? 'Syncing…' : 'Sync squad'}
+                            </button>
+                            <button
+                              onClick={() => setCsvRoom(r)}
+                              title="Replace this room's squad by uploading a CSV (team,name,role)."
+                              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(245,158,11,0.08)', color: 'var(--amber)', border: '1px solid rgba(245,158,11,0.25)', cursor: 'pointer' }}
+                            >
+                              📂 CSV squad
                             </button>
                             <button
                               disabled={!!xiBusy[r.id]}
@@ -627,6 +636,13 @@ export function AdminPage() {
           onClose={() => setBroadcastRoom(null)}
           getRecipientCount={broadcastRecipients}
           send={broadcastRoomInvite}
+        />
+      )}
+      {csvRoom && (
+        <CsvSquadModal
+          room={csvRoom}
+          onClose={() => setCsvRoom(null)}
+          submit={setMatchSquads}
         />
       )}
     </div>
@@ -1003,6 +1019,250 @@ function BroadcastModal({
               : recipientCount === null
                 ? 'Loading…'
                 : `Send to ${recipientCount} user${recipientCount === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ─── CSV Squad Modal ─── */
+type CsvPlayer = { team: string; name: string; role: string };
+type ParseResult = { rows: CsvPlayer[]; errors: { line: number; reason: string }[]; teams: Record<string, number> };
+
+// Minimal RFC-4180 line splitter — handles quoted fields with embedded commas
+// or escaped quotes ("Smith, Jr.", "O""Brien"). Returns one trimmed cell array.
+function splitCsvLine(line: string): string[] {
+  const out: string[] = [];
+  let cur = '';
+  let inQuotes = false;
+  for (let i = 0; i < line.length; i++) {
+    const c = line[i];
+    if (inQuotes) {
+      if (c === '"' && line[i + 1] === '"') { cur += '"'; i++; }
+      else if (c === '"') inQuotes = false;
+      else cur += c;
+    } else {
+      if (c === ',') { out.push(cur); cur = ''; }
+      else if (c === '"' && cur === '') inQuotes = true;
+      else cur += c;
+    }
+  }
+  out.push(cur);
+  return out.map(s => s.trim());
+}
+
+function parseCsv(text: string): ParseResult {
+  const result: ParseResult = { rows: [], errors: [], teams: {} };
+  const lines = text.replace(/\r\n?/g, '\n').split('\n').filter(l => l.trim().length > 0);
+  if (lines.length === 0) return result;
+
+  // Detect header — must contain team / name / role in any order.
+  const headerCells = splitCsvLine(lines[0]).map(c => c.toLowerCase());
+  const teamIdx = headerCells.indexOf('team');
+  const nameIdx = headerCells.indexOf('name');
+  const roleIdx = headerCells.indexOf('role');
+  if (teamIdx === -1 || nameIdx === -1 || roleIdx === -1) {
+    result.errors.push({ line: 1, reason: 'Header row must contain team, name, role columns.' });
+    return result;
+  }
+
+  for (let i = 1; i < lines.length; i++) {
+    const cells = splitCsvLine(lines[i]);
+    const team = (cells[teamIdx] || '').trim();
+    const name = (cells[nameIdx] || '').trim();
+    const role = (cells[roleIdx] || '').trim();
+    if (!team || !name) {
+      result.errors.push({ line: i + 1, reason: 'Missing team or name.' });
+      continue;
+    }
+    result.rows.push({ team, name, role });
+    result.teams[team] = (result.teams[team] || 0) + 1;
+  }
+  return result;
+}
+
+const CSV_TEMPLATE = `team,name,role
+Atlético Madrid,Jan Oblak,GK
+Atlético Madrid,Robin Le Normand,DEF
+Arsenal,David Raya,GK
+Arsenal,Bukayo Saka,FW
+`;
+
+function CsvSquadModal({
+  room, onClose, submit,
+}: {
+  room: AdminRoom;
+  onClose: () => void;
+  submit: (
+    roomId: string,
+    players: { player_id: string; player_name: string; team: string; player_role?: string }[],
+  ) => Promise<{ players_added?: number } | null>;
+}) {
+  const [filename, setFilename] = useState<string | null>(null);
+  const [parsed, setParsed] = useState<ParseResult | null>(null);
+  const [busy, setBusy] = useState(false);
+  const [result, setResult] = useState<string>('');
+
+  const handleFile = async (file: File) => {
+    setFilename(file.name);
+    setResult('');
+    const text = await file.text();
+    setParsed(parseCsv(text));
+  };
+
+  const downloadTemplate = () => {
+    const blob = new Blob([CSV_TEMPLATE], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'crowdbash_squad_template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
+  const onSubmit = async () => {
+    if (!parsed || parsed.rows.length === 0) return;
+    if (!confirm(`Replace this room's squad with ${parsed.rows.length} players? Existing squad will be wiped.`)) return;
+    setBusy(true);
+    setResult('');
+    const players = parsed.rows.map((r, idx) => ({
+      player_id: `manual_${idx + 1}_${r.name.toLowerCase().replace(/[^a-z0-9]+/g, '_')}`,
+      player_name: r.name,
+      team: r.team,
+      player_role: r.role,
+    }));
+    const r = await submit(room.id, players);
+    setBusy(false);
+    if (!r) setResult('Submit failed.');
+    else setResult(`Replaced squad with ${r.players_added ?? players.length} players. Reload the room to see them.`);
+  };
+
+  const teamCounts = parsed ? Object.entries(parsed.teams) : [];
+  const previewRows = parsed?.rows.slice(0, 8) ?? [];
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 100, padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 620, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 12,
+          padding: 24, maxHeight: '90vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>Manual squad upload</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{room.match_name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ fontSize: 12, color: 'var(--text2)', lineHeight: 1.5, marginBottom: 12 }}>
+          Upload a CSV with columns <code style={{ background: 'var(--surface2)', padding: '1px 5px', borderRadius: 4 }}>team,name,role</code>. One player per row. Roles: <code>GK / DEF / MID / FW</code> for football, <code>WK / BAT / AR / BOWL</code> for cricket (aliases like "Goalkeeper", "Forward" also work).
+        </div>
+
+        <div style={{ display: 'flex', gap: 8, marginBottom: 16 }}>
+          <button
+            onClick={downloadTemplate}
+            style={{ padding: '6px 12px', fontSize: 12, fontWeight: 600, borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            Download template
+          </button>
+          <label style={{ flex: 1 }}>
+            <input
+              type="file"
+              accept=".csv,text/csv"
+              onChange={(e) => { const f = e.target.files?.[0]; if (f) handleFile(f); }}
+              style={{ width: '100%', fontSize: 12, color: 'var(--text2)' }}
+            />
+          </label>
+        </div>
+
+        {filename && parsed && (
+          <div style={{ marginTop: 4, marginBottom: 16 }}>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginBottom: 6 }}>
+              <strong style={{ color: 'var(--text)' }}>{filename}</strong> — parsed {parsed.rows.length} player{parsed.rows.length === 1 ? '' : 's'}
+              {parsed.errors.length > 0 && <span style={{ color: 'var(--red)' }}>, {parsed.errors.length} error{parsed.errors.length === 1 ? '' : 's'}</span>}
+            </div>
+            {teamCounts.length > 0 && (
+              <div style={{ display: 'flex', gap: 6, flexWrap: 'wrap', marginBottom: 12 }}>
+                {teamCounts.map(([t, c]) => (
+                  <span key={t} style={{ fontSize: 11, fontWeight: 700, padding: '3px 8px', borderRadius: 4, background: 'var(--surface2)', color: 'var(--text2)' }}>
+                    {t}: {c}
+                  </span>
+                ))}
+              </div>
+            )}
+            {parsed.errors.length > 0 && (
+              <div style={{ fontSize: 11, color: 'var(--red)', marginBottom: 12 }}>
+                {parsed.errors.slice(0, 5).map((e, i) => (
+                  <div key={i}>Line {e.line}: {e.reason}</div>
+                ))}
+                {parsed.errors.length > 5 && <div>… and {parsed.errors.length - 5} more.</div>}
+              </div>
+            )}
+            {previewRows.length > 0 && (
+              <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 12, marginBottom: 4 }}>
+                <thead>
+                  <tr style={{ borderBottom: '1px solid var(--border)' }}>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Team</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Name</th>
+                    <th style={{ padding: '6px 8px', textAlign: 'left', fontSize: 10, fontWeight: 700, color: 'var(--muted)', textTransform: 'uppercase', letterSpacing: '1px' }}>Role</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {previewRows.map((p, i) => (
+                    <tr key={i} style={{ borderBottom: '1px solid var(--border)' }}>
+                      <td style={{ padding: '6px 8px', color: 'var(--text2)' }}>{p.team}</td>
+                      <td style={{ padding: '6px 8px', color: 'var(--text)' }}>{p.name}</td>
+                      <td style={{ padding: '6px 8px', color: 'var(--muted)' }}>{p.role || '—'}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            )}
+            {parsed.rows.length > previewRows.length && (
+              <div style={{ fontSize: 11, color: 'var(--muted)', marginTop: 4 }}>
+                … and {parsed.rows.length - previewRows.length} more row{parsed.rows.length - previewRows.length === 1 ? '' : 's'}.
+              </div>
+            )}
+          </div>
+        )}
+
+        {result && (
+          <div style={{ marginTop: 4, fontSize: 13, color: result.includes('failed') || result.includes('Failed') ? 'var(--red)' : 'var(--green)' }}>
+            {result}
+          </div>
+        )}
+
+        <div style={{ marginTop: 20, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '10px 18px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={busy || !parsed || parsed.rows.length === 0}
+            onClick={onSubmit}
+            className="btn btn-primary"
+            style={{ padding: '10px 22px', fontSize: 14, fontWeight: 700 }}
+          >
+            {busy
+              ? 'Replacing…'
+              : parsed && parsed.rows.length > 0
+                ? `Replace squad (${parsed.rows.length} players)`
+                : 'Replace squad'}
           </button>
         </div>
       </div>

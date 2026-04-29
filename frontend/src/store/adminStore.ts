@@ -71,6 +71,10 @@ interface AdminState {
   openPlayerEditWindow: (roomId: string, durationSeconds: number) => Promise<boolean>;
   closePlayerEditWindow: (roomId: string) => Promise<boolean>;
   refreshSquads: (roomId: string) => Promise<{ players_added?: number; skipped_reason?: string } | null>;
+  setMatchSquads: (
+    roomId: string,
+    players: { player_id: string; player_name: string; team: string; player_role?: string }[],
+  ) => Promise<{ players_added?: number } | null>;
   setLateJoin: (roomId: string, enabled: boolean) => Promise<boolean>;
   announceXi: (roomId: string) => Promise<{ team_a?: string; team_b?: string; xi_a_count?: number; xi_b_count?: number } | null>;
   clearXi: (roomId: string) => Promise<boolean>;
@@ -290,6 +294,19 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       );
       await get().fetchRooms();
       return data as { players_added?: number; skipped_reason?: string };
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return null;
+    }
+  },
+
+  setMatchSquads: async (roomId, players) => {
+    try {
+      const { data } = await adminApi().post(
+        `/api/admin/squads/${roomId}`,
+        { players },
+      );
+      return data;
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
       return null;

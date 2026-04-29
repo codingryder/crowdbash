@@ -1228,9 +1228,11 @@ class SquadEntry(BaseModel):
 async def set_match_squads(
     room_id: str,
     body: SquadEntry,
+    _admin: str = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Admin: set squads for a match (both teams' players)."""
+    """Admin: replace the squad for a match. Used by the manual CSV-upload
+    flow when the live data sources (ESPN / Gemini) can't fill it."""
     import uuid as _uuid
 
     # Verify room exists
