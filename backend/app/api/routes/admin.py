@@ -480,6 +480,26 @@ async def delete_room(
     return {"deleted": room_id}
 
 
+# ── Cache flush (admin escape hatch for stale ESPN/Gemini caches) ──
+
+@router.post("/cache/flush")
+async def flush_cache(
+    keys: list[str] | None = None,
+    _admin: str = Depends(get_admin_user),
+):
+    """Delete one or more Redis cache keys. Useful when an upstream
+    snapshot got cached during a bad window (e.g. ESPN published a goal
+    event but hadn't bumped the team total yet) and the existing TTL
+    would force users to wait minutes for self-heal."""
+    from app.core.redis import redis_delete
+    targets = keys or ["espn:football:all_live"]
+    deleted: list[str] = []
+    for k in targets:
+        await redis_delete(k)
+        deleted.append(k)
+    return {"flushed": deleted}
+
+
 # ── Room invite broadcast ──
 
 class BroadcastRequest(PydanticBaseModel):
