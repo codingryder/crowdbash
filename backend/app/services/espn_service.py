@@ -453,6 +453,11 @@ def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
     away_abbr = (away_team.get("abbreviation", "") or "").upper()
 
     def _to_int(v):
+        # ESPN's competitor.score is usually a string like "1", but in some
+        # league feeds it's wrapped as {"value": 1, "displayValue": "1"} —
+        # unwrap so we don't accidentally fall through to 0.
+        if isinstance(v, dict):
+            v = v.get("value", v.get("displayValue", 0))
         try:
             return int(v) if v not in (None, "") else 0
         except (ValueError, TypeError):
@@ -507,14 +512,41 @@ def _espn_football_event_to_match(event: dict, league_name: str) -> dict | None:
         except (ValueError, AttributeError):
             minute_val = 0
 
+    # ESPN's competitor.score sometimes lags competition.details by a minute
+    # or two — i.e. the goal event is already in details but the running
+    # team total is still the pre-goal value. Derive the score from the
+    # goal events too and use whichever is higher, so we never under-report
+    # while goalscorers are visibly listed in the side panel.
+    details_home_goals = 0
+    details_away_goals = 0
+    for det in comp.get("details", []):
+        if not det.get("scoringPlay"):
+            continue
+        det_team_id = str((det.get("team") or {}).get("id", ""))
+        is_own_goal = bool(det.get("ownGoal"))
+        if det_team_id == home_id:
+            if is_own_goal:
+                details_away_goals += 1
+            else:
+                details_home_goals += 1
+        elif det_team_id == away_id:
+            if is_own_goal:
+                details_home_goals += 1
+            else:
+                details_away_goals += 1
+    api_home_score = _to_int(home_data.get("score"))
+    api_away_score = _to_int(away_data.get("score"))
+    final_home_score = max(api_home_score, details_home_goals)
+    final_away_score = max(api_away_score, details_away_goals)
+
     return {
         "id": f"espn_{event.get('id', '')}",
         "homeTeam": {"name": home_name, "abbreviation": home_abbr},
         "awayTeam": {"name": away_name, "abbreviation": away_abbr},
         "score": {
             "fullTime": {
-                "home": _to_int(home_data.get("score")),
-                "away": _to_int(away_data.get("score")),
+                "home": final_home_score,
+                "away": final_away_score,
             },
         },
         "status": fd_status,
