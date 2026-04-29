@@ -160,6 +160,10 @@ async def list_all_rooms(
             "edit_window_closes_at": (
                 r.edit_window_closes_at.isoformat() if r.edit_window_closes_at else None
             ),
+            "player_edit_window_closes_at": (
+                r.player_edit_window_closes_at.isoformat()
+                if getattr(r, "player_edit_window_closes_at", None) else None
+            ),
             "late_join_enabled": bool(getattr(r, "late_join_enabled", False)),
         }
         for r in rooms
@@ -245,6 +249,72 @@ async def admin_close_edit_window(
         raise HTTPException(status_code=404, detail="Room not found")
 
     was_active = await close_edit_window(room_id, source="admin", db=db)
+    return {"room_id": room_id, "was_active": was_active}
+
+
+class PlayerEditWindowOpenRequest(PydanticBaseModel):
+    duration_seconds: int = 600  # default 10 min for the player-edit window
+
+
+@router.post("/rooms/{room_id}/player-edit-window/open")
+async def admin_open_player_edit_window(
+    room_id: str,
+    body: PlayerEditWindowOpenRequest,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Open a player-edit window. Distinct from the reshuffle window:
+    while THIS is open, users can join the room, swap players, and edit
+    their XI for the duration set. Reshuffle continues to be the
+    power-only blind window.
+    """
+    from app.services.player_edit_window_service import (
+        open_player_edit_window,
+        MIN_DURATION_SECONDS,
+        MAX_DURATION_SECONDS,
+    )
+
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    if room.status not in ("locked", "open"):
+        raise HTTPException(
+            status_code=400,
+            detail=f"Player-edit window only meaningful while the room is open or locked (current: {room.status})",
+        )
+    if body.duration_seconds < MIN_DURATION_SECONDS or body.duration_seconds > MAX_DURATION_SECONDS:
+        raise HTTPException(
+            status_code=400,
+            detail=f"duration_seconds must be between {MIN_DURATION_SECONDS} and {MAX_DURATION_SECONDS}",
+        )
+
+    closes_at = await open_player_edit_window(
+        room_id, body.duration_seconds, db=db, source="admin",
+    )
+    return {
+        "room_id": room_id,
+        "closes_at": closes_at,
+        "duration_seconds": body.duration_seconds,
+    }
+
+
+@router.post("/rooms/{room_id}/player-edit-window/close")
+async def admin_close_player_edit_window(
+    room_id: str,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Manually close any active player-edit window for this room."""
+    from app.services.player_edit_window_service import close_player_edit_window
+
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    was_active = await close_player_edit_window(room_id, source="admin", db=db)
     return {"room_id": room_id, "was_active": was_active}
 
 

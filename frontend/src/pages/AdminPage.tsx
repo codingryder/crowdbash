@@ -21,7 +21,9 @@ export function AdminPage() {
   const {
     isLoggedIn, login, logout, rooms, loading,
     fetchRooms, createRoom, updateStatus, deleteRoom,
-    openEditWindow, closeEditWindow, refreshSquads, setLateJoin,
+    openEditWindow, closeEditWindow,
+    openPlayerEditWindow, closePlayerEditWindow,
+    refreshSquads, setLateJoin,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create' | 'custom'>('rooms');
 
@@ -45,6 +47,8 @@ export function AdminPage() {
   const [customSubmitting, setCustomSubmitting] = useState(false);
   const [reshuffleDurations, setReshuffleDurations] = useState<Record<string, number>>({});
   const [reshuffleBusy, setReshuffleBusy] = useState<Record<string, boolean>>({});
+  const [playerEditDurations, setPlayerEditDurations] = useState<Record<string, number>>({});
+  const [playerEditBusy, setPlayerEditBusy] = useState<Record<string, boolean>>({});
   const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
   const [syncMsg, setSyncMsg] = useState('');
 
@@ -344,6 +348,28 @@ export function AdminPage() {
                                 setReshuffleBusy((m) => ({ ...m, [r.id]: true }));
                                 await closeEditWindow(r.id);
                                 setReshuffleBusy((m) => ({ ...m, [r.id]: false }));
+                              }}
+                            />
+                          )}
+                          {(r.status === 'locked' || r.status === 'open') && (
+                            <PlayerEditControls
+                              room={r}
+                              now={now}
+                              busy={!!playerEditBusy[r.id]}
+                              duration={playerEditDurations[r.id] ?? 600}
+                              onChangeDuration={(v) =>
+                                setPlayerEditDurations((m) => ({ ...m, [r.id]: v }))
+                              }
+                              onOpen={async () => {
+                                const seconds = playerEditDurations[r.id] ?? 600;
+                                setPlayerEditBusy((m) => ({ ...m, [r.id]: true }));
+                                await openPlayerEditWindow(r.id, seconds);
+                                setPlayerEditBusy((m) => ({ ...m, [r.id]: false }));
+                              }}
+                              onClose={async () => {
+                                setPlayerEditBusy((m) => ({ ...m, [r.id]: true }));
+                                await closePlayerEditWindow(r.id);
+                                setPlayerEditBusy((m) => ({ ...m, [r.id]: false }));
                               }}
                             />
                           )}
@@ -662,10 +688,10 @@ function ReshuffleControls({
   return (
     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
       <span
-        title="Open a player-edit window. While active, users can join the room, swap players, and redistribute power for the duration set."
+        title="Reshuffle window: blind power redistribution only. Users can change power across their existing XI but cannot join or swap players. Use Player edit for joining + swaps."
         style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', color: 'var(--muted)', textTransform: 'uppercase' }}
       >
-        Edit window
+        Reshuffle
       </span>
       {isActive && (
         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(139,92,246,0.12)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)' }}>
@@ -687,6 +713,70 @@ function ReshuffleControls({
         disabled={busy}
         onClick={onOpen}
         style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(139,92,246,0.1)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.5 : 1 }}
+      >
+        {isActive ? 'Restart' : 'Open'}
+      </button>
+      <button
+        disabled={busy || !isActive}
+        onClick={onClose}
+        style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: busy || !isActive ? 'not-allowed' : 'pointer', opacity: busy || !isActive ? 0.4 : 1 }}
+      >
+        Close
+      </button>
+    </div>
+  );
+}
+
+
+/* ─── Player Edit Controls ─── */
+function PlayerEditControls({
+  room, now, busy, duration, onChangeDuration, onOpen, onClose,
+}: {
+  room: { id: string; player_edit_window_closes_at?: string | null };
+  now: number;
+  busy: boolean;
+  duration: number;
+  onChangeDuration: (v: number) => void;
+  onOpen: () => void;
+  onClose: () => void;
+}) {
+  const closesAtMs = room.player_edit_window_closes_at ? new Date(room.player_edit_window_closes_at).getTime() : 0;
+  const remainingMs = Math.max(0, closesAtMs - now);
+  const isActive = remainingMs > 0;
+  const remainingLabel = isActive
+    ? remainingMs >= 60_000
+      ? `${Math.ceil(remainingMs / 60_000)}m left`
+      : `${Math.ceil(remainingMs / 1000)}s left`
+    : '';
+
+  return (
+    <div style={{ marginTop: 4, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
+      <span
+        title="Player edit window: lets users join the room, swap players, and edit their XI for the duration set. Distinct from Reshuffle (power-only)."
+        style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', color: 'var(--muted)', textTransform: 'uppercase' }}
+      >
+        Player edit
+      </span>
+      {isActive && (
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(45,214,122,0.12)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.3)' }}>
+          ● {remainingLabel}
+        </span>
+      )}
+      <input
+        type="number"
+        min={30}
+        max={14400}
+        step={60}
+        value={duration}
+        onChange={(e) => onChangeDuration(Math.max(30, Math.min(14400, Number(e.target.value) || 600)))}
+        title="Duration in seconds (30–14400, i.e. up to 4 hours)"
+        style={{ width: 70, fontSize: 11, padding: '3px 6px', borderRadius: 5, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)' }}
+      />
+      <span style={{ fontSize: 10, color: 'var(--muted)' }}>sec</span>
+      <button
+        disabled={busy}
+        onClick={onOpen}
+        style={{ padding: '3px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(45,214,122,0.1)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.3)', cursor: busy ? 'not-allowed' : 'pointer', opacity: busy ? 0.5 : 1 }}
       >
         {isActive ? 'Restart' : 'Open'}
       </button>

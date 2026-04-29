@@ -133,6 +133,7 @@ export function CrowdbashRoomPage() {
   const setShowTeamBuilder = useGameStore((s) => s.setShowTeamBuilder);
   const game = useGameStore((s) => s.game);
   const editWindowOpen = useGameStore((s) => s.editWindowOpen);
+  const playerEditWindowOpen = useRoomStore((s) => s.playerEditWindowOpen);
   const [pitchView, setPitchView] = useState(true);
   const [_lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoJoined, setAutoJoined] = useState(false);
@@ -251,6 +252,25 @@ export function CrowdbashRoomPage() {
     return () => clearTimeout(t);
   }, [room?.edit_window_closes_at]);
 
+  // Hydrate the player-edit window the same way (separate state + timer).
+  useEffect(() => {
+    const closesAtIso = room?.player_edit_window_closes_at;
+    const setRoomPlayerEdit = useRoomStore.getState().setPlayerEditWindow;
+    if (!closesAtIso) {
+      setRoomPlayerEdit(false);
+      return;
+    }
+    const closesAtMs = new Date(closesAtIso).getTime();
+    const remainingMs = closesAtMs - Date.now();
+    if (remainingMs <= 0) {
+      setRoomPlayerEdit(false);
+      return;
+    }
+    setRoomPlayerEdit(true);
+    const t = setTimeout(() => setRoomPlayerEdit(false), remainingMs);
+    return () => clearTimeout(t);
+  }, [room?.player_edit_window_closes_at]);
+
   // Load chat history when entering the room, on visibility/focus changes,
   // and whenever the user opens the Chat tab. Mobile browsers suspend WS in
   // background, so messages sent while the tab was hidden never arrive —
@@ -321,7 +341,7 @@ export function CrowdbashRoomPage() {
   // ── PITCH VIEW (shown when room is open — user can edit team anytime before match,
   // during a backend-granted late-join window, or while a reshuffle window is open
   // mid-match so the "Reshuffle power" CTA actually routes back into the editor) ──
-  const canEditTeam = room.status === 'open' || !!room.late_join_open || editWindowOpen;
+  const canEditTeam = room.status === 'open' || !!room.late_join_open || editWindowOpen || playerEditWindowOpen;
   if (pitchView && canEditTeam) {
     return (
       <PitchWelcomeView
@@ -541,16 +561,31 @@ export function CrowdbashRoomPage() {
             {/* Playing XI announcement banner — sticky until user reviews/keeps */}
             <PlayingXiBanner onReviewTeam={() => setShowTeamBuilder(true)} />
 
-            {/* Player edit window banner — covers BOTH the mid-match
-                reshuffle (auto-opened by sport events) AND admin-triggered
-                edit-window reopens that let new users join + existing users
-                edit. Same underlying timer (edit_window_closes_at) drives
-                both. Copy is duration-aware so it matches whatever the
-                admin / auto-trigger set. */}
-            {editWindowOpen && (() => {
-              // Compute live minutes-remaining from room.edit_window_closes_at
-              // so the banner shows real time left, not a hard-coded "5 min".
-              const closesAtIso = room?.edit_window_closes_at;
+            {/* Reshuffle (power-only) banner — auto-opens at sport events
+                (innings break, half-time, after 10 overs) or via admin
+                Open. Cricket-style "blind power changes" — users redistribute
+                power but can't swap players. Distinct from the player-edit
+                window below. */}
+            {editWindowOpen && (
+              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 shrink-0 animate-fadeup" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '12px 24px 0' }}>
+                <div className="flex items-start gap-3">
+                  <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px] shrink-0" style={{ background: 'rgba(139,92,246,0.12)' }}>🔄</div>
+                  <div>
+                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Power reshuffle window open!</div>
+                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Redistribute power across your XI · changes are blind · auto-locks when time is up</div>
+                  </div>
+                </div>
+                <button onClick={() => setPitchView(true)} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
+                  Reshuffle power ↗
+                </button>
+              </div>
+            )}
+
+            {/* Player edit window banner — admin-triggered, separate from
+                reshuffle. While active, users can join the room, swap
+                players, and edit their XI. */}
+            {playerEditWindowOpen && (() => {
+              const closesAtIso = room?.player_edit_window_closes_at;
               let minLeft: number | null = null;
               if (closesAtIso) {
                 const ms = new Date(closesAtIso).getTime() - Date.now();
@@ -558,16 +593,16 @@ export function CrowdbashRoomPage() {
               }
               const durationLabel = minLeft !== null ? `${minLeft} min` : 'a few minutes';
               return (
-                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 shrink-0 animate-fadeup" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '12px 24px 0' }}>
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 shrink-0 animate-fadeup" style={{ background: 'var(--surface2)', border: '1px solid rgba(45,214,122,0.3)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '12px 24px 0' }}>
                   <div className="flex items-start gap-3">
-                    <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px] shrink-0" style={{ background: 'rgba(139,92,246,0.12)' }}>🔄</div>
+                    <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px] shrink-0" style={{ background: 'rgba(45,214,122,0.12)' }}>✏️</div>
                     <div>
                       <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Player edit window is open!</div>
-                      <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{durationLabel} to create or edit your team · save to participate in the game</div>
+                      <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{durationLabel} to create or edit your team · save to participate or continue in the game</div>
                     </div>
                   </div>
-                  <button onClick={() => setPitchView(true)} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
-                    Edit team ↗
+                  <button onClick={() => setPitchView(true)} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--green)', color: '#071a0e', padding: '8px 18px', fontSize: 12, fontWeight: 700 }}>
+                    Build / Edit team ↗
                   </button>
                 </div>
               );

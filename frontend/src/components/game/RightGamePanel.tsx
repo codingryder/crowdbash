@@ -126,19 +126,18 @@ export function RightGamePanel({ room }: Props) {
         </div>
       </div>
 
-      {/* Player edit window — admin or auto-triggered. Lets users join,
-          swap players, or redistribute power for the duration of the window. */}
+      {/* Reshuffle (power-only) — auto / admin-opened, blind redistribution. */}
       {matchStarted && editWindowOpen && (
         <div className="px-4 py-2.5 text-center shrink-0" style={{ background: 'rgba(139,92,246,0.08)', borderBottom: '1px solid rgba(139,92,246,0.25)' }}>
           <div className="font-cabinet text-[12px] font-bold" style={{ color: 'var(--purple)' }}>
-            🔄 Player edit window open
+            🔄 Power reshuffle window open
           </div>
           <button
             onClick={() => setShowTeamBuilder(true)}
             className="mt-1 font-cabinet text-[11px] font-bold border-none rounded-btn px-4 py-1.5 transition-all"
             style={{ background: 'var(--purple)', color: '#fff' }}
           >
-            Edit team ↗
+            Reshuffle power ↗
           </button>
         </div>
       )}

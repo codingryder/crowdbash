@@ -42,3 +42,8 @@ class Room(Base):
     # specific room regardless of the hardcoded LATE_JOIN_ROOMS map. Lets
     # admins extend team-build past kickoff without a code deploy.
     late_join_enabled = Column(Boolean, default=False)
+    # Persisted "player edit window" state — distinct from edit_window_closes_at
+    # (which is just for blind power-reshuffles). When this timestamp is in
+    # the future, users can also join, swap players, and edit XI. Set when
+    # admin opens the window with a duration; cleared on close / expiry.
+    player_edit_window_closes_at = Column(DateTime(timezone=True), nullable=True)

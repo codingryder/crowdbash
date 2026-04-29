@@ -10,6 +10,8 @@ interface RoomStore {
   currentOver: number;
   matchProgress: Record<string, unknown>;
   editWindowOpen: boolean;
+  /** Admin player-edit window — distinct from editWindowOpen (reshuffle). */
+  playerEditWindowOpen: boolean;
   matchEvents: MatchEvent[];
   playingXi: PlayingXI | null;
   playingXiAnnouncedAt: string | null;
@@ -25,6 +27,7 @@ interface RoomStore {
   setCurrentOver: (over: number) => void;
   setMatchProgress: (progress: Record<string, unknown>) => void;
   setEditWindow: (open: boolean) => void;
+  setPlayerEditWindow: (open: boolean) => void;
   addMatchEvent: (event: MatchEvent) => void;
   setPlayingXi: (xi: PlayingXI | null, announcedAt: string | null) => void;
   dismissPlayingXiBanner: () => void;
@@ -39,6 +42,7 @@ export const useRoomStore = create<RoomStore>((set) => ({
   currentOver: 0,
   matchProgress: {},
   editWindowOpen: false,
+  playerEditWindowOpen: false,
   matchEvents: [],
   playingXi: null,
   playingXiAnnouncedAt: null,
@@ -57,6 +61,7 @@ export const useRoomStore = create<RoomStore>((set) => ({
   setCurrentOver: (over) => set({ currentOver: over }),
   setMatchProgress: (progress) => set({ matchProgress: progress }),
   setEditWindow: (open) => set({ editWindowOpen: open }),
+  setPlayerEditWindow: (open) => set({ playerEditWindowOpen: open }),
   addMatchEvent: (event) =>
     set((state) => ({
       matchEvents: [event, ...state.matchEvents.slice(0, 99)],

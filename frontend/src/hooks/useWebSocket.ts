@@ -8,9 +8,11 @@ import type { WSMessage, ChatMessage, ScoreData, QuizQuestion, LeaderboardEntry,
 export function useWebSocket(roomId: string | undefined) {
   const wsRef = useRef<CrowdbashWebSocket | null>(null);
   const closeTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const playerEditCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const {
     setScore, setFanCount, addMessage, setActiveQuiz,
-    setMatchProgress, setEditWindow, addMatchEvent, setPlayingXi,
+    setMatchProgress, setEditWindow, setPlayerEditWindow,
+    addMatchEvent, setPlayingXi,
   } = useRoomStore();
   const { setLeaderboard, setEditWindow: setGameEditWindow } = useGameStore();
 
@@ -76,6 +78,31 @@ export function useWebSocket(roomId: string | undefined) {
           }
           break;
         }
+        case 'player_edit_window': {
+          const p = msg.payload as {
+            player_edit_window_open: boolean;
+            closes_at?: number;
+            duration_seconds?: number;
+          };
+          if (playerEditCloseTimerRef.current) {
+            clearTimeout(playerEditCloseTimerRef.current);
+            playerEditCloseTimerRef.current = null;
+          }
+          if (p.player_edit_window_open) {
+            setPlayerEditWindow(true);
+            const nowSec = Date.now() / 1000;
+            const remainingSec = p.closes_at
+              ? Math.max(p.closes_at - nowSec, 0)
+              : (p.duration_seconds ?? 600);
+            playerEditCloseTimerRef.current = setTimeout(() => {
+              setPlayerEditWindow(false);
+              playerEditCloseTimerRef.current = null;
+            }, remainingSec * 1000);
+          } else {
+            setPlayerEditWindow(false);
+          }
+          break;
+        }
         case 'match_event':
           addMatchEvent(msg.payload as MatchEvent);
           break;
@@ -94,6 +121,10 @@ export function useWebSocket(roomId: string | undefined) {
       if (closeTimerRef.current) {
         clearTimeout(closeTimerRef.current);
         closeTimerRef.current = null;
+      }
+      if (playerEditCloseTimerRef.current) {
+        clearTimeout(playerEditCloseTimerRef.current);
+        playerEditCloseTimerRef.current = null;
       }
     };
   }, [roomId]);

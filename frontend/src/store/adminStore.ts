@@ -25,6 +25,7 @@ export interface AdminRoom {
   fan_count: number;
   created_at: string | null;
   edit_window_closes_at: string | null;
+  player_edit_window_closes_at?: string | null;
   late_join_enabled?: boolean;
 }
 
@@ -66,6 +67,8 @@ interface AdminState {
   fetchMatches: (sport: string) => Promise<void>;
   openEditWindow: (roomId: string, durationSeconds: number) => Promise<boolean>;
   closeEditWindow: (roomId: string) => Promise<boolean>;
+  openPlayerEditWindow: (roomId: string, durationSeconds: number) => Promise<boolean>;
+  closePlayerEditWindow: (roomId: string) => Promise<boolean>;
   refreshSquads: (roomId: string) => Promise<{ players_added?: number; skipped_reason?: string } | null>;
   setLateJoin: (roomId: string, enabled: boolean) => Promise<boolean>;
 }
@@ -171,6 +174,30 @@ export const useAdminStore = create<AdminState>((set, get) => ({
   closeEditWindow: async (roomId) => {
     try {
       await adminApi().post(`/api/admin/rooms/${roomId}/edit-window/close`);
+      await get().fetchRooms();
+      return true;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return false;
+    }
+  },
+
+  openPlayerEditWindow: async (roomId, durationSeconds) => {
+    try {
+      await adminApi().post(`/api/admin/rooms/${roomId}/player-edit-window/open`, {
+        duration_seconds: durationSeconds,
+      });
+      await get().fetchRooms();
+      return true;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return false;
+    }
+  },
+
+  closePlayerEditWindow: async (roomId) => {
+    try {
+      await adminApi().post(`/api/admin/rooms/${roomId}/player-edit-window/close`);
       await get().fetchRooms();
       return true;
     } catch (err: unknown) {

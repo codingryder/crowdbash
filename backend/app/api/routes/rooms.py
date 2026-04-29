@@ -16,19 +16,20 @@ def _room_to_dict(r: Room) -> dict:
     progress = r.match_progress or {}
 
     # Late-join "remaining" countdown:
-    # 1. If an admin / auto edit window is currently driving the late-join
-    #    state, prefer the wall-clock countdown from edit_window_closes_at —
-    #    that matches the timer the user already sees in the banner.
+    # 1. If an admin player-edit window is driving the late-join state,
+    #    use that wall-clock countdown (matches the banner timer).
     # 2. Else fall back to the sport-specific cap from LATE_JOIN_ROOMS
     #    (max_over for cricket, max_minute for football).
+    # NOTE: edit_window_closes_at (reshuffle) is intentionally NOT a
+    # late-join trigger — reshuffle is power-only by design.
     cfg_sport = (cfg.get("sport") or r.sport or "cricket").lower()
     overs_remaining = 0.0
     minutes_remaining = 0.0
     if late_join:
         from datetime import datetime as _dt, timezone as _tz
-        closes_at = getattr(r, "edit_window_closes_at", None)
-        if closes_at is not None:
-            ca = closes_at if closes_at.tzinfo else closes_at.replace(tzinfo=_tz.utc)
+        pe_closes_at = getattr(r, "player_edit_window_closes_at", None)
+        if pe_closes_at is not None:
+            ca = pe_closes_at if pe_closes_at.tzinfo else pe_closes_at.replace(tzinfo=_tz.utc)
             now_ts = _dt.now(_tz.utc)
             if ca > now_ts:
                 minutes_remaining = max((ca - now_ts).total_seconds() / 60.0, 0)
@@ -62,6 +63,10 @@ def _room_to_dict(r: Room) -> dict:
         "edit_window_closes_at": (
             r.edit_window_closes_at.isoformat()
             if getattr(r, "edit_window_closes_at", None) else None
+        ),
+        "player_edit_window_closes_at": (
+            r.player_edit_window_closes_at.isoformat()
+            if getattr(r, "player_edit_window_closes_at", None) else None
         ),
         "playing_xi_announced_at": (
             r.playing_xi_announced_at.isoformat()

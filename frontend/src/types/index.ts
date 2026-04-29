@@ -34,6 +34,9 @@ export interface Room {
   /** Football late-join window: minutes remaining until cutoff (typically half-time at 45). */
   late_join_minutes_remaining?: number;
   edit_window_closes_at?: string | null;
+  /** Admin-controlled timed window during which users can join + edit XI.
+   *  Distinct from edit_window_closes_at (reshuffle / power-only). */
+  player_edit_window_closes_at?: string | null;
   playing_xi_announced_at?: string | null;
   playing_xi?: PlayingXI | null;
 }
@@ -332,6 +335,7 @@ export interface WSMessage {
     | 'game_update'
     | 'fan_count'
     | 'edit_window'
+    | 'player_edit_window'
     | 'match_event'
     | 'playing_xi_announced'
     | 'error'
