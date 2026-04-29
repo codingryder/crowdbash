@@ -137,6 +137,7 @@ async def list_rooms(
 async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
     """Get live scorecard for a room from the sport API."""
     from app.services.sport_service import get_adapter
+    from app.core.redis import redis_get_json, redis_set_json
     try:
         rid = uuid.UUID(room_id)
     except ValueError:
@@ -146,22 +147,38 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
 
+    # Short-window response cache. The frontend polls this endpoint every
+    # ~5-10s; without a cache, consecutive polls oscillate between the ESPN
+    # rich-payload path and the football-adapter path (different shapes for
+    # score / possession), causing the in-room score and possession bar to
+    # flicker between two values every couple of seconds. Holding the
+    # response steady for 20s eliminates that without meaningfully delaying
+    # live updates (goals/cards refresh on the next window).
+    cache_key = f"room:scorecard:v1:{room_id}"
+    cached = await redis_get_json(cache_key)
+    if cached is not None:
+        return cached
+
     is_espn = bool(room.match_id and room.match_id.startswith("espn_"))
     espn_event_id = room.match_id.replace("espn_", "") if is_espn else ""
 
     try:
-        # Football ESPN rooms: prefer ESPN's rich scorecard endpoint, which
-        # carries league / venue / kickoff / broadcasts / recent form /
-        # per-team stats. The football adapter (Football-Data.org → Gemini)
-        # doesn't surface any of that, so going through it makes the in-room
-        # modal much sparser than the same modal opened from the Games tab.
+        # Football ESPN rooms: route through ESPN's rich scorecard endpoint
+        # exclusively. Falling back to the football adapter caused a flicker:
+        # the adapter has its own per-event ESPN score cache (45s) that can
+        # disagree with the all_live cache (120s) for tens of seconds after
+        # a goal — so consecutive polls oscillated between 0-0 (adapter) and
+        # 0-1 (rich payload), and possession likewise flipped on/off.
+        # If ESPN can't find the match, return null and let the frontend
+        # show its empty state rather than mixing shapes.
         if is_espn and room.sport == "football":
             from app.api.routes.matches import _get_espn_scorecard
             scorecard = await _get_espn_scorecard("football", espn_event_id, room.match_name)
-            if scorecard:
-                return {"scorecard": scorecard}
-            # ESPN miss (wrong id, cache cold, etc.) — fall through to the
-            # adapter so we at least return what Football-Data.org has.
+            payload = {"scorecard": scorecard} if scorecard else {"scorecard": None}
+            # Cache even null responses briefly, so a transient ESPN miss
+            # doesn't pummel the upstream during the recovery window.
+            await redis_set_json(cache_key, payload, ex=20 if scorecard else 10)
+            return payload
 
         adapter = get_adapter(room.sport)
         if hasattr(adapter, 'set_match_context'):
@@ -169,7 +186,9 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
         match_data = await adapter.get_match_score(room.match_id)
         if match_data:
             normalized = adapter.normalize_score(match_data, room.match_name)
-            return {"scorecard": normalized}
+            payload = {"scorecard": normalized}
+            await redis_set_json(cache_key, payload, ex=20)
+            return payload
 
         # Cricket ESPN pre-match fallback (toss done but no innings yet):
         # build a stub scorecard with team names + status from scoreboard.
@@ -177,7 +196,9 @@ async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
             from app.api.routes.matches import _get_espn_scorecard
             stub = await _get_espn_scorecard("cricket", espn_event_id, room.match_name)
             if stub:
-                return {"scorecard": stub}
+                payload = {"scorecard": stub}
+                await redis_set_json(cache_key, payload, ex=20)
+                return payload
 
         return {"scorecard": None}
     except Exception as e:
