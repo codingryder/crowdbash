@@ -535,10 +535,11 @@ async def broadcast_room_invite(
         or "Today's match is starting soon — drop into the room, pick your XI, and play live."
     ).replace("\n", "<br>")
 
-    # Use the /share/room/* path so the link gets the OG-preview treatment
-    # (rich card in WhatsApp/iMessage/etc.) and the human-redirect to the
-    # SPA, instead of bypassing it with a bare /room/ URL.
-    room_url = f"{settings.FRONTEND_URL.rstrip('/')}/share/room/{room.id}"
+    # Hardcoded canonical public host — settings.FRONTEND_URL on Render is
+    # the vercel.app internal URL, but users actually visit the custom
+    # domain. /share/room/* gets the OG-preview treatment (rich card on
+    # WhatsApp/iMessage/etc.) plus a redirect to the SPA.
+    room_url = f"https://crowdbash.codingryder.com/share/room/{room.id}"
     match_date_label = None
     if room.match_date:
         # Audience is India-heavy; render kickoff in IST.
