@@ -133,7 +133,7 @@ export function RightGamePanel({ room }: Props) {
             🔄 Power reshuffle window open
           </div>
           <button
-            onClick={() => setShowTeamBuilder(true)}
+            onClick={() => setShowTeamBuilder(true, 'powerOnly')}
             className="mt-1 font-cabinet text-[11px] font-bold border-none rounded-btn px-4 py-1.5 transition-all"
             style={{ background: 'var(--purple)', color: '#fff' }}
           >

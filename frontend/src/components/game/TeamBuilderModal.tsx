@@ -41,10 +41,15 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
   const selectedPlayerIds = useGameStore((s) => s.selectedPlayerIds);
   const game = useGameStore((s) => s.game);
   const togglePlayer = useGameStore((s) => s.togglePlayer);
+  const teamBuilderMode = useGameStore((s) => s.teamBuilderMode);
   const { announced: xiAnnounced, isInXi } = usePlayingXi();
 
+  // Reshuffle (power-only) opens the modal at the power step and locks the
+  // user out of the player-pick step entirely — they can only redistribute
+  // power across their existing XI, not swap players.
+  const isPowerOnly = teamBuilderMode === 'powerOnly';
   const hasSelected = game && game.player_weightages.filter((pw) => pw.selected).length === 11;
-  const [step, setStep] = useState<Step>(hasSelected ? 'power' : 'pick');
+  const [step, setStep] = useState<Step>(isPowerOnly ? 'power' : (hasSelected ? 'power' : 'pick'));
   const [powers, setPowers] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     game?.player_weightages.forEach((pw) => {
@@ -216,11 +221,16 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
       // current selection before weightages so the squad swap doesn't get
       // silently dropped. We only call select-squad when there's an actual
       // diff to avoid an extra round-trip on the common no-swap path.
-      const savedIds = (game?.player_weightages || []).filter(pw => pw.selected).map(pw => pw.player_id).sort();
-      const currentIds = [...selectedPlayerIds].sort();
-      const squadDiffers = savedIds.length !== currentIds.length || savedIds.some((id, i) => id !== currentIds[i]);
-      if (squadDiffers && currentIds.length === 11) {
-        await onSelectSquad(selectedPlayerIds);
+      // Skipped entirely in powerOnly (reshuffle) mode — users can't have
+      // changed the XI from this surface, and the backend would reject
+      // any swap during reshuffle anyway.
+      if (!isPowerOnly) {
+        const savedIds = (game?.player_weightages || []).filter(pw => pw.selected).map(pw => pw.player_id).sort();
+        const currentIds = [...selectedPlayerIds].sort();
+        const squadDiffers = savedIds.length !== currentIds.length || savedIds.some((id, i) => id !== currentIds[i]);
+        if (squadDiffers && currentIds.length === 11) {
+          await onSelectSquad(selectedPlayerIds);
+        }
       }
 
       const weightages = Object.entries(powers).map(([pid, w]) => ({ player_id: pid, weightage: w }));
@@ -250,7 +260,9 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
             // (e.g. Vitinha / Davies tagged NOT IN XI) without closing the
             // modal. Forward jumps stay disabled — those go through their
             // normal Confirm/Lock buttons.
-            const canClick = step === 'power' && stepKey === 'pick';
+            // Player-edit (full mode) lets users hop back to step 1 to swap
+            // players. Reshuffle (powerOnly) locks them on the power step.
+            const canClick = !isPowerOnly && step === 'power' && stepKey === 'pick';
             return (
               <div key={label} className="flex items-center">
                 {i > 0 && <span className="text-[13px] mx-1" style={{ color: 'var(--faint)' }}>›</span>}

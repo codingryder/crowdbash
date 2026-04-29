@@ -575,7 +575,7 @@ export function CrowdbashRoomPage() {
                     <div className="text-[11px]" style={{ color: 'var(--muted)' }}>Redistribute power across your XI · changes are blind · auto-locks when time is up</div>
                   </div>
                 </div>
-                <button onClick={() => setPitchView(true)} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
+                <button onClick={() => setShowTeamBuilder(true, 'powerOnly')} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
                   Reshuffle power ↗
                 </button>
               </div>

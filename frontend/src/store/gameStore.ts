@@ -10,13 +10,17 @@ interface GameStore {
   editWindowOpen: boolean;
   remainingBudget: number;
   showTeamBuilder: boolean;
+  /** Modal mode. 'powerOnly' opens straight on the power-adjustment step
+   *  with the player-selection step disabled — used by the Reshuffle CTA
+   *  so users can't swap players, only redistribute power. */
+  teamBuilderMode: 'full' | 'powerOnly';
 
   // Squad selection
   availableSquads: Record<string, SquadPlayer[]>;
   selectedPlayerIds: string[];
 
   setGame: (game: Game) => void;
-  setShowTeamBuilder: (show: boolean) => void;
+  setShowTeamBuilder: (show: boolean, mode?: 'full' | 'powerOnly') => void;
   setLeaderboard: (entries: LeaderboardEntry[]) => void;
   setEditWindow: (open: boolean) => void;
   setAvailableSquads: (squads: Record<string, SquadPlayer[]>) => void;
@@ -43,10 +47,12 @@ export const useGameStore = create<GameStore>((set, get) => ({
   editWindowOpen: false,
   remainingBudget: TOTAL_BUDGET,
   showTeamBuilder: false,
+  teamBuilderMode: 'full',
   availableSquads: {},
   selectedPlayerIds: [],
 
-  setShowTeamBuilder: (show) => set({ showTeamBuilder: show }),
+  setShowTeamBuilder: (show, mode) =>
+    set({ showTeamBuilder: show, teamBuilderMode: mode || (show ? 'full' : 'full') }),
 
   setGame: (game) => {
     const used = game.player_weightages.reduce((sum, pw) => sum + pw.weightage, 0);
