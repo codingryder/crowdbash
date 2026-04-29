@@ -537,15 +537,12 @@ async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict |
     target_id = f"espn_{event_id}"
     match = next((m for m in (matches or []) if str(m.get("id", "")) == target_id), None)
     if not match:
-        if match_name:
-            parts = match_name.split(" vs ")
-            return {
-                "sport": "football",
-                "team1": {"name": parts[0].strip() if parts else "", "score": "—"},
-                "team2": {"name": parts[1].strip() if len(parts) > 1 else "", "score": "—"},
-                "status": "Score data unavailable",
-                "innings": [],
-            }
+        # Returning None (rather than a "Score data unavailable" stub) lets
+        # the room scorecard endpoint cleanly fall through to the football
+        # adapter, which avoids flicker when the all_live cache cycles
+        # between hits (rich payload) and misses (previously: stub with no
+        # stats fields, which made the right-sidebar possession bar
+        # disappear and reappear every couple of minutes).
         return None
 
     home_obj = match.get("homeTeam") or {}

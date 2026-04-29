@@ -431,14 +431,6 @@ export function CrowdbashRoomPage() {
   const possessionAway = isFootballSport
     ? (parseStatNum(scoreData?.possession_away) ?? parseStatNum(espnStats?.away?.possessionPct))
     : undefined;
-  const shotsHome = parseStatNum(espnStats?.home?.totalShots);
-  const shotsAway = parseStatNum(espnStats?.away?.totalShots);
-  const onTargetHome = parseStatNum(espnStats?.home?.shotsOnTarget);
-  const onTargetAway = parseStatNum(espnStats?.away?.shotsOnTarget);
-  const cornersHome = parseStatNum(espnStats?.home?.wonCorners);
-  const cornersAway = parseStatNum(espnStats?.away?.wonCorners);
-  const foulsHome = parseStatNum(espnStats?.home?.foulsCommitted);
-  const foulsAway = parseStatNum(espnStats?.away?.foulsCommitted);
 
   return (
     <>
@@ -840,46 +832,25 @@ export function CrowdbashRoomPage() {
               </div>
             )}
 
-            {/* Football: team stats — possession + shots/on target/corners/fouls.
-                Skip individual rows where both teams are 0 (early-match noise),
-                hide the whole section if nothing is meaningful yet. */}
-            {isFootballSport && (() => {
-              const rows: Array<{ label: string; home?: number; away?: number; suffix?: string }> = [
-                { label: 'Possession', home: possessionHome, away: possessionAway, suffix: '%' },
-                { label: 'Shots', home: shotsHome, away: shotsAway },
-                { label: 'On Target', home: onTargetHome, away: onTargetAway },
-                { label: 'Corners', home: cornersHome, away: cornersAway },
-                { label: 'Fouls', home: foulsHome, away: foulsAway },
-              ];
-              const visible = rows.filter(r =>
-                ((r.home ?? 0) > 0) || ((r.away ?? 0) > 0)
-              );
-              if (visible.length === 0) return null;
-              return (
-                <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
-                  <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>TEAM STATS</div>
-                  {visible.map(r => {
-                    const h = r.home ?? 0;
-                    const a = r.away ?? 0;
-                    const total = h + a;
-                    const hPct = total > 0 ? (h / total) * 100 : 50;
-                    return (
-                      <div key={r.label} style={{ marginBottom: 8 }}>
-                        <div className="flex items-center justify-between text-[11px] mb-1" style={{ color: 'var(--muted)' }}>
-                          <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: 'var(--text)' }}>{h}{r.suffix || ''}</span>
-                          <span>{r.label}</span>
-                          <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontWeight: 700, color: 'var(--text)' }}>{a}{r.suffix || ''}</span>
-                        </div>
-                        <div className="w-full h-1 rounded-full overflow-hidden flex" style={{ background: 'var(--surface)' }}>
-                          <div style={{ width: `${hPct}%`, background: 'var(--green)' }} />
-                          <div style={{ width: `${100 - hPct}%`, background: 'var(--blue)' }} />
-                        </div>
-                      </div>
-                    );
-                  })}
+            {/* Football: possession only. Other team stats (shots, on target,
+                corners, fouls) are intentionally kept exclusive to the Full
+                Scorecard modal so the right rail stays compact. The
+                possession block hides until both numbers are real and
+                non-zero, so users don't see misleading "0% / 0%" pre-stats. */}
+            {isFootballSport && possessionHome !== undefined && possessionAway !== undefined &&
+              (possessionHome > 0 || possessionAway > 0) && (
+              <div style={{ padding: '14px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
+                <div className="text-[9px] font-bold tracking-wider mb-2.5" style={{ color: 'var(--muted)', fontFamily: "'Cabinet Grotesk', sans-serif" }}>POSSESSION</div>
+                <div className="flex items-center justify-between mb-1.5 text-[11px]" style={{ color: 'var(--muted)' }}>
+                  <span>{a1} {possessionHome}%</span>
+                  <span>{possessionAway}% {a2}</span>
                 </div>
-              );
-            })()}
+                <div className="w-full h-1.5 rounded-full overflow-hidden flex" style={{ background: 'var(--surface)' }}>
+                  <div style={{ width: `${possessionHome}%`, background: 'var(--green)' }} />
+                  <div style={{ width: `${possessionAway}%`, background: 'var(--blue)' }} />
+                </div>
+              </div>
+            )}
 
             {/* Scorecard button */}
             <div style={{ padding: '10px 18px', borderBottom: '1px solid var(--border)', flexShrink: 0 }}>
