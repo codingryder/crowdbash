@@ -6,6 +6,7 @@ Gemini handles scorecard data, ESPN handles status verification.
 Cricket: https://site.web.api.espn.com/apis/site/v2/sports/cricket/{seriesId}/scoreboard
 Football: https://site.web.api.espn.com/apis/site/v2/sports/soccer/{leagueSlug}/scoreboard
 """
+import asyncio
 import httpx
 from app.core.redis import redis_get_json, redis_set_json
 from typing import Optional
@@ -865,6 +866,46 @@ async def get_espn_football_score(event_id: str, league_slug: str) -> dict | Non
     return None
 
 
+async def _fetch_espn_team_full_roster(
+    client: httpx.AsyncClient,
+    league_slug: str,
+    team_id: str,
+    team_name: str,
+) -> list[dict]:
+    """
+    Pull the full first-team squad (~25-31 players) for a club from ESPN.
+    Used as a tentative-squad fallback when ESPN's match-summary endpoint
+    hasn't published the matchday 18 yet (typically more than ~60 min
+    pre-kickoff). Returns canonical player records ready for match_squads.
+    """
+    try:
+        res = await client.get(
+            f"{ESPN_FOOTBALL_BASE}/{league_slug}/teams/{team_id}/roster",
+            headers=HEADERS, timeout=10,
+        )
+        if res.status_code != 200:
+            return []
+        data = res.json()
+        out: list[dict] = []
+        for ath in data.get("athletes") or []:
+            aid = str(ath.get("id") or "")
+            name = ath.get("displayName") or ath.get("fullName") or ""
+            pos = (ath.get("position") or {}).get("abbreviation") or ""
+            role = _map_espn_football_position(pos)
+            if not aid or not name:
+                continue
+            out.append({
+                "player_id": aid,
+                "player_name": name,
+                "team": team_name,
+                "role": role,
+            })
+        return out
+    except Exception as e:
+        print(f"ESPN team full-roster fetch error (team={team_id}): {e}")
+        return []
+
+
 async def _fetch_espn_team_role_map(client: httpx.AsyncClient, league_slug: str, team_id: str) -> dict[str, str]:
     """
     Hit ESPN's team-roster endpoint and build {athlete_id: canonical_role}.
@@ -967,6 +1008,37 @@ async def get_espn_football_squad(event_id: str, league_slug: str, force: bool =
             if players:
                 await redis_set_json(cache_key, players, ex=60 * 60 * 6)
                 return players
+
+            # Matchday 18 not published yet (>~60 min pre-kickoff) — fall back
+            # to the full first-team rosters of both clubs. Lets users build
+            # XIs in advance; the playing-XI announce poller (or a later sync
+            # once ESPN publishes lineups) replaces this with the actual
+            # matchday squad. Tentative cache TTL is shorter (30 min) so the
+            # next sync after lineups drop picks them up quickly.
+            competitors = (
+                ((data.get("header") or {}).get("competitions") or [{}])[0]
+                .get("competitors") or []
+            )
+            team_pairs: list[tuple[str, str]] = []
+            for comp in competitors:
+                team = comp.get("team") or {}
+                tid = str(team.get("id") or "")
+                tname = team.get("displayName") or team.get("name") or "Unknown"
+                if tid:
+                    team_pairs.append((tid, tname))
+            if not team_pairs:
+                return None
+            roster_lists = await asyncio.gather(*[
+                _fetch_espn_team_full_roster(client, league_slug, tid, tname)
+                for tid, tname in team_pairs
+            ])
+            tentative: list[dict] = []
+            for r in roster_lists:
+                tentative.extend(r)
+            if tentative:
+                await redis_set_json(cache_key, tentative, ex=60 * 30)
+                print(f"ESPN football squad fallback (full team rosters) for event {event_id}: {len(tentative)} players")
+                return tentative
     except Exception as e:
         print(f"ESPN football squad fetch error: {e}")
     return None
