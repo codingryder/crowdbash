@@ -198,49 +198,12 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
 
   function setPower(playerId: string, newVal: number) {
     newVal = Math.max(MIN_POWER, Math.min(MAX_POWER, newVal));
-
-    // Reshuffle (powerOnly) is pure manual mode — bumping one slider
-    // does NOT auto-redistribute power among the other 10. The user has
-    // to free up budget by lowering another slider themselves. The total
-    // chip + Save button reflect over/under budget so the constraint is
-    // visible. Full mode keeps the auto-balance because the initial
-    // assign-power step starts everyone at 3 and most users want a quick
-    // way to reach the budget.
-    if (isPowerOnly) {
-      setPowers({ ...powers, [playerId]: newVal });
-      return;
-    }
-
-    const updated = { ...powers, [playerId]: newVal };
-    const total = Object.values(updated).reduce((s, v) => s + v, 0);
-    const diff = total - TOTAL_POWER;
-    if (diff !== 0) {
-      const others = Object.keys(updated).filter((k) => k !== playerId);
-      let remaining = Math.abs(diff);
-      if (diff > 0) {
-        // Over budget — reduce others
-        const sorted = others.sort((a, b) => updated[b] - updated[a]);
-        for (const k of sorted) {
-          if (remaining <= 0) break;
-          const canTake = updated[k] - MIN_POWER;
-          const take = Math.min(canTake, remaining);
-          updated[k] -= take;
-          remaining -= take;
-        }
-      } else {
-        // Under budget — increase others
-        const sorted = others.sort((a, b) => updated[a] - updated[b]);
-        for (const k of sorted) {
-          if (remaining <= 0) break;
-          const canGive = MAX_POWER - updated[k];
-          const give = Math.min(canGive, remaining);
-          updated[k] += give;
-          remaining -= give;
-        }
-      }
-    }
-
-    setPowers(updated);
+    // Manual budgeting in both reshuffle (powerOnly) and full mode — nudging
+    // a single slider never auto-redistributes power across the rest of the
+    // XI. The budget bar and Lock button keep the over/under-33 constraint
+    // visible; presets (Reset / role boosts) are the bulk redistribution
+    // path when the user wants a one-tap layout.
+    setPowers({ ...powers, [playerId]: newVal });
   }
 
   // Bench tap behaviour depends on swap-arm state. When a picked player is
