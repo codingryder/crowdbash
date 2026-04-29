@@ -158,9 +158,20 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
 
   function setPower(playerId: string, newVal: number) {
     newVal = Math.max(MIN_POWER, Math.min(MAX_POWER, newVal));
-    const updated = { ...powers, [playerId]: newVal };
 
-    // Auto-balance: steal from highest or give to lowest
+    // Reshuffle (powerOnly) is pure manual mode — bumping one slider
+    // does NOT auto-redistribute power among the other 10. The user has
+    // to free up budget by lowering another slider themselves. The total
+    // chip + Save button reflect over/under budget so the constraint is
+    // visible. Full mode keeps the auto-balance because the initial
+    // assign-power step starts everyone at 3 and most users want a quick
+    // way to reach the budget.
+    if (isPowerOnly) {
+      setPowers({ ...powers, [playerId]: newVal });
+      return;
+    }
+
+    const updated = { ...powers, [playerId]: newVal };
     const total = Object.values(updated).reduce((s, v) => s + v, 0);
     const diff = total - TOTAL_POWER;
     if (diff !== 0) {
