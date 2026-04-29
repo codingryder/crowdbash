@@ -131,6 +131,17 @@ def is_late_join_open(room: Room | None) -> bool:
     if getattr(room, "late_join_enabled", False) and room.status != "closed":
         return True
 
+    # An active "player edit window" (admin-opened or auto-opened by the
+    # score poller at sport events) ALSO opens the late-join door — once
+    # any reason has reopened the editor, we let users join, swap, and
+    # redistribute power for the duration of that window.
+    closes_at = getattr(room, "edit_window_closes_at", None)
+    if closes_at is not None:
+        from datetime import datetime as _dt, timezone as _tz
+        ca = closes_at if closes_at.tzinfo else closes_at.replace(tzinfo=_tz.utc)
+        if ca > _dt.now(_tz.utc):
+            return True
+
     cfg = LATE_JOIN_ROOMS.get(str(room.id))
     if not cfg:
         return False

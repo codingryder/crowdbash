@@ -541,23 +541,37 @@ export function CrowdbashRoomPage() {
             {/* Playing XI announcement banner — sticky until user reviews/keeps */}
             <PlayingXiBanner onReviewTeam={() => setShowTeamBuilder(true)} />
 
-            {/* Edit window banner — stacks on mobile so the body text has the
-                full width to read in (and naturally left-aligns with the
-                heading) and the button gets its own breathing room below. */}
-            {editWindowOpen && (
-              <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 shrink-0 animate-fadeup" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '12px 24px 0' }}>
-                <div className="flex items-start gap-3">
-                  <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px] shrink-0" style={{ background: 'rgba(139,92,246,0.12)' }}>🔄</div>
-                  <div>
-                    <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Power reshuffle window open!</div>
-                    <div className="text-[11px]" style={{ color: 'var(--muted)' }}>5 min to redistribute power · changes are blind · auto-locks when time is up</div>
+            {/* Player edit window banner — covers BOTH the mid-match
+                reshuffle (auto-opened by sport events) AND admin-triggered
+                edit-window reopens that let new users join + existing users
+                edit. Same underlying timer (edit_window_closes_at) drives
+                both. Copy is duration-aware so it matches whatever the
+                admin / auto-trigger set. */}
+            {editWindowOpen && (() => {
+              // Compute live minutes-remaining from room.edit_window_closes_at
+              // so the banner shows real time left, not a hard-coded "5 min".
+              const closesAtIso = room?.edit_window_closes_at;
+              let minLeft: number | null = null;
+              if (closesAtIso) {
+                const ms = new Date(closesAtIso).getTime() - Date.now();
+                if (ms > 0) minLeft = Math.max(1, Math.round(ms / 60000));
+              }
+              const durationLabel = minLeft !== null ? `${minLeft} min` : 'a few minutes';
+              return (
+                <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between md:gap-4 shrink-0 animate-fadeup" style={{ background: 'var(--surface2)', border: '1px solid rgba(139,92,246,0.25)', borderRadius: 'var(--radius)', padding: '14px 18px', margin: '12px 24px 0' }}>
+                  <div className="flex items-start gap-3">
+                    <div className="w-9 h-9 rounded-[9px] flex items-center justify-center text-[17px] shrink-0" style={{ background: 'rgba(139,92,246,0.12)' }}>🔄</div>
+                    <div>
+                      <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>Player edit window is open!</div>
+                      <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{durationLabel} to create or edit your team · save to participate in the game</div>
+                    </div>
                   </div>
+                  <button onClick={() => setPitchView(true)} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
+                    Edit team ↗
+                  </button>
                 </div>
-                <button onClick={() => setPitchView(true)} className="btn self-stretch md:self-auto md:shrink-0" style={{ background: 'var(--purple)', color: '#fff', padding: '8px 18px', fontSize: 12 }}>
-                  Reshuffle power ↗
-                </button>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Tab content */}
             <div className="flex-1 overflow-y-auto flex flex-col">

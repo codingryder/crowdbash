@@ -307,10 +307,10 @@ export function AdminPage() {
                                 const enabled = !r.late_join_enabled;
                                 const ok = await setLateJoin(r.id, enabled);
                                 setSyncMsg(ok
-                                  ? `Late-join ${enabled ? 'enabled' : 'disabled'} for ${r.match_name}.`
-                                  : `Failed to update late-join for ${r.match_name}.`);
+                                  ? `Always-on edit window ${enabled ? 'enabled' : 'disabled'} for ${r.match_name}.`
+                                  : `Failed to update edit window for ${r.match_name}.`);
                               }}
-                              title="Allow users to keep building/editing their XI even after the match has started."
+                              title="Always-on player-edit window: keeps the editor open until the match ends. For a timed window with a duration, use the 'Edit window' Open button instead."
                               style={{
                                 padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
                                 background: r.late_join_enabled ? 'rgba(245,158,11,0.15)' : 'var(--surface2)',
@@ -319,7 +319,7 @@ export function AdminPage() {
                                 cursor: 'pointer',
                               }}
                             >
-                              {r.late_join_enabled ? '⚡ Late-join ON' : 'Late-join OFF'}
+                              {r.late_join_enabled ? '⚡ Always-on edit ON' : 'Always-on edit OFF'}
                             </button>
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
                               Delete
@@ -661,8 +661,11 @@ function ReshuffleControls({
 
   return (
     <div style={{ marginTop: 6, display: 'flex', alignItems: 'center', gap: 6, flexWrap: 'wrap' }}>
-      <span style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', color: 'var(--muted)', textTransform: 'uppercase' }}>
-        Reshuffle
+      <span
+        title="Open a player-edit window. While active, users can join the room, swap players, and redistribute power for the duration set."
+        style={{ fontSize: 10, fontWeight: 700, letterSpacing: '0.5px', color: 'var(--muted)', textTransform: 'uppercase' }}
+      >
+        Edit window
       </span>
       {isActive && (
         <span style={{ fontSize: 10, fontWeight: 700, padding: '2px 7px', borderRadius: 4, background: 'rgba(139,92,246,0.12)', color: 'var(--purple)', border: '1px solid rgba(139,92,246,0.3)' }}>
