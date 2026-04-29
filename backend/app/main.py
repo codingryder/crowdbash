@@ -360,11 +360,34 @@ async def score_poller():
                         })
                         continue
 
-                    # Normalize and broadcast score update
-                    try:
-                        normalized = adapter.normalize_score(match_data, room.match_name)
-                    except Exception:
-                        normalized = match_data
+                    # Normalize and broadcast score update.
+                    # For ESPN football rooms, source the broadcast from the
+                    # SAME ESPN scorecard the HTTP scorecard endpoint uses.
+                    # Otherwise the WS payload (adapter shape, 45s per-event
+                    # cache) and the HTTP payload (all_live, 120s) fight in
+                    # the frontend store and the right rail flickers
+                    # between two scores every couple of seconds.
+                    normalized = None
+                    if (
+                        room.sport == "football"
+                        and room.match_id
+                        and room.match_id.startswith("espn_")
+                    ):
+                        try:
+                            from app.api.routes.matches import _get_espn_scorecard
+                            espn_event_id = room.match_id.replace("espn_", "")
+                            espn_payload = await _get_espn_scorecard(
+                                "football", espn_event_id, room.match_name
+                            )
+                            if espn_payload:
+                                normalized = espn_payload
+                        except Exception as e:
+                            print(f"WS broadcast: ESPN scorecard fetch failed for {room.match_name}: {e}")
+                    if normalized is None:
+                        try:
+                            normalized = adapter.normalize_score(match_data, room.match_name)
+                        except Exception:
+                            normalized = match_data
                     await room_manager.broadcast(str(room.id), {
                         "type": "score_update",
                         "payload": {
