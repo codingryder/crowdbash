@@ -138,6 +138,10 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
     Tie handling: dense ranking by score (e.g. 100, 100, 80 → ranks 1, 1, 3).
     Wins are only awarded if the rank-1 score is > 0 (no one wins a 0-pt game).
     Top-3 finishers (rank 1/2/3) earn coins (100/50/25) only if score > 0.
+
+    Solo-room rule: a room with fewer than 2 participants is not a real
+    competition — fantasy points still accrue per the live-score path, but
+    no bashpoints (coins) are awarded and no win is recorded.
     """
     from app.models.user import User
     from app.models.coin import CoinTransaction
@@ -168,6 +172,10 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
     from app.services.rewards_service import get_lifetime_earned, get_tier
 
     top_score = sorted_games[0].total_points or 0
+    # A room needs at least 2 distinct participants to count as a real
+    # competition — solo rooms still record total_games but skip wins +
+    # bashpoint payout because there's no one to actually compete against.
+    solo_room = len({g.user_id for g in games}) < 2
     winners = 0
     coins_awarded = 0
     coin_payouts = {1: 100, 2: 50, 3: 25}
@@ -176,12 +184,12 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
         if not u:
             continue
         u.total_games = (u.total_games or 0) + 1
-        if g.rank == 1 and top_score > 0:
+        if g.rank == 1 and top_score > 0 and not solo_room:
             u.total_wins = (u.total_wins or 0) + 1
             winners += 1
 
         base = coin_payouts.get(g.rank or 0)
-        if base and (g.total_points or 0) > 0:
+        if base and (g.total_points or 0) > 0 and not solo_room:
             # Apply tier multiplier based on lifetime earned (excludes redemptions)
             earned = await get_lifetime_earned(db, u.id)
             multiplier = get_tier(earned)["multiplier"]
@@ -196,4 +204,9 @@ async def finalize_room_results(db: AsyncSession, room_id) -> dict:
             ))
             coins_awarded += 1
 
-    return {"ranked": len(games), "winners": winners, "coins_awarded": coins_awarded}
+    return {
+        "ranked": len(games),
+        "winners": winners,
+        "coins_awarded": coins_awarded,
+        "solo_room": solo_room,
+    }

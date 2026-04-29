@@ -210,7 +210,15 @@ export function CompletedMatchView({ room }: CompletedMatchViewProps) {
                   </div>
                 )}
               </div>
-              {myRank.rank <= 3 && (myTeam.total_points > 0) && (
+              {/* Bashpoint payout copy. A solo room (myRank.total < 2) is
+                  not a competition — no bashpoints. Show that explicitly so
+                  the user understands why they didn't earn anything despite
+                  finishing #1. Real top-3 still gets the standard message. */}
+              {myRank.total < 2 ? (
+                <div className="text-[10px] mt-3" style={{ color: 'var(--mu)' }}>
+                  🪙 No Bashpoints — at least 2 players are needed for a room to award Bashpoints.
+                </div>
+              ) : (myRank.rank <= 3 && myTeam.total_points > 0) && (
                 <div className="text-[10px] mt-3" style={{ color: 'var(--green)' }}>
                   🪙 You earned {myRank.rank === 1 ? '+100' : myRank.rank === 2 ? '+50' : '+25'} Bashpoints (× tier multiplier)
                 </div>
