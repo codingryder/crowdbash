@@ -1,15 +1,22 @@
+import asyncio
+
 from app.core.redis import redis_get_json, redis_set_json
 from app.services.sport_service import SportAdapter
 from typing import List, Dict, Any
 
 
 class CricketAdapter(SportAdapter):
-    """Cricket adapter: CricketData.org primary → Gemini fallback."""
+    """Cricket adapter: ESPN primary → CricketData.org → Gemini fallback."""
 
     _current_match_name: str = ""
+    _current_league: str = ""
 
-    def set_match_context(self, match_name: str):
+    def set_match_context(self, match_name: str, league: str = ""):
+        # Route hands us league for the football adapter; accepting it here
+        # too keeps the call signature uniform and lets the ESPN by-name
+        # squad lookup pick the right series (IPL/T20I/etc).
         self._current_match_name = match_name
+        self._current_league = league
 
     async def get_live_matches(self) -> List[Dict[str, Any]]:
         """Get live matches: CricketData.org → ESPN → Gemini fallback."""
@@ -115,26 +122,50 @@ class CricketAdapter(SportAdapter):
         return score_data
 
     async def get_match_players(self, match_id: str) -> List[Dict[str, Any]]:
-        """Get squad: ESPN → CricketData.org → Gemini fallback."""
+        """Get squad: ESPN → CricketData.org → Gemini fallback.
+
+        ESPN's summary endpoint returns the full squad even pre-match (unlike
+        CricketData's scorecard, which only populates after first ball), so
+        ESPN goes first. For non-`espn_` match IDs we resolve the ESPN
+        event via a name search against the IPL/T20I scoreboard.
+        """
         cache_key = f"cricket:players:{match_id}"
         cached = await redis_get_json(cache_key)
         if cached:
             return cached
 
-        # Layer 1: ESPN (handles espn_ prefixed IDs and has full squad data)
+        # Layer 1a: ESPN direct — espn_-prefixed match IDs already carry the
+        # event_id, no scoreboard search needed.
         if match_id.startswith("espn_"):
             try:
                 from app.services.espn_service import get_espn_match_players
                 espn_id = match_id.replace("espn_", "")
                 players = await get_espn_match_players(espn_id)
                 if players:
-                    print(f"Cricket players from ESPN: {len(players)} players for {match_id}")
+                    print(f"Cricket players from ESPN (direct): {len(players)} for {match_id}")
                     await redis_set_json(cache_key, players, ex=3600)
                     return players
             except Exception as e:
-                print(f"ESPN players error: {e}")
+                print(f"ESPN players (direct) error: {e}")
 
-        # Layer 2: Try CricketData.org
+        # Layer 1b: ESPN by-name lookup. Most cricket rooms (CricketData IDs,
+        # admin-created UUIDs) hit this branch — fast primary path because
+        # ESPN's summary squads[] is populated even pre-match.
+        if self._current_match_name:
+            try:
+                from app.services.espn_service import get_espn_cricket_squad_by_name
+                players = await get_espn_cricket_squad_by_name(
+                    self._current_match_name, self._current_league
+                )
+                if players:
+                    print(f"Cricket players from ESPN (by name): {len(players)} for '{self._current_match_name}'")
+                    await redis_set_json(cache_key, players, ex=3600)
+                    return players
+            except Exception as e:
+                print(f"ESPN by-name squad error: {e}")
+
+        # Layer 2: CricketData.org scorecard-derived squad. Only useful once
+        # the match has started (pre-match scorecards are empty).
         try:
             from app.services.cricketdata_service import get_players_list
             players = await get_players_list(match_id)
@@ -144,14 +175,21 @@ class CricketAdapter(SportAdapter):
         except Exception as e:
             print(f"CricketData players error: {e}")
 
-        # Layer 3: Gemini fallback
+        # Layer 3: Gemini fallback — last resort. Hard-cap so a hung grounded
+        # search can't keep the user on the loading screen for minutes; 25s
+        # is plenty for a real Gemini response.
         try:
             from app.services.live_score_service import fetch_squad_via_gemini
             if self._current_match_name:
-                players = await fetch_squad_via_gemini(self._current_match_name, "cricket")
+                players = await asyncio.wait_for(
+                    fetch_squad_via_gemini(self._current_match_name, "cricket"),
+                    timeout=25,
+                )
                 if players:
                     await redis_set_json(cache_key, players, ex=600)
                     return players
+        except asyncio.TimeoutError:
+            print(f"Gemini squad fetch timed out for '{self._current_match_name}'")
         except Exception as e:
             print(f"Gemini squad error: {e}")
 

@@ -601,6 +601,83 @@ async def get_espn_match_players(event_id: str, series_id: str = "8048") -> list
     return None
 
 
+async def get_espn_cricket_squad_by_name(
+    match_name: str, league: str = "", series_id: str = "8048"
+) -> list | None:
+    """
+    Resolve a cricket match by team-name search against the ESPN scoreboard
+    for the given series, then fetch its squad via the summary endpoint.
+
+    This is the fast primary path for cricket squad fetching when match_id
+    isn't an `espn_`-prefixed ID (which is the common case for CricketData
+    UUIDs, admin-created rooms). ESPN's summary `squads[]` is populated even
+    pre-match, so this works before first ball — unlike the CricketData
+    scorecard fallback which only fills in after play starts.
+    """
+    from app.core.redis import redis_get_json, redis_set_json
+    import re
+
+    if not match_name:
+        return None
+
+    # Pick the series — prefer league hint if given, fall back to IPL.
+    if league:
+        for key, sid in CRICKET_SERIES.items():
+            if key.lower() in league.lower():
+                series_id = sid
+                break
+
+    name_key = re.sub(r"[^a-z0-9]+", "_", match_name.lower()).strip("_")
+    cache_key = f"espn:cricket_squad_by_name:{series_id}:{name_key}"
+    cached = await redis_get_json(cache_key)
+    if cached:
+        return cached
+
+    parts = re.split(r"\s+vs?\s+", match_name.lower())
+    if len(parts) != 2:
+        return None
+    a, b = parts[0].strip(), parts[1].strip()
+
+    event_id = None
+    try:
+        async with httpx.AsyncClient() as client:
+            res = await client.get(
+                f"{ESPN_CRICKET_BASE}/{series_id}/scoreboard",
+                headers=HEADERS, timeout=8,
+            )
+            if res.status_code != 200:
+                return None
+            for ev in res.json().get("events", []):
+                ev_name = (ev.get("name") or "").lower()
+                if a in ev_name and b in ev_name:
+                    event_id = str(ev.get("id", ""))
+                    break
+                # Match by competitor displayName too — handles abbreviated
+                # match_names like "MI vs SRH" against ESPN's full
+                # "Mumbai Indians vs Sunrisers Hyderabad".
+                for comp in ev.get("competitions", []):
+                    names = [
+                        (c.get("team") or {}).get("displayName", "").lower()
+                        for c in comp.get("competitors", [])
+                    ]
+                    if any(a in n for n in names) and any(b in n for n in names):
+                        event_id = str(ev.get("id", ""))
+                        break
+                if event_id:
+                    break
+    except Exception as e:
+        print(f"ESPN cricket squad-by-name resolve error: {e}")
+        return None
+
+    if not event_id:
+        return None
+
+    players = await get_espn_match_players(event_id, series_id)
+    if players:
+        await redis_set_json(cache_key, players, ex=3600)
+    return players
+
+
 async def get_espn_football_score(event_id: str, league_slug: str) -> dict | None:
     """
     Fetch the live (or final) score for a football match from ESPN's soccer
