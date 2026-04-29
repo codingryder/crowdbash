@@ -558,8 +558,12 @@ export function CrowdbashRoomPage() {
               ))}
             </div>
 
-            {/* Playing XI announcement banner — sticky until user reviews/keeps */}
-            <PlayingXiBanner onReviewTeam={() => setShowTeamBuilder(true)} />
+            {/* Playing XI announcement banner — sticky until user reviews/keeps.
+                "Review team" opens the modal in xiOnly mode so the bench is
+                narrowed to only the announced playing squad (xi_a + xi_b for
+                cricket; match_squads matchday lineup + named subs for
+                football). */}
+            <PlayingXiBanner onReviewTeam={() => setShowTeamBuilder(true, 'xiOnly')} />
 
             {/* Reshuffle (power-only) banner — auto-opens at sport events
                 (innings break, half-time, after 10 overs) or via admin

@@ -10,17 +10,23 @@ interface GameStore {
   editWindowOpen: boolean;
   remainingBudget: number;
   showTeamBuilder: boolean;
-  /** Modal mode. 'powerOnly' opens straight on the power-adjustment step
-   *  with the player-selection step disabled — used by the Reshuffle CTA
-   *  so users can't swap players, only redistribute power. */
-  teamBuilderMode: 'full' | 'powerOnly';
+  /** Modal mode controls which step the modal opens on and what UI is
+   *  available:
+   *    - 'full'     — normal pick → power → save flow.
+   *    - 'powerOnly' — opens at power step, picker disabled. Reshuffle CTA.
+   *    - 'xiOnly'   — opens at pick step, bench filtered to announced XI
+   *                   only. "Review team" CTA after team-sheet drop. */
+  teamBuilderMode: 'full' | 'powerOnly' | 'xiOnly';
 
   // Squad selection
   availableSquads: Record<string, SquadPlayer[]>;
   selectedPlayerIds: string[];
 
   setGame: (game: Game) => void;
-  setShowTeamBuilder: (show: boolean, mode?: 'full' | 'powerOnly') => void;
+  setShowTeamBuilder: (show: boolean, mode?: 'full' | 'powerOnly' | 'xiOnly') => void;
+  /** Bulk replace selectedPlayerIds — used by the xiOnly entrypoint to
+   *  deselect any pre-picked players who aren't in the announced XI. */
+  setSelectedPlayerIds: (ids: string[]) => void;
   setLeaderboard: (entries: LeaderboardEntry[]) => void;
   setEditWindow: (open: boolean) => void;
   setAvailableSquads: (squads: Record<string, SquadPlayer[]>) => void;
@@ -53,6 +59,8 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setShowTeamBuilder: (show, mode) =>
     set({ showTeamBuilder: show, teamBuilderMode: mode || (show ? 'full' : 'full') }),
+
+  setSelectedPlayerIds: (ids) => set({ selectedPlayerIds: ids }),
 
   setGame: (game) => {
     const used = game.player_weightages.reduce((sum, pw) => sum + pw.weightage, 0);

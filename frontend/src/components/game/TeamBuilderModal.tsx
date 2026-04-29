@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { usePlayingXi } from '../../hooks/usePlayingXi';
 import type { Sport, SquadPlayer } from '../../types';
@@ -41,15 +41,25 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
   const selectedPlayerIds = useGameStore((s) => s.selectedPlayerIds);
   const game = useGameStore((s) => s.game);
   const togglePlayer = useGameStore((s) => s.togglePlayer);
+  const setSelectedPlayerIds = useGameStore((s) => s.setSelectedPlayerIds);
   const teamBuilderMode = useGameStore((s) => s.teamBuilderMode);
   const { announced: xiAnnounced, isInXi } = usePlayingXi();
 
   // Reshuffle (power-only) opens the modal at the power step and locks the
   // user out of the player-pick step entirely — they can only redistribute
   // power across their existing XI, not swap players.
+  // xiOnly mode opens straight on the picker with the bench narrowed to
+  // only the announced playing squad — for cricket that's xi_a + xi_b,
+  // for football match_squads is already matchday (lineup + named subs)
+  // post team-sheet drop.
   const isPowerOnly = teamBuilderMode === 'powerOnly';
+  const isXiOnly = teamBuilderMode === 'xiOnly';
   const hasSelected = game && game.player_weightages.filter((pw) => pw.selected).length === 11;
-  const [step, setStep] = useState<Step>(isPowerOnly ? 'power' : (hasSelected ? 'power' : 'pick'));
+  const [step, setStep] = useState<Step>(
+    isPowerOnly ? 'power'
+      : isXiOnly ? 'pick'
+      : (hasSelected ? 'power' : 'pick'),
+  );
   const [powers, setPowers] = useState<Record<string, number>>(() => {
     const init: Record<string, number> = {};
     game?.player_weightages.forEach((pw) => {
@@ -139,10 +149,21 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
   }
   const compositionValid = compositionError === null;
 
+  // xiOnly mode: narrow the bench to the announced playing squad. For
+  // cricket that's strictly the 22 starters in xi_a ∪ xi_b. For football
+  // we already get matchday squad (lineup + named subs) in match_squads
+  // post team-sheet drop, so trust the existing pool.
+  const xiOnlyMatch = (p: SquadPlayer): boolean => {
+    if (!isXiOnly) return true;
+    if (isFootball) return true;
+    return isInXi(p.player_name);
+  };
+
   // Filter for bench — sport-aware so the role filter pills match whatever
   // sport this room is, and the comparison goes through the canonical key
   // function (so e.g. ESPN-tagged "FWD" still matches the "FW" filter).
   const filteredPlayers = allPlayers.filter((p) => {
+    if (!xiOnlyMatch(p)) return false;
     if (roleFilter !== 'all') {
       const k = isFootball ? _footballRoleKey(p.player_role || '') : _cricketRoleKey(p.player_role || '');
       if (k !== roleFilter) return false;
@@ -150,6 +171,21 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
     if (search && !p.player_name.toLowerCase().includes(search.toLowerCase())) return false;
     return true;
   });
+
+  // When entering xiOnly mode, deselect any pre-picked players who are no
+  // longer eligible (cricket: not in xi_a/xi_b; football: not in
+  // match_squads). Without this, the picker count would still claim 11
+  // selected even though those players are hidden from the bench.
+  useEffect(() => {
+    if (!isXiOnly || allPlayers.length === 0) return;
+    const eligible = new Set(allPlayers.filter(xiOnlyMatch).map(p => p.player_id));
+    const filtered = selectedPlayerIds.filter(id => eligible.has(id));
+    if (filtered.length !== selectedPlayerIds.length) {
+      setSelectedPlayerIds(filtered);
+    }
+    // Run only on mode change / availability change.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isXiOnly, allPlayers.length, xiAnnounced]);
 
   // Power calculations
   const selectedPlayers = game?.player_weightages.filter((pw) => pw.selected) || [];
