@@ -525,9 +525,17 @@ async def _get_espn_football_scorecard(event_id: str, match_name: str) -> dict |
     """Build a rich football scorecard from the cached ESPN match list."""
     from app.core.redis import redis_get_json
 
-    matches = await redis_get_json("espn:football:all_live") or []
+    matches = await redis_get_json("espn:football:all_live")
+    if not matches:
+        # Cache cold — populate it via the same fetcher /api/matches/live
+        # uses. Without this, opening the Match Score modal from inside a
+        # room (no preceding /matches/live hit) finds an empty cache and
+        # falls through to the "Score data unavailable" stub even though
+        # ESPN actually has the data.
+        from app.services.espn_service import get_espn_live_football_matches
+        matches = await get_espn_live_football_matches()
     target_id = f"espn_{event_id}"
-    match = next((m for m in matches if str(m.get("id", "")) == target_id), None)
+    match = next((m for m in (matches or []) if str(m.get("id", "")) == target_id), None)
     if not match:
         if match_name:
             parts = match_name.split(" vs ")
