@@ -165,6 +165,10 @@ async def list_all_rooms(
                 if getattr(r, "player_edit_window_closes_at", None) else None
             ),
             "late_join_enabled": bool(getattr(r, "late_join_enabled", False)),
+            "playing_xi_announced_at": (
+                r.playing_xi_announced_at.isoformat()
+                if getattr(r, "playing_xi_announced_at", None) else None
+            ),
         }
         for r in rooms
     ]
@@ -302,6 +306,124 @@ async def admin_open_player_edit_window(
         "closes_at": closes_at,
         "duration_seconds": body.duration_seconds,
     }
+
+
+class AnnounceXiRequest(PydanticBaseModel):
+    """
+    Optional body for the announce-XI endpoint. If xi_a / xi_b aren't
+    provided, the helper auto-picks the first 11 players per team from
+    match_squads — useful for QA / staging where you just want the
+    Playing-XI banner + Review-team flow to fire on a test room.
+    """
+    team_a: str | None = None
+    team_b: str | None = None
+    xi_a: list[str] | None = None
+    xi_b: list[str] | None = None
+
+
+@router.post("/rooms/{room_id}/announce-xi")
+async def admin_announce_xi(
+    room_id: str,
+    body: AnnounceXiRequest,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually announce a playing XI for a room — bypasses the 5-min
+    Gemini polling cycle. Without explicit xi_a/xi_b, picks the first 11
+    players per team from match_squads. Persists on Room.playing_xi and
+    broadcasts the same `playing_xi_announced` WS message the poller
+    uses, so the frontend banner + Review-team flow trigger as if the
+    real team sheets had dropped.
+    """
+    from datetime import datetime, timezone
+    from app.api.websocket import room_manager
+    from app.models.match_squad import MatchSquad
+
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    team_a = body.team_a
+    team_b = body.team_b
+    xi_a = body.xi_a
+    xi_b = body.xi_b
+
+    # Auto-pick path — read match_squads, group by team, take the first 11
+    # in DB insert order for each team. Caller can pass explicit lists to
+    # override.
+    if not xi_a or not xi_b or not team_a or not team_b:
+        squads_res = await db.execute(
+            select(MatchSquad).where(MatchSquad.room_id == _uuid_mod.UUID(room_id))
+        )
+        squads = squads_res.scalars().all()
+        by_team: dict[str, list[str]] = {}
+        for s in squads:
+            t = s.team or ""
+            if t not in by_team:
+                by_team[t] = []
+            by_team[t].append(s.player_name)
+        teams = list(by_team.keys())
+        if len(teams) < 2:
+            raise HTTPException(
+                status_code=400,
+                detail=f"Need at least 2 teams in match_squads to auto-pick XI (found {len(teams)}). Sync the squad first.",
+            )
+        team_a = team_a or teams[0]
+        team_b = team_b or teams[1]
+        xi_a = xi_a or by_team.get(team_a, [])[:11]
+        xi_b = xi_b or by_team.get(team_b, [])[:11]
+
+    if len(xi_a) < 11 or len(xi_b) < 11:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Each XI needs 11 players (got {len(xi_a)} + {len(xi_b)}). Sync the squad first or pass explicit xi_a/xi_b.",
+        )
+
+    xi_payload = {
+        "team_a": team_a,
+        "team_b": team_b,
+        "xi_a": xi_a[:11],
+        "xi_b": xi_b[:11],
+        "announced": True,
+    }
+    now = datetime.now(timezone.utc)
+    room.playing_xi = xi_payload
+    room.playing_xi_announced_at = now
+    await db.commit()
+
+    await room_manager.broadcast(room_id, {
+        "type": "playing_xi_announced",
+        "payload": {
+            "playing_xi": xi_payload,
+            "announced_at": now.isoformat(),
+        },
+    })
+    return {
+        "room_id": room_id,
+        "team_a": team_a, "team_b": team_b,
+        "xi_a_count": len(xi_a[:11]),
+        "xi_b_count": len(xi_b[:11]),
+        "announced_at": now.isoformat(),
+    }
+
+
+@router.delete("/rooms/{room_id}/announce-xi")
+async def admin_clear_xi(
+    room_id: str,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Clear any mock XI announcement on the room — for resetting the test flow."""
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room.playing_xi = None
+    room.playing_xi_announced_at = None
+    await db.commit()
+    return {"room_id": room_id, "cleared": True}
 
 
 @router.post("/rooms/{room_id}/player-edit-window/close")

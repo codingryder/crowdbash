@@ -24,6 +24,7 @@ export function AdminPage() {
     openEditWindow, closeEditWindow,
     openPlayerEditWindow, closePlayerEditWindow,
     refreshSquads, setLateJoin,
+    announceXi, clearXi,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create' | 'custom'>('rooms');
 
@@ -49,6 +50,7 @@ export function AdminPage() {
   const [reshuffleBusy, setReshuffleBusy] = useState<Record<string, boolean>>({});
   const [playerEditDurations, setPlayerEditDurations] = useState<Record<string, number>>({});
   const [playerEditBusy, setPlayerEditBusy] = useState<Record<string, boolean>>({});
+  const [xiBusy, setXiBusy] = useState<Record<string, boolean>>({});
   const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
   const [syncMsg, setSyncMsg] = useState('');
 
@@ -305,6 +307,37 @@ export function AdminPage() {
                               style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(45,214,122,0.08)', color: 'var(--green)', border: '1px solid rgba(45,214,122,0.25)', cursor: syncBusy[r.id] ? 'not-allowed' : 'pointer', opacity: syncBusy[r.id] ? 0.5 : 1 }}
                             >
                               {syncBusy[r.id] ? 'Syncing…' : 'Sync squad'}
+                            </button>
+                            <button
+                              disabled={!!xiBusy[r.id]}
+                              onClick={async () => {
+                                setXiBusy(m => ({ ...m, [r.id]: true }));
+                                if (r.playing_xi_announced_at) {
+                                  const ok = await clearXi(r.id);
+                                  setSyncMsg(ok ? `Cleared mock XI on ${r.match_name}.` : `Failed to clear XI on ${r.match_name}.`);
+                                } else {
+                                  const result = await announceXi(r.id);
+                                  if (result === null) {
+                                    setSyncMsg(`Failed to announce XI for ${r.match_name}. Sync the squad first?`);
+                                  } else {
+                                    setSyncMsg(`Mock XI announced for ${r.match_name} (${result.xi_a_count} + ${result.xi_b_count} players).`);
+                                  }
+                                }
+                                setXiBusy(m => ({ ...m, [r.id]: false }));
+                              }}
+                              title={r.playing_xi_announced_at
+                                ? "Clear the mock playing-XI announcement so the banner / Review-team flow can be re-tested."
+                                : "Announce a mock XI (auto-picks first 11 from match_squads per team) — bypasses the 5-min Gemini poll for testing."}
+                              style={{
+                                padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                                background: r.playing_xi_announced_at ? 'rgba(45,214,122,0.15)' : 'var(--surface2)',
+                                color: r.playing_xi_announced_at ? 'var(--green)' : 'var(--muted)',
+                                border: `1px solid ${r.playing_xi_announced_at ? 'rgba(45,214,122,0.4)' : 'var(--border)'}`,
+                                cursor: xiBusy[r.id] ? 'not-allowed' : 'pointer',
+                                opacity: xiBusy[r.id] ? 0.5 : 1,
+                              }}
+                            >
+                              {xiBusy[r.id] ? '…' : (r.playing_xi_announced_at ? '✓ XI announced' : 'Announce XI (mock)')}
                             </button>
                             <button
                               onClick={async () => {
