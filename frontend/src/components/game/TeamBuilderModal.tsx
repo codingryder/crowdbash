@@ -354,10 +354,10 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
             <button
               onClick={handleLock}
               disabled={!isBalanced || loading}
-              className="font-cabinet text-[13px] font-extrabold border-none rounded-[8px] px-5 py-2 transition-all disabled:opacity-30"
+              className="font-cabinet text-[12px] md:text-[13px] font-extrabold border-none rounded-[8px] px-3 md:px-5 py-1.5 md:py-2 transition-all disabled:opacity-30 whitespace-nowrap"
               style={{ background: 'var(--green)', color: '#071a0e' }}
             >
-              {loading ? 'Locking...' : game?.squad_locked ? 'Save changes →' : 'Lock in & play →'}
+              {loading ? 'Locking...' : game?.squad_locked ? 'Save →' : 'Lock in →'}
             </button>
           )}
           <button onClick={onClose} className="text-[18px] bg-transparent border-none px-2" style={{ color: 'var(--mu)' }}>×</button>
@@ -724,83 +724,101 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
                       borderLeftWidth: isBenched ? 3 : undefined,
                     }}
                   >
-                    <div className="flex items-center gap-3">
-                      <PlayerAvatar
-                        name={player.player_name}
-                        imageUrl={player.image_url}
-                        seed={String.fromCharCode(65 + (i % 5))}
-                        size={36}
-                        radius={9}
-                        fontSize={11}
-                      />
-
-                      {/* Info */}
-                      <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-1.5">
-                          <span className="text-[13px] font-semibold truncate">{player.player_name}</span>
-                          {isBenched && (
-                            <span
-                              className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
-                              style={{ color: 'var(--red)', background: 'rgba(240,82,82,0.12)' }}
-                              title="Not in announced XI"
-                            >
-                              NOT IN XI
-                            </span>
-                          )}
+                    {(() => {
+                      const sliderControls = (
+                        <>
+                          <button
+                            onClick={() => setPower(player.player_id, pw - 1)}
+                            disabled={isMin}
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[14px] font-bold border-none transition-all disabled:opacity-20 shrink-0"
+                            style={{ background: 'var(--surface2)', color: 'var(--tx)' }}
+                          >
+                            −
+                          </button>
+                          <div className="flex-1 relative h-8 flex items-center">
+                            <div className="absolute left-0 right-0 h-[5px] rounded" style={{ background: 'var(--faint)' }} />
+                            <div
+                              className="absolute left-0 h-[5px] rounded transition-all"
+                              style={{ width: `${pct}%`, background: fillColor }}
+                            />
+                            <div
+                              className="absolute w-[22px] h-[22px] rounded-full transition-all"
+                              style={{
+                                left: `${pct}%`,
+                                transform: 'translateX(-50%)',
+                                background: fillColor,
+                                border: '2.5px solid rgba(0,0,0,0.35)',
+                              }}
+                            />
+                          </div>
+                          <button
+                            onClick={() => setPower(player.player_id, pw + 1)}
+                            disabled={isMax}
+                            className="w-6 h-6 rounded-full flex items-center justify-center text-[14px] font-bold border-none transition-all disabled:opacity-20 shrink-0"
+                            style={{ background: 'var(--surface2)', color: 'var(--tx)' }}
+                          >
+                            +
+                          </button>
+                        </>
+                      );
+                      const powerValue = (
+                        <div className="font-cabinet text-[18px] font-black min-w-[32px] text-center" style={{ color: valColor }}>
+                          {pw}<small className="text-[10px] font-semibold" style={{ color: 'var(--mu)' }}>x</small>
                         </div>
-                        <div className="text-[10px]" style={{ color: 'var(--mu)' }}>
-                          {player.team} · {player.points_earned > 0 ? `${player.points_earned}pts` : player.player_role || ''}
-                        </div>
-                      </div>
+                      );
+                      return (
+                        <>
+                          {/* Top row: avatar + name + (mobile) power value.
+                              Desktop also keeps the slider inline here. */}
+                          <div className="flex items-center gap-3">
+                            <PlayerAvatar
+                              name={player.player_name}
+                              imageUrl={player.image_url}
+                              seed={String.fromCharCode(65 + (i % 5))}
+                              size={36}
+                              radius={9}
+                              fontSize={11}
+                            />
 
-                      {/* Points if earned */}
-                      {player.points_earned > 0 && (
-                        <div className="font-cabinet text-[14px] font-extrabold shrink-0" style={{ color: 'var(--green)' }}>
-                          {player.points_earned}
-                        </div>
-                      )}
+                            <div className="flex-1 min-w-0">
+                              <div className="flex items-center gap-1.5">
+                                <span className="text-[13px] font-semibold truncate">{player.player_name}</span>
+                                {isBenched && (
+                                  <span
+                                    className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
+                                    style={{ color: 'var(--red)', background: 'rgba(240,82,82,0.12)' }}
+                                    title="Not in announced XI"
+                                  >
+                                    NOT IN XI
+                                  </span>
+                                )}
+                              </div>
+                              <div className="text-[10px]" style={{ color: 'var(--mu)' }}>
+                                {player.team} · {player.points_earned > 0 ? `${player.points_earned}pts` : player.player_role || ''}
+                              </div>
+                            </div>
 
-                      {/* Slider + buttons */}
-                      <div className="flex items-center gap-2 shrink-0" style={{ width: 200 }}>
-                        <button
-                          onClick={() => setPower(player.player_id, pw - 1)}
-                          disabled={isMin}
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[14px] font-bold border-none transition-all disabled:opacity-20"
-                          style={{ background: 'var(--surface2)', color: 'var(--tx)' }}
-                        >
-                          −
-                        </button>
-                        <div className="flex-1 relative h-8 flex items-center">
-                          <div className="absolute left-0 right-0 h-[5px] rounded" style={{ background: 'var(--faint)' }} />
-                          <div
-                            className="absolute left-0 h-[5px] rounded transition-all"
-                            style={{ width: `${pct}%`, background: fillColor }}
-                          />
-                          <div
-                            className="absolute w-[22px] h-[22px] rounded-full transition-all"
-                            style={{
-                              left: `${pct}%`,
-                              transform: 'translateX(-50%)',
-                              background: fillColor,
-                              border: '2.5px solid rgba(0,0,0,0.35)',
-                            }}
-                          />
-                        </div>
-                        <button
-                          onClick={() => setPower(player.player_id, pw + 1)}
-                          disabled={isMax}
-                          className="w-6 h-6 rounded-full flex items-center justify-center text-[14px] font-bold border-none transition-all disabled:opacity-20"
-                          style={{ background: 'var(--surface2)', color: 'var(--tx)' }}
-                        >
-                          +
-                        </button>
-                      </div>
+                            {player.points_earned > 0 && (
+                              <div className="font-cabinet text-[14px] font-extrabold shrink-0" style={{ color: 'var(--green)' }}>
+                                {player.points_earned}
+                              </div>
+                            )}
 
-                      {/* Power value */}
-                      <div className="font-cabinet text-[18px] font-black min-w-[32px] text-center" style={{ color: valColor }}>
-                        {pw}<small className="text-[10px] font-semibold" style={{ color: 'var(--mu)' }}>x</small>
-                      </div>
-                    </div>
+                            <div className="hidden md:flex items-center gap-2 shrink-0" style={{ width: 200 }}>
+                              {sliderControls}
+                            </div>
+
+                            {powerValue}
+                          </div>
+
+                          {/* Mobile-only second row: full-width slider so the
+                              player name above gets the room it needs. */}
+                          <div className="md:hidden flex items-center gap-2 mt-3">
+                            {sliderControls}
+                          </div>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}
