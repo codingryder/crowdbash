@@ -366,10 +366,7 @@ function GameCard({ room }: { room: Room }) {
       </div>
       <div style={{ padding: '12px 18px', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
         <div className="text-[11px]" style={{ color: 'var(--muted)' }}>{room.league || ''}</div>
-        <div className="flex items-center gap-2">
-          <span style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 12, fontWeight: 700, color: 'var(--green)', background: 'rgba(45,214,122,0.08)', borderRadius: 6, padding: '3px 9px' }}>₹10</span>
-          <span className="btn btn-primary" style={{ padding: '6px 16px', fontSize: 12, borderRadius: 7 }}>{isLive ? 'Join' : 'Play'}</span>
-        </div>
+        <span className="btn btn-primary" style={{ padding: '6px 16px', fontSize: 12, borderRadius: 7 }}>{isLive ? 'Join' : 'Play'}</span>
       </div>
     </Link>
   );
