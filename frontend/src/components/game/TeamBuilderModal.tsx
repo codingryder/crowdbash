@@ -71,6 +71,10 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
   const [error, setError] = useState('');
   const [roleFilter, setRoleFilter] = useState('all');
   const [search, setSearch] = useState('');
+  // ID of the picked player armed for replacement. Tap a card on the right
+  // to arm; the next bench tap swaps that player out for whoever was tapped,
+  // preserving slot order. Tap the armed card again (or Cancel) to disarm.
+  const [swapTargetId, setSwapTargetId] = useState<string | null>(null);
 
   const teams = Object.entries(availableSquads);
   const count = selectedPlayerIds.length;
@@ -237,6 +241,32 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
     }
 
     setPowers(updated);
+  }
+
+  // Bench tap behaviour depends on swap-arm state. When a picked player is
+  // armed, the next bench tap replaces them in-place (preserving slot order).
+  // Tapping the armed player itself (or another already-picked player) just
+  // re-arms / disarms — it never deselects under your finger by accident.
+  function handleBenchClick(playerId: string) {
+    if (swapTargetId) {
+      if (playerId === swapTargetId) {
+        setSwapTargetId(null);
+        return;
+      }
+      if (selectedPlayerIds.includes(playerId)) {
+        setSwapTargetId(playerId);
+        return;
+      }
+      setSelectedPlayerIds(selectedPlayerIds.map((id) => (id === swapTargetId ? playerId : id)));
+      setSwapTargetId(null);
+      return;
+    }
+    togglePlayer(playerId);
+  }
+
+  function handleRemovePicked(playerId: string) {
+    setSelectedPlayerIds(selectedPlayerIds.filter((id) => id !== playerId));
+    if (swapTargetId === playerId) setSwapTargetId(null);
   }
 
   async function handleConfirmSquad() {
@@ -430,7 +460,9 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
             <div className="flex flex-col overflow-hidden" style={{ borderRight: '1px solid var(--b1)', background: 'var(--bg2)' }}>
               <div className="px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--b1)' }}>
                 <div className="font-cabinet text-[13px] font-extrabold mb-0.5">Player bench</div>
-                <div className="text-[10px]" style={{ color: 'var(--mu)' }}>Tap to select · {count}/11 picked</div>
+                <div className="text-[10px]" style={{ color: swapTargetId ? 'var(--green)' : 'var(--mu)' }}>
+                  {swapTargetId ? 'Tap a player to swap in' : `Tap to select · ${count}/11 picked`}
+                </div>
               </div>
               {/* Search */}
               <div className="px-4 py-2 shrink-0">
@@ -487,19 +519,26 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
                   const role = tagMap[k] || { label: '?', color: 'var(--mu)', bg: 'var(--faint)' };
                   const isBenched = xiAnnounced && !isInXi(p.player_name);
 
+                  const isArmedTarget = swapTargetId === p.player_id;
                   return (
                     <button
                       key={p.player_id}
-                      onClick={() => togglePlayer(p.player_id)}
-                      disabled={!isSelected && !canAdd}
+                      onClick={() => handleBenchClick(p.player_id)}
+                      disabled={swapTargetId ? false : !isSelected && !canAdd}
                       className="w-full flex items-center gap-2 rounded-btn mb-1.5 text-left border-none transition-all disabled:opacity-25"
                       style={{
-                        background: isSelected ? 'rgba(45,214,122,0.05)' : 'var(--surface)',
-                        border: isBenched
-                          ? '1px solid rgba(240,82,82,0.55)'
+                        background: isArmedTarget
+                          ? 'rgba(45,214,122,0.12)'
                           : isSelected
-                            ? '1px solid var(--green)'
-                            : '1px solid var(--b1)',
+                            ? 'rgba(45,214,122,0.05)'
+                            : 'var(--surface)',
+                        border: isArmedTarget
+                          ? '1.5px solid var(--green)'
+                          : isBenched
+                            ? '1px solid rgba(240,82,82,0.55)'
+                            : isSelected
+                              ? '1px solid var(--green)'
+                              : '1px solid var(--b1)',
                         borderLeftWidth: isBenched ? 3 : undefined,
                         padding: '8px 10px',
                       }}
@@ -542,32 +581,99 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
               <div className="font-cabinet text-[13px] font-extrabold mb-3">
                 Your XI <span style={{ color: 'var(--green)' }}>({count}/11)</span>
               </div>
+              {swapTargetId ? (
+                <div
+                  className="mb-3 px-3 py-2 rounded-btn flex items-center justify-between gap-2"
+                  style={{ background: 'rgba(45,214,122,0.08)', border: '1px solid rgba(45,214,122,0.25)' }}
+                >
+                  <span className="text-[11px]" style={{ color: 'var(--green)' }}>
+                    Tap a bench player to replace{' '}
+                    <strong>{allPlayers.find((p) => p.player_id === swapTargetId)?.player_name}</strong>
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSwapTargetId(null)}
+                    className="text-[11px] bg-transparent border-none cursor-pointer shrink-0 underline"
+                    style={{ color: 'var(--mu)' }}
+                  >
+                    Cancel
+                  </button>
+                </div>
+              ) : (
+                count === 11 && (
+                  <div className="mb-3 text-[11px]" style={{ color: 'var(--mu)' }}>
+                    Tap a player to swap them out, or use ✕ to remove
+                  </div>
+                )
+              )}
               <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
                 {selectedPlayerIds.map((id, i) => {
                   const p = allPlayers.find((x) => x.player_id === id);
                   if (!p) return null;
                   const isBenched = xiAnnounced && !isInXi(p.player_name);
+                  const isArmed = swapTargetId === id;
                   return (
-                    <div
-                      key={id}
-                      className="flex items-center gap-2 rounded-btn px-3 py-2"
-                      style={{
-                        background: 'var(--surface)',
-                        border: isBenched ? '1px solid rgba(240,82,82,0.55)' : '1px solid var(--b1)',
-                        borderLeftWidth: isBenched ? 3 : undefined,
-                      }}
-                      title={isBenched ? 'Not in announced XI' : undefined}
-                    >
-                      <PlayerAvatar
-                        name={p.player_name}
-                        imageUrl={p.image_url}
-                        seed={String.fromCharCode(65 + (i % 5))}
-                        size={28}
-                        radius={6}
-                      />
-                      <span className="text-[11px] font-medium truncate" style={{ color: isBenched ? 'var(--red)' : undefined }}>
-                        {p.player_name.split(' ').pop()}
-                      </span>
+                    <div key={id} className="relative">
+                      <button
+                        type="button"
+                        onClick={() => setSwapTargetId(isArmed ? null : id)}
+                        className="w-full flex items-center gap-2 rounded-btn text-left border-none cursor-pointer transition-all"
+                        style={{
+                          padding: '8px 30px 8px 12px',
+                          background: isArmed ? 'rgba(45,214,122,0.12)' : 'var(--surface)',
+                          border: isArmed
+                            ? '1.5px solid var(--green)'
+                            : isBenched
+                              ? '1px solid rgba(240,82,82,0.55)'
+                              : '1px solid var(--b1)',
+                          borderLeftWidth: isBenched ? 3 : undefined,
+                        }}
+                        title={
+                          isArmed
+                            ? 'Armed — tap a bench player to swap in'
+                            : isBenched
+                              ? 'Not in announced XI · tap to replace'
+                              : 'Tap to replace'
+                        }
+                      >
+                        <PlayerAvatar
+                          name={p.player_name}
+                          imageUrl={p.image_url}
+                          seed={String.fromCharCode(65 + (i % 5))}
+                          size={28}
+                          radius={6}
+                        />
+                        <span
+                          className="text-[11px] font-medium truncate"
+                          style={{ color: isBenched ? 'var(--red)' : undefined }}
+                        >
+                          {p.player_name.split(' ').pop()}
+                        </span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          handleRemovePicked(id);
+                        }}
+                        aria-label={`Remove ${p.player_name}`}
+                        title="Remove from XI"
+                        className="absolute rounded-full flex items-center justify-center border-none cursor-pointer"
+                        style={{
+                          top: '50%',
+                          right: 6,
+                          transform: 'translateY(-50%)',
+                          width: 22,
+                          height: 22,
+                          background: 'var(--faint)',
+                          color: 'var(--mu)',
+                          fontSize: 13,
+                          lineHeight: 1,
+                          padding: 0,
+                        }}
+                      >
+                        ×
+                      </button>
                     </div>
                   );
                 })}
