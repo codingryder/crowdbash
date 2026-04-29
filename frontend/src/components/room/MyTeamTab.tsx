@@ -14,8 +14,12 @@ interface MyTeamTabProps {
   matchStarted?: boolean;
 }
 
-export function MyTeamTab({ roomId: _roomId, matchStarted = false }: MyTeamTabProps) {
-  const game = useGameStore((s) => s.game);
+export function MyTeamTab({ roomId, matchStarted = false }: MyTeamTabProps) {
+  // Drop game data that belongs to a different room — guards against
+  // a stale in-flight fetch from the previous room polluting the store
+  // and rendering its XI here. useGame's AbortController is the
+  // primary defense; this is belt-and-braces.
+  const game = useGameStore((s) => (s.game && s.game.room_id === roomId ? s.game : null));
   const { announced, isInXi } = usePlayingXi();
 
   // Match has already started → user is a spectator if they either

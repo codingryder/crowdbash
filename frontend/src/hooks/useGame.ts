@@ -1,4 +1,5 @@
 import { useEffect } from 'react';
+import axios from 'axios';
 import api from '../lib/api';
 import { useGameStore } from '../store/gameStore';
 
@@ -7,26 +8,32 @@ export function useGame(roomId: string | undefined) {
 
   useEffect(() => {
     if (!roomId) return;
-
-    fetchGameState();
-    fetchSquads();
+    // Abort the previous room's fetches on navigation. Without this,
+    // a slow response from the room you just left can land in the
+    // store after you've moved on, rendering its XI in the new room.
+    const ac = new AbortController();
+    fetchGameState(ac.signal);
+    fetchSquads(ac.signal);
+    return () => ac.abort();
   }, [roomId]);
 
-  async function fetchGameState() {
+  async function fetchGameState(signal?: AbortSignal) {
     try {
-      const { data } = await api.get(`/api/game/${roomId}`);
+      const { data } = await api.get(`/api/game/${roomId}`, { signal });
       setGame(data);
-    } catch {
-      // User hasn't joined this room yet
+    } catch (err) {
+      if (axios.isCancel(err)) return;
+      // 404 / not joined yet — leave the store empty.
     }
   }
 
-  async function fetchSquads() {
+  async function fetchSquads(signal?: AbortSignal) {
     try {
-      const { data } = await api.get(`/api/game/${roomId}/squads`);
+      const { data } = await api.get(`/api/game/${roomId}/squads`, { signal });
       setAvailableSquads(data.teams || {});
-    } catch {
-      // No squads available yet
+    } catch (err) {
+      if (axios.isCancel(err)) return;
+      // No squads available yet.
     }
   }
 
