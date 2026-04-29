@@ -20,6 +20,9 @@ interface GameStore {
 
   // Squad selection
   availableSquads: Record<string, SquadPlayer[]>;
+  // True until the per-room /squads fetch resolves (success or empty),
+  // so the UI can tell "still loading" apart from "fetched, no data".
+  squadsLoading: boolean;
   selectedPlayerIds: string[];
 
   setGame: (game: Game) => void;
@@ -55,6 +58,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
   showTeamBuilder: false,
   teamBuilderMode: 'full',
   availableSquads: {},
+  squadsLoading: true,
   selectedPlayerIds: [],
 
   setShowTeamBuilder: (show, mode) =>
@@ -71,7 +75,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
 
   setLeaderboard: (entries) => set({ leaderboard: entries }),
   setEditWindow: (open) => set({ editWindowOpen: open }),
-  setAvailableSquads: (squads) => set({ availableSquads: squads }),
+  setAvailableSquads: (squads) => set({ availableSquads: squads, squadsLoading: false }),
 
   // Squad selection
   togglePlayer: (playerId) => {
@@ -111,6 +115,7 @@ export const useGameStore = create<GameStore>((set, get) => ({
     remainingBudget: TOTAL_BUDGET,
     showTeamBuilder: false,
     availableSquads: {},
+    squadsLoading: true,
     selectedPlayerIds: [],
   }),
 

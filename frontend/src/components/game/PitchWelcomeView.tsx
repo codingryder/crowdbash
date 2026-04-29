@@ -75,6 +75,7 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
   const MIN_WK = 1;
   const { selectSquad, saveWeightages, lockSquad, fetchSquads, fetchGameState } = useGame(roomId);
   const availableSquads = useGameStore(s => s.availableSquads);
+  const squadsLoading = useGameStore(s => s.squadsLoading);
   const game = useGameStore(s => s.game);
 
   const [slots, setSlots] = useState<(SquadPlayer | null)[]>(new Array(11).fill(null));
@@ -406,12 +407,31 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
   };
 
   if (allPlayers.length === 0) {
+    if (squadsLoading) {
+      return (
+        <div className="flex items-center justify-center" style={{ height: '100dvh', paddingTop: 60 }}>
+          <div className="text-center">
+            <div className="text-3xl mb-3 animate-pulse">{isFootball ? '⚽' : '🏏'}</div>
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Loading squads...</div>
+            <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Fetching player data for {t1} vs {t2}</div>
+          </div>
+        </div>
+      );
+    }
     return (
       <div className="flex items-center justify-center" style={{ height: '100dvh', paddingTop: 60 }}>
-        <div className="text-center">
-          <div className="text-3xl mb-3 animate-pulse">{isFootball ? '⚽' : '🏏'}</div>
-          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 4 }}>Loading squads...</div>
-          <div className="text-[12px]" style={{ color: 'var(--muted)' }}>Fetching player data for {t1} vs {t2}</div>
+        <div className="text-center" style={{ maxWidth: 360, padding: '0 24px' }}>
+          <div className="text-3xl mb-3">{isFootball ? '⚽' : '🏏'}</div>
+          <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 16, fontWeight: 800, marginBottom: 6 }}>Squads not available yet</div>
+          <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5, marginBottom: 16 }}>
+            We don't have player data for {t1} vs {t2} yet. Try again in a moment, or ask an admin to sync the squad.
+          </div>
+          <button
+            onClick={() => window.location.reload()}
+            style={{ padding: '8px 18px', fontSize: 12, fontWeight: 700, borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            Reload
+          </button>
         </div>
       </div>
     );

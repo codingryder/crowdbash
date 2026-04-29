@@ -33,7 +33,9 @@ export function useGame(roomId: string | undefined) {
       setAvailableSquads(data.teams || {});
     } catch (err) {
       if (axios.isCancel(err)) return;
-      // No squads available yet.
+      // Real error, not abort — clear the loading flag so the UI can
+      // render the empty state instead of spinning forever.
+      setAvailableSquads({});
     }
   }
 
