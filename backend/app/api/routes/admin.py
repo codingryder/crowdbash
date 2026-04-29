@@ -210,10 +210,14 @@ async def admin_open_edit_window(
     room = result.scalar_one_or_none()
     if not room:
         raise HTTPException(status_code=404, detail="Room not found")
-    if room.status != "locked":
+    # Reshuffle is normally a mid-match trigger (auto-opens at innings
+    # break / 10 overs / half-time). The admin button exists as a manual
+    # rescue when the auto-trigger is delayed or for testing flows on a
+    # not-yet-locked room — allow open + locked, block only closed.
+    if room.status == "closed":
         raise HTTPException(
             status_code=400,
-            detail=f"Reshuffle is only meaningful for locked rooms (current: {room.status})",
+            detail=f"Cannot reshuffle a closed room.",
         )
     if body.duration_seconds < MIN_DURATION_SECONDS or body.duration_seconds > MAX_DURATION_SECONDS:
         raise HTTPException(

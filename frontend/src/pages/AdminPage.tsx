@@ -329,7 +329,7 @@ export function AdminPage() {
                               Delete
                             </button>
                           </div>
-                          {r.status === 'locked' && (
+                          {(r.status === 'locked' || r.status === 'open') && (
                             <ReshuffleControls
                               room={r}
                               now={now}
