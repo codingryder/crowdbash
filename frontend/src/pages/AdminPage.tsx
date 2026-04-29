@@ -1,6 +1,6 @@
 import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { useAdminStore } from '../store/adminStore';
+import { useAdminStore, type AdminRoom } from '../store/adminStore';
 import api from '../lib/api';
 
 interface AvailableMatch {
@@ -25,6 +25,7 @@ export function AdminPage() {
     openPlayerEditWindow, closePlayerEditWindow,
     refreshSquads, setLateJoin,
     announceXi, clearXi,
+    broadcastRecipients, broadcastRoomInvite,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create' | 'custom'>('rooms');
 
@@ -53,6 +54,7 @@ export function AdminPage() {
   const [xiBusy, setXiBusy] = useState<Record<string, boolean>>({});
   const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
   const [syncMsg, setSyncMsg] = useState('');
+  const [broadcastRoom, setBroadcastRoom] = useState<AdminRoom | null>(null);
 
   // Tick every 5s so the "Active Xs left" badge counts down without manual refresh.
   const [now, setNow] = useState(() => Date.now());
@@ -358,6 +360,13 @@ export function AdminPage() {
                             >
                               {r.late_join_enabled ? '⚡ Always-on edit ON' : 'Always-on edit OFF'}
                             </button>
+                            <button
+                              onClick={() => setBroadcastRoom(r)}
+                              title="Email all users with verified emails about this room"
+                              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(59,130,246,0.08)', color: 'var(--blue)', border: '1px solid rgba(59,130,246,0.25)', cursor: 'pointer' }}
+                            >
+                              📧 Email users
+                            </button>
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
                               Delete
                             </button>
@@ -612,6 +621,14 @@ export function AdminPage() {
           </div>
         )}
       </div>
+      {broadcastRoom && (
+        <BroadcastModal
+          room={broadcastRoom}
+          onClose={() => setBroadcastRoom(null)}
+          getRecipientCount={broadcastRecipients}
+          send={broadcastRoomInvite}
+        />
+      )}
     </div>
   );
 }
@@ -820,6 +837,147 @@ function PlayerEditControls({
       >
         Close
       </button>
+    </div>
+  );
+}
+
+
+/* ─── Broadcast Modal ─── */
+function BroadcastModal({
+  room, onClose, getRecipientCount, send,
+}: {
+  room: AdminRoom;
+  onClose: () => void;
+  getRecipientCount: () => Promise<number | null>;
+  send: (
+    roomId: string,
+    body: { subject?: string; intro?: string; test_email?: string },
+  ) => Promise<{ sent: number; failed: number; total: number; test?: boolean; error?: string } | null>;
+}) {
+  const [subject, setSubject] = useState(`Join the ${room.match_name} room on Crowdbash`);
+  const [intro, setIntro] = useState(
+    "Today's match is starting soon — drop into the room, pick your XI, and play live."
+  );
+  const [testEmail, setTestEmail] = useState('');
+  const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState<'test' | 'all' | null>(null);
+  const [result, setResult] = useState<string>('');
+
+  useEffect(() => {
+    let alive = true;
+    getRecipientCount().then(c => { if (alive) setRecipientCount(c); });
+    return () => { alive = false; };
+  }, [getRecipientCount]);
+
+  const sendTest = async () => {
+    if (!testEmail.trim()) return;
+    setBusy('test');
+    setResult('');
+    const r = await send(room.id, { subject, intro, test_email: testEmail.trim() });
+    setBusy(null);
+    if (!r) setResult('Request failed.');
+    else if (r.failed > 0) setResult(`Test send failed${r.error ? `: ${r.error}` : ''}.`);
+    else setResult(`Test email sent to ${testEmail.trim()}.`);
+  };
+
+  const sendAll = async () => {
+    if (recipientCount === null) return;
+    if (!confirm(`Send this email to ${recipientCount} user${recipientCount === 1 ? '' : 's'}?`)) return;
+    setBusy('all');
+    setResult('');
+    const r = await send(room.id, { subject, intro });
+    setBusy(null);
+    if (!r) setResult('Broadcast failed.');
+    else setResult(`Sent ${r.sent} of ${r.total} (${r.failed} failed).`);
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 100, padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 520, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 12,
+          padding: 24, maxHeight: '90vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
+          <div>
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>Email users</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{room.match_name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        <CustomField label="Subject">
+          <input value={subject} onChange={e => setSubject(e.target.value)} style={fieldStyle} />
+        </CustomField>
+        <div style={{ height: 12 }} />
+        <CustomField label="Message" hint="Plain text. Newlines become line breaks.">
+          <textarea
+            value={intro}
+            onChange={e => setIntro(e.target.value)}
+            rows={4}
+            style={{ ...fieldStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          />
+        </CustomField>
+
+        <div style={{ height: 16 }} />
+        <div style={{ borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+          <CustomField label="Test email (optional)" hint="Send a single preview to this address before broadcasting.">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={e => setTestEmail(e.target.value)}
+                placeholder="you@example.com"
+                style={fieldStyle}
+              />
+              <button
+                disabled={busy !== null || !testEmail.trim()}
+                onClick={sendTest}
+                style={{ padding: '0 16px', fontSize: 13, fontWeight: 700, borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', cursor: busy ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: busy === 'test' ? 0.5 : 1 }}
+              >
+                {busy === 'test' ? 'Sending…' : 'Send test'}
+              </button>
+            </div>
+          </CustomField>
+        </div>
+
+        {result && (
+          <div style={{ marginTop: 16, fontSize: 13, color: result.includes('failed') || result.includes('Failed') ? 'var(--red)' : 'var(--green)' }}>
+            {result}
+          </div>
+        )}
+
+        <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '10px 18px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={busy !== null || recipientCount === null || recipientCount === 0}
+            onClick={sendAll}
+            className="btn btn-primary"
+            style={{ padding: '10px 22px', fontSize: 14, fontWeight: 700 }}
+          >
+            {busy === 'all'
+              ? 'Sending…'
+              : recipientCount === null
+                ? 'Loading…'
+                : `Send to ${recipientCount} user${recipientCount === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

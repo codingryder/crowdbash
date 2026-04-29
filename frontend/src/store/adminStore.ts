@@ -74,6 +74,11 @@ interface AdminState {
   setLateJoin: (roomId: string, enabled: boolean) => Promise<boolean>;
   announceXi: (roomId: string) => Promise<{ team_a?: string; team_b?: string; xi_a_count?: number; xi_b_count?: number } | null>;
   clearXi: (roomId: string) => Promise<boolean>;
+  broadcastRecipients: () => Promise<number | null>;
+  broadcastRoomInvite: (
+    roomId: string,
+    body: { subject?: string; intro?: string; test_email?: string },
+  ) => Promise<{ sent: number; failed: number; total: number; test?: boolean; error?: string } | null>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -239,6 +244,31 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
       return false;
+    }
+  },
+
+  broadcastRecipients: async () => {
+    try {
+      const { data } = await adminApi().get('/api/admin/broadcast/recipients');
+      return data?.count ?? 0;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return null;
+    }
+  },
+
+  broadcastRoomInvite: async (roomId, body) => {
+    try {
+      // Fan-out to ~all users; allow ample headroom over the default timeout.
+      const { data } = await adminApi().post(
+        `/api/admin/rooms/${roomId}/broadcast`,
+        body,
+        { timeout: 60_000 },
+      );
+      return data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return null;
     }
   },
 

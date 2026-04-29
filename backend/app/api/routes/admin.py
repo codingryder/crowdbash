@@ -480,6 +480,109 @@ async def delete_room(
     return {"deleted": room_id}
 
 
+# ── Room invite broadcast ──
+
+class BroadcastRequest(PydanticBaseModel):
+    subject: str | None = None
+    intro: str | None = None
+    test_email: str | None = None
+
+
+@router.get("/broadcast/recipients")
+async def broadcast_recipients(
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Count of users eligible for a broadcast email (verified address)."""
+    from app.models.user import User
+    from sqlalchemy import func as _func
+
+    res = await db.execute(
+        select(_func.count()).select_from(User).where(
+            User.email_verified == True,  # noqa: E712
+            User.email.is_not(None),
+        )
+    )
+    return {"count": int(res.scalar() or 0)}
+
+
+@router.post("/rooms/{room_id}/broadcast")
+async def broadcast_room_invite(
+    room_id: str,
+    body: BroadcastRequest,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Email a room invite. With test_email set, sends to that single
+    address only. Otherwise fans out to every user with a verified
+    email. Per-recipient errors are swallowed and surfaced as `failed`
+    in the response — never raises mid-fanout.
+    """
+    from app.models.user import User
+    from app.services.email_service import send_room_invite_email
+    import asyncio
+    from datetime import timezone, timedelta
+
+    room_res = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = room_res.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    subject = (body.subject or "").strip() or f"Join the {room.match_name} room on Crowdbash"
+    intro_html = (
+        (body.intro or "").strip()
+        or "Today's match is starting soon — drop into the room, pick your XI, and play live."
+    ).replace("\n", "<br>")
+
+    room_url = f"{settings.FRONTEND_URL.rstrip('/')}/room/{room.id}"
+    match_date_label = None
+    if room.match_date:
+        # Audience is India-heavy; render kickoff in IST.
+        ist = room.match_date.astimezone(timezone(timedelta(hours=5, minutes=30)))
+        match_date_label = ist.strftime("%a %d %b · %I:%M %p IST")
+
+    common = dict(
+        subject=subject,
+        intro_html=intro_html,
+        match_name=room.match_name,
+        league=room.league,
+        match_format=room.match_format,
+        venue=room.venue,
+        match_date_label=match_date_label,
+        room_url=room_url,
+    )
+
+    if body.test_email:
+        try:
+            await send_room_invite_email(body.test_email.strip(), **common)
+            return {"sent": 1, "failed": 0, "total": 1, "test": True}
+        except Exception as e:
+            return {"sent": 0, "failed": 1, "total": 1, "test": True, "error": str(e)}
+
+    users_res = await db.execute(
+        select(User).where(
+            User.email_verified == True,  # noqa: E712
+            User.email.is_not(None),
+        )
+    )
+    users = users_res.scalars().all()
+
+    sent = 0
+    failed = 0
+
+    async def _send_one(addr: str):
+        nonlocal sent, failed
+        try:
+            await send_room_invite_email(addr, **common)
+            sent += 1
+        except Exception:
+            failed += 1
+
+    await asyncio.gather(*[_send_one(u.email) for u in users])
+    return {"sent": sent, "failed": failed, "total": len(users), "test": False}
+
+
 @router.post("/fetch-matches")
 async def fetch_upcoming_matches(
     sport: str = Query("cricket"),
