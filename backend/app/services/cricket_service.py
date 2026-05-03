@@ -389,29 +389,25 @@ class CricketAdapter(SportAdapter):
 
     def is_edit_window(self, current_progress: dict, last_edit_progress: dict) -> bool:
         """
-        T20 reshuffle windows:
-        - 1st innings: after 10 overs
-        - Innings break (transition from 1 → 2): always fires — covers the
-          end of innings 1 (the "after 20 overs" boundary), including cases
-          where ESPN jumps straight into innings 2 between polls.
-        - 2nd innings: after 10 overs
+        T20 reshuffle window — fires ONLY once, after over 10 of the
+        FIRST innings. The second innings reshuffle and the innings-break
+        trigger were intentionally removed: in T20 the innings break is
+        already too late to redistribute power meaningfully, and a second
+        2nd-innings reshuffle was confusing users without adding value.
         """
-        curr_innings = current_progress.get("innings", 1)
-        curr_over = float(current_progress.get("over", 0))
-        last_innings = last_edit_progress.get("innings", 1)
-        last_over = float(last_edit_progress.get("over", 0))
+        curr_innings = int(current_progress.get("innings", 1) or 1)
+        last_innings = int(last_edit_progress.get("innings", 1) or 1)
+        curr_over = float(current_progress.get("over", 0) or 0)
+        last_over = float(last_edit_progress.get("over", 0) or 0)
 
-        # Innings transition: always treat as a reshuffle window so we
-        # never miss the innings break, regardless of where in innings 2
-        # the first poll lands.
-        if curr_innings > last_innings:
-            return True
+        # Only innings 1 qualifies. If the poller saw innings 1 last time
+        # and now sees innings 2 (or later), the window is already past —
+        # don't retroactively fire.
+        if curr_innings != 1 or last_innings != 1:
+            return False
 
-        # Same innings: fire once when over 10 is crossed.
-        if curr_innings == last_innings and last_over < 10 <= curr_over:
-            return True
-
-        return False
+        # Fire exactly once on the transition across over 10.
+        return last_over < 10 <= curr_over
 
     def get_edit_trigger(self, current_progress: dict) -> str:
         innings = current_progress.get("innings", 1)
