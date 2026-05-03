@@ -12,6 +12,7 @@ import { ProfilePage } from './pages/ProfilePage';
 import { AdminPage } from './pages/AdminPage';
 import { RewardsPage } from './pages/RewardsPage';
 import { TermsPage, PrivacyPage } from './pages/LegalPages';
+import { FeedbackPage } from './pages/FeedbackPage';
 
 function AppContent() {
   const location = useLocation();
@@ -34,6 +35,7 @@ function AppContent() {
           <Route path="/rewards" element={<RewardsPage />} />
           <Route path="/terms" element={<TermsPage />} />
           <Route path="/privacy" element={<PrivacyPage />} />
+          <Route path="/feedback" element={<FeedbackPage />} />
           <Route path="/admin" element={<AdminPage />} />
         </Routes>
       </div>

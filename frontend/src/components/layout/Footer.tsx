@@ -1,9 +1,6 @@
-import { useState } from 'react';
 import { Link } from 'react-router-dom';
-import { FeedbackModal } from './FeedbackModal';
 
 export function Footer() {
-  const [feedbackOpen, setFeedbackOpen] = useState(false);
   return (
     <footer
       className="shrink-0 px-4 md:px-9 py-6"
@@ -23,21 +20,7 @@ export function Footer() {
           <span className="hidden md:inline">·</span>
           <Link to="/privacy" className="no-underline" style={{ color: 'var(--mu)' }}>Privacy</Link>
           <span className="hidden md:inline">·</span>
-          <button
-            type="button"
-            onClick={() => setFeedbackOpen(true)}
-            className="no-underline"
-            style={{
-              color: 'var(--mu)',
-              background: 'transparent',
-              border: 'none',
-              padding: 0,
-              font: 'inherit',
-              cursor: 'pointer',
-            }}
-          >
-            Feedback
-          </button>
+          <Link to="/feedback" className="no-underline" style={{ color: 'var(--mu)' }}>Feedback</Link>
           <span className="hidden md:inline">·</span>
           <a href="mailto:connect@codingryder.com" className="no-underline" style={{ color: 'var(--mu)' }}>
             connect@codingryder.com
@@ -57,7 +40,6 @@ export function Footer() {
           </span>
         </div>
       </div>
-      <FeedbackModal open={feedbackOpen} onClose={() => setFeedbackOpen(false)} />
     </footer>
   );
 }
