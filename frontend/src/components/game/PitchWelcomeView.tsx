@@ -655,6 +655,59 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
                   </button>
                 </div>
               )}
+
+              {/* Sticky bottom Lock CTA — primary action below the pitch/power
+                  view so users don't have to scroll back to the cramped header
+                  Lock button. Only shown while the squad isn't locked yet;
+                  the locked-confirmation block above takes over after that. */}
+              {!game?.squad_locked && (
+                <div
+                  style={{
+                    position: 'sticky',
+                    bottom: 0,
+                    padding: '10px 14px',
+                    paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
+                    background: 'var(--bg)',
+                    borderTop: '1px solid var(--border)',
+                    display: 'flex',
+                    flexDirection: 'column',
+                    gap: 6,
+                  }}
+                >
+                  <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
+                    {pickCount < 11
+                      ? `Pick ${11 - pickCount} more player${11 - pickCount === 1 ? '' : 's'} to lock`
+                      : !compositionValid
+                        ? 'Fix role mix to lock'
+                        : !isBalanced
+                          ? `Use all 33 power points to lock (${totalUsed}/33)`
+                          : 'You\'re ready — lock your XI'}
+                  </div>
+                  <button
+                    onClick={handleLockTeam}
+                    disabled={!canLock || locking}
+                    style={{
+                      width: '100%',
+                      background: 'var(--green)',
+                      color: '#071a0e',
+                      border: 'none',
+                      borderRadius: 12,
+                      padding: '14px 20px',
+                      fontFamily: "'Cabinet Grotesk', sans-serif",
+                      fontSize: 15,
+                      fontWeight: 800,
+                      cursor: canLock && !locking ? 'pointer' : 'not-allowed',
+                      opacity: canLock && !locking ? 1 : 0.4,
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                      gap: 8,
+                    }}
+                  >
+                    {locking ? 'Locking...' : 'Lock my XI ✓'}
+                  </button>
+                </div>
+              )}
             </>
           )}
         </div>
