@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useGameStore } from '../../store/gameStore';
 import { usePlayingXi } from '../../hooks/usePlayingXi';
+import { XiStatusBadge } from './XiStatusBadge';
 import type { Sport, SquadPlayer } from '../../types';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
 
@@ -513,20 +514,12 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
                         radius={7}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-medium truncate" style={{ color: isSelected ? 'var(--tx)' : 'var(--tx2)' }}>
-                          {p.player_name}
+                        <div className="text-[12px] font-medium truncate flex items-center gap-1.5" style={{ color: isSelected ? 'var(--tx)' : 'var(--tx2)' }}>
+                          <span className="truncate">{p.player_name}</span>
+                          {xiAnnounced && <XiStatusBadge inXi={isInXi(p.player_name)} />}
                         </div>
                         <div className="text-[10px]" style={{ color: 'var(--mu)' }}>{p.team}</div>
                       </div>
-                      {isBenched && (
-                        <span
-                          className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
-                          style={{ color: 'var(--red)', background: 'rgba(240,82,82,0.12)' }}
-                          title="Not in announced XI"
-                        >
-                          OUT
-                        </span>
-                      )}
                       <span
                         className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
                         style={{ color: role.color, background: role.bg }}
@@ -606,6 +599,19 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
                           size={28}
                           radius={6}
                         />
+                        {xiAnnounced && (
+                          <span
+                            title={isBenched ? 'Not in announced XI today' : 'In announced XI today'}
+                            style={{
+                              display: 'inline-block',
+                              width: 8,
+                              height: 8,
+                              borderRadius: '50%',
+                              background: isBenched ? 'var(--red)' : 'var(--green)',
+                              flexShrink: 0,
+                            }}
+                          />
+                        )}
                         <span
                           className="text-[11px] font-medium truncate"
                           style={{ color: isBenched ? 'var(--red)' : undefined }}
@@ -783,15 +789,7 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
                             <div className="flex-1 min-w-0">
                               <div className="flex items-center gap-1.5">
                                 <span className="text-[13px] font-semibold truncate">{player.player_name}</span>
-                                {isBenched && (
-                                  <span
-                                    className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"
-                                    style={{ color: 'var(--red)', background: 'rgba(240,82,82,0.12)' }}
-                                    title="Not in announced XI"
-                                  >
-                                    NOT IN XI
-                                  </span>
-                                )}
+                                {xiAnnounced && <XiStatusBadge inXi={isInXi(player.player_name)} size="sm" />}
                               </div>
                               <div className="text-[10px]" style={{ color: 'var(--mu)' }}>
                                 {player.team} · {player.points_earned > 0 ? `${player.points_earned}pts` : player.player_role || ''}

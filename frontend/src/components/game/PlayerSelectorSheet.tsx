@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { SquadPlayer } from '../../types';
 import { PlayerAvatar } from '../ui/PlayerAvatar';
 import { usePlayingXi } from '../../hooks/usePlayingXi';
+import { XiStatusBadge } from './XiStatusBadge';
 
 const ROLE_COLORS: Record<string, { label: string; color: string }> = {
   'batsman': { label: 'BAT', color: 'var(--blue)' },
@@ -162,26 +163,11 @@ export function PlayerSelectorSheet({
                     {/* Name + role */}
                     <div className="flex-1 min-w-0">
                       <div className="text-[13px] font-medium truncate flex items-center gap-1.5" style={{ color: 'var(--text)' }}>
-                        {announced && (
-                          <span
-                            title={isInXi(player.player_name) ? 'In playing XI' : 'Not in playing XI'}
-                            style={{
-                              display: 'inline-block',
-                              width: 7,
-                              height: 7,
-                              borderRadius: '50%',
-                              background: isInXi(player.player_name) ? 'var(--green)' : 'var(--muted)',
-                              flexShrink: 0,
-                            }}
-                          />
-                        )}
                         <span className="truncate">{player.player_name}</span>
+                        {announced && <XiStatusBadge inXi={isInXi(player.player_name)} />}
                       </div>
                       <div className="flex items-center gap-1.5">
                         <span style={{ fontSize: 9, fontWeight: 700, color: rc.color }}>{rc.label}</span>
-                        {announced && !isInXi(player.player_name) && (
-                          <span className="text-[9px]" style={{ color: 'var(--muted)' }}>not in XI</span>
-                        )}
                         {isAssigned && <span className="text-[9px]" style={{ color: 'var(--muted)' }}>on field</span>}
                         {isCurrent && <span className="text-[9px]" style={{ color: 'var(--green)' }}>current</span>}
                       </div>
