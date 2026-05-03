@@ -2,6 +2,22 @@ import { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { useAdminStore, type AdminRoom } from '../store/adminStore';
 import api from '../lib/api';
+import axios from 'axios';
+
+interface FeedbackRow {
+  id: string;
+  room_id: string | null;
+  user_id: string | null;
+  username: string | null;
+  contact: string | null;
+  sport: string;
+  category: string;
+  severity: string | null;
+  nps: number | null;
+  message: string;
+  answers: Record<string, unknown> | null;
+  created_at: string | null;
+}
 
 interface AvailableMatch {
   match_id: string;
@@ -28,7 +44,14 @@ export function AdminPage() {
     broadcastRecipients, broadcastRoomInvite,
     setMatchSquads,
   } = useAdminStore();
-  const [tab, setTab] = useState<'rooms' | 'create' | 'custom'>('rooms');
+  const [tab, setTab] = useState<'rooms' | 'create' | 'custom' | 'feedback'>('rooms');
+
+  // Feedback tab state
+  const [feedback, setFeedback] = useState<FeedbackRow[]>([]);
+  const [feedbackLoading, setFeedbackLoading] = useState(false);
+  const [feedbackErr, setFeedbackErr] = useState('');
+  const [feedbackSportFilter, setFeedbackSportFilter] = useState<string>('');
+  const [feedbackCategoryFilter, setFeedbackCategoryFilter] = useState<string>('');
 
   // Custom-room form state — used by the "Custom" tab to spin up a test
   // room with an arbitrary match_id (e.g. "espn_740922" for a real ESPN
@@ -93,6 +116,57 @@ export function AdminPage() {
       fetchAvailableMatches();
     }
   }, [tab]);
+
+  // Fetch feedback when the Feedback tab is opened or filters change
+  useEffect(() => {
+    if (!isLoggedIn || tab !== 'feedback') return;
+    fetchFeedback();
+  }, [isLoggedIn, tab, feedbackSportFilter, feedbackCategoryFilter]);
+
+  async function fetchFeedback() {
+    setFeedbackLoading(true);
+    setFeedbackErr('');
+    try {
+      const token = localStorage.getItem('crowdbash_admin_token');
+      const params = new URLSearchParams();
+      if (feedbackSportFilter) params.set('sport', feedbackSportFilter);
+      if (feedbackCategoryFilter) params.set('category', feedbackCategoryFilter);
+      params.set('limit', '500');
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const { data } = await axios.get<FeedbackRow[]>(`${base}/api/feedback?${params.toString()}`, {
+        headers: token ? { Authorization: `Bearer ${token}` } : {},
+        timeout: 30000,
+      });
+      setFeedback(data);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string }; status?: number } };
+      setFeedbackErr(err?.response?.data?.detail || `Failed to load feedback (${err?.response?.status ?? 'network'})`);
+      setFeedback([]);
+    } finally {
+      setFeedbackLoading(false);
+    }
+  }
+
+  function exportFeedbackCsv() {
+    if (!feedback.length) return;
+    const headers = ['created_at', 'sport', 'category', 'severity', 'nps', 'username', 'contact', 'room_id', 'message', 'answers'];
+    const escape = (v: unknown): string => {
+      const s = v === null || v === undefined ? '' : typeof v === 'string' ? v : JSON.stringify(v);
+      if (/[",\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`;
+      return s;
+    };
+    const rows = feedback.map((f) => [
+      f.created_at, f.sport, f.category, f.severity, f.nps, f.username, f.contact, f.room_id, f.message, f.answers,
+    ].map(escape).join(','));
+    const csv = [headers.join(','), ...rows].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `crowdbash-feedback-${new Date().toISOString().slice(0, 10)}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }
 
   const fetchAvailableMatches = async () => {
     setMatchesLoading(true);
@@ -184,14 +258,14 @@ export function AdminPage() {
 
         {/* Tabs */}
         <div style={{ display: 'flex', gap: 4, background: 'var(--surface)', borderRadius: 'var(--radius-sm)', padding: 4, marginBottom: 24 }}>
-          {(['rooms', 'create', 'custom'] as const).map(t => (
+          {(['rooms', 'create', 'custom', 'feedback'] as const).map(t => (
             <button key={t} onClick={() => setTab(t)} style={{
               flex: 1, padding: '10px 0', fontSize: 13, fontWeight: 700, fontFamily: "'Cabinet Grotesk', sans-serif",
               background: tab === t ? 'var(--surface3)' : 'transparent',
               color: tab === t ? 'var(--text)' : 'var(--muted)',
               border: 'none', borderRadius: 7, cursor: 'pointer',
             }}>
-              {t === 'rooms' ? 'All Rooms' : t === 'create' ? 'Create Room' : 'Custom (test)'}
+              {t === 'rooms' ? 'All Rooms' : t === 'create' ? 'Create Room' : t === 'custom' ? 'Custom (test)' : 'Feedback'}
             </button>
           ))}
         </div>
@@ -629,6 +703,71 @@ export function AdminPage() {
             </div>
           </div>
         )}
+
+        {/* ═══ TAB: FEEDBACK ═══ */}
+        {tab === 'feedback' && (
+          <div>
+            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16, flexWrap: 'wrap', gap: 12 }}>
+              <div>
+                <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>
+                  User feedback ({feedback.length})
+                </div>
+                <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 4 }}>
+                  Submissions from in-room cricket Feedback tab and the /feedback page. Most recent first.
+                </div>
+              </div>
+              <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+                <select value={feedbackSportFilter} onChange={(e) => setFeedbackSportFilter(e.target.value)} style={{ ...fieldStyle, width: 'auto', padding: '6px 10px' }}>
+                  <option value="">All sports</option>
+                  <option value="cricket">Cricket</option>
+                  <option value="football">Football</option>
+                </select>
+                <select value={feedbackCategoryFilter} onChange={(e) => setFeedbackCategoryFilter(e.target.value)} style={{ ...fieldStyle, width: 'auto', padding: '6px 10px' }}>
+                  <option value="">All categories</option>
+                  <option value="general">General</option>
+                  <option value="joining">Joining</option>
+                  <option value="team_building">Team building</option>
+                  <option value="power_allocation">Power allocation</option>
+                  <option value="edit_window">Edit window</option>
+                  <option value="scorecard">Scorecard</option>
+                  <option value="playing_xi">Playing XI</option>
+                  <option value="quiz">Quiz</option>
+                  <option value="leaderboard">Leaderboard</option>
+                  <option value="chat">Chat</option>
+                  <option value="rewards">Rewards</option>
+                  <option value="performance">Performance</option>
+                  <option value="bug">Bug</option>
+                </select>
+                <button onClick={fetchFeedback} disabled={feedbackLoading} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--text2)', border: '1px solid var(--border)', cursor: 'pointer' }}>
+                  {feedbackLoading ? 'Loading…' : 'Refresh'}
+                </button>
+                <button onClick={exportFeedbackCsv} disabled={!feedback.length} style={{ padding: '6px 14px', fontSize: 12, fontWeight: 700, borderRadius: 7, background: 'var(--green)', color: '#071a0e', border: 'none', cursor: feedback.length ? 'pointer' : 'not-allowed', opacity: feedback.length ? 1 : 0.5 }}>
+                  Export CSV
+                </button>
+              </div>
+            </div>
+
+            {feedbackErr && (
+              <div style={{ background: 'rgba(240,82,82,0.1)', border: '1px solid rgba(240,82,82,0.3)', borderRadius: 8, padding: '10px 14px', fontSize: 13, color: 'var(--red)', marginBottom: 16 }}>
+                {feedbackErr}
+              </div>
+            )}
+
+            {feedbackLoading && feedback.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)', fontSize: 13 }}>Loading feedback…</div>
+            ) : !feedback.length ? (
+              <div style={{ textAlign: 'center', padding: 60, color: 'var(--muted)', fontSize: 13 }}>
+                No feedback yet. Submissions will appear here as users send them.
+              </div>
+            ) : (
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+                {feedback.map((f) => (
+                  <FeedbackCard key={f.id} item={f} />
+                ))}
+              </div>
+            )}
+          </div>
+        )}
       </div>
       {broadcastRoom && (
         <BroadcastModal
@@ -661,6 +800,96 @@ const fieldStyle: React.CSSProperties = {
   boxSizing: 'border-box',
   fontFamily: 'inherit',
 };
+
+function FeedbackCard({ item }: { item: FeedbackRow }) {
+  const ratings = (item.answers && typeof item.answers === 'object' && 'ratings' in item.answers
+    ? (item.answers as { ratings?: Record<string, number> }).ratings
+    : undefined) ?? {};
+  const topAdd = item.answers && (item.answers as { top_feature_to_add?: string }).top_feature_to_add;
+  const topRemove = item.answers && (item.answers as { top_thing_to_remove?: string }).top_thing_to_remove;
+  const ctx = item.answers && (item.answers as { context?: string }).context;
+  const when = item.created_at ? new Date(item.created_at).toLocaleString() : '—';
+
+  const sevColor =
+    item.severity === 'critical' ? 'var(--red)' :
+    item.severity === 'high' ? 'var(--amber)' :
+    item.severity === 'medium' ? 'var(--blue)' :
+    'var(--muted)';
+
+  const npsColor =
+    item.nps == null ? 'var(--muted)' :
+    item.nps <= 6 ? 'var(--red)' :
+    item.nps <= 8 ? 'var(--amber)' :
+    'var(--green)';
+
+  return (
+    <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 12, padding: 14 }}>
+      <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--surface2)', color: 'var(--text2)', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+          {item.category.replace(/_/g, ' ')}
+        </span>
+        <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'rgba(45,214,122,0.1)', color: 'var(--green)', textTransform: 'uppercase' }}>
+          {item.sport}
+        </span>
+        {ctx && (
+          <span style={{ fontSize: 10, fontWeight: 600, padding: '3px 8px', borderRadius: 999, background: 'var(--surface2)', color: 'var(--muted)' }}>
+            {ctx === 'site' ? '/feedback page' : 'in-room tab'}
+          </span>
+        )}
+        {item.severity && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--surface2)', color: sevColor, textTransform: 'uppercase' }}>
+            {item.severity}
+          </span>
+        )}
+        {item.nps != null && (
+          <span style={{ fontSize: 10, fontWeight: 700, padding: '3px 8px', borderRadius: 999, background: 'var(--surface2)', color: npsColor }}>
+            NPS {item.nps}
+          </span>
+        )}
+        <span style={{ marginLeft: 'auto', fontSize: 11, color: 'var(--muted)' }}>{when}</span>
+      </div>
+
+      <div style={{ fontSize: 13, color: 'var(--text)', lineHeight: 1.55, whiteSpace: 'pre-wrap' }}>
+        {item.message}
+      </div>
+
+      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginTop: 10, fontSize: 11, color: 'var(--muted)' }}>
+        <span>👤 {item.username || 'Anonymous'}</span>
+        {item.contact && <span>✉️ {item.contact}</span>}
+        {item.room_id && (
+          <Link to={`/room/${item.room_id}`} style={{ color: 'var(--green)', textDecoration: 'none' }}>
+            ↗ Open room
+          </Link>
+        )}
+        <span style={{ fontFamily: 'monospace', color: 'var(--faint)' }}>{item.id.slice(0, 8)}</span>
+      </div>
+
+      {(Object.keys(ratings).length > 0 || topAdd || topRemove) && (
+        <div style={{ marginTop: 10, paddingTop: 10, borderTop: '1px dashed var(--border)' }}>
+          {Object.keys(ratings).length > 0 && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', gap: 6, marginBottom: 6 }}>
+              {Object.entries(ratings).map(([k, v]) => (
+                <span key={k} style={{ fontSize: 11, padding: '3px 8px', borderRadius: 6, background: 'var(--surface2)', color: 'var(--text2)' }}>
+                  {k.replace(/^rate_/, '').replace(/_/g, ' ')}: <strong style={{ color: 'var(--amber)' }}>{v}/5</strong>
+                </span>
+              ))}
+            </div>
+          )}
+          {topAdd && (
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+              <strong style={{ color: 'var(--green)' }}>+ Add:</strong> {topAdd}
+            </div>
+          )}
+          {topRemove && (
+            <div style={{ fontSize: 12, color: 'var(--text2)' }}>
+              <strong style={{ color: 'var(--red)' }}>− Remove:</strong> {topRemove}
+            </div>
+          )}
+        </div>
+      )}
+    </div>
+  );
+}
 
 function CustomField({ label, hint, children }: { label: string; hint?: string; children: React.ReactNode }) {
   return (
