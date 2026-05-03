@@ -620,6 +620,79 @@ async def broadcast_room_invite(
     return result
 
 
+@router.get("/rooms/{room_id}/winners")
+async def admin_room_winners(
+    room_id: str,
+    top: int = Query(3, ge=1, le=20),
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Admin-only: top N players in a room with their email + phone for
+    manual reward fulfilment (Amazon vouchers etc.). Sorted by points
+    desc, ties broken by earliest join. Excludes spectators (game with
+    fewer than 11 selected players).
+    """
+    from app.models.game import Game, PlayerWeightage
+    from app.models.user import User
+    from sqlalchemy import func as _func
+
+    try:
+        room_uuid = _uuid_mod.UUID(room_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid room id")
+
+    room = (await db.execute(select(Room).where(Room.id == room_uuid))).scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    selected_count_subq = (
+        select(_func.count())
+        .select_from(PlayerWeightage)
+        .where(
+            PlayerWeightage.game_id == Game.id,
+            PlayerWeightage.selected == True,  # noqa: E712
+        )
+        .correlate(Game)
+        .scalar_subquery()
+    )
+
+    rows = (await db.execute(
+        select(Game, User, selected_count_subq.label("selected_count"))
+        .join(User, User.id == Game.user_id)
+        .where(Game.room_id == room_uuid, Game.status == "active")
+    )).all()
+
+    enriched: list[dict] = []
+    for game, user, selected_count in rows:
+        if (selected_count or 0) < 11:
+            continue
+        enriched.append({
+            "user_id": str(user.id),
+            "username": user.username,
+            "first_name": user.first_name or "",
+            "last_name": user.last_name or "",
+            "email": user.email,
+            "phone": user.phone,
+            "points": game.total_points or 0,
+            "joined_at": game.created_at.isoformat() if game.created_at else None,
+            "squad_locked": bool(game.squad_locked),
+        })
+
+    enriched.sort(key=lambda e: (-int(e["points"] or 0), e["joined_at"] or ""))
+    for i, row in enumerate(enriched[:top]):
+        row["rank"] = i + 1
+
+    return {
+        "room_id": str(room.id),
+        "match_name": room.match_name,
+        "status": room.status,
+        "completed_at": room.completed_at.isoformat() if room.completed_at else None,
+        "total_players": len(enriched),
+        "winners": enriched[:top],
+    }
+
+
 @router.post("/fetch-matches")
 async def fetch_upcoming_matches(
     sport: str = Query("cricket"),
