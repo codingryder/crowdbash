@@ -1,7 +1,6 @@
 import { useGameStore } from '../../store/gameStore';
 import type { SquadPlayer } from '../../types';
 import { usePlayingXi } from '../../hooks/usePlayingXi';
-import { useIsMobile } from '../../hooks/useIsMobile';
 import { XiStatusBadge } from './XiStatusBadge';
 
 const ROLE_COLORS: Record<string, { bg: string; color: string }> = {
@@ -22,7 +21,6 @@ export function SquadSelection({ onConfirm }: SquadSelectionProps) {
   const canSelectMore = useGameStore((s) => s.canSelectMore);
   const getSelectedCount = useGameStore((s) => s.getSelectedCount);
   const { announced, isInXi } = usePlayingXi();
-  const isMobile = useIsMobile();
 
   const count = getSelectedCount();
   const teams = Object.entries(availableSquads);
