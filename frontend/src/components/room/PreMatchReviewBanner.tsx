@@ -78,7 +78,7 @@ export function PreMatchReviewBanner({ roomStatus, matchDateIso, onReviewTeam }:
         </div>
         <div>
           <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800 }}>
-            {urgent ? 'Review your team before kickoff' : 'Lock in your XI before the match'}
+            {urgent ? 'Review your team before kickoff' : 'Review your XI before the match'}
           </div>
           <div className="text-[11px]" style={{ color: 'var(--muted)' }}>
             {timeLabel} · You can edit your XI as many times as you want until the match starts. The announced lineup may drop late — check back so you don't get stuck with players who aren't actually playing today.
