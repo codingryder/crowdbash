@@ -8,6 +8,7 @@ import { useRoomStore } from '../store/roomStore';
 import { useGameStore } from '../store/gameStore';
 import { TeamBuilderModal } from '../components/game/TeamBuilderModal';
 import { PlayingXiBanner } from '../components/room/PlayingXiBanner';
+import { PreMatchReviewBanner } from '../components/room/PreMatchReviewBanner';
 import { PitchWelcomeView } from '../components/game/PitchWelcomeView';
 import { CompletedMatchView } from '../components/room/CompletedMatchView';
 import { ScorecardModal } from '../components/room/ScorecardModal';
@@ -603,7 +604,12 @@ export function CrowdbashRoomPage() {
                 narrowed to only the announced playing squad (xi_a + xi_b for
                 cricket; match_squads matchday lineup + named subs for
                 football). */}
-            <PlayingXiBanner onReviewTeam={() => setShowTeamBuilder(true, 'xiOnly')} />
+            <PlayingXiBanner roomStatus={room.status} onReviewTeam={() => setShowTeamBuilder(true, 'xiOnly')} />
+            <PreMatchReviewBanner
+              roomStatus={room.status}
+              matchDateIso={room.match_date}
+              onReviewTeam={() => setPitchView(true)}
+            />
 
             {/* Reshuffle (power-only) banner — auto-opens at sport events
                 (innings break, half-time, after 10 overs) or via admin

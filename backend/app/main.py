@@ -550,6 +550,99 @@ async def auto_close_past_rooms():
             print(f"Auto-complete error: {e}")
 
 
+async def _notify_xi_by_email(*, room_ids: list, xi: dict):
+    """Best-effort email blast to every joinee of the given rooms.
+
+    Per recipient: figures out how many of THEIR selected players didn't
+    make the announced XI, and includes that count + a CTA back to the
+    room. Errors are swallowed per-recipient.
+    """
+    if not room_ids:
+        return
+    try:
+        import re
+        import unicodedata
+        from sqlalchemy import select as _select
+        from app.models.room import Room as _Room
+        from app.models.game import Game as _Game, PlayerWeightage as _PW
+        from app.models.user import User as _User
+        from app.services.email_service import send_playing_xi_email
+
+        def _norm(name: str) -> str:
+            n = unicodedata.normalize("NFD", (name or "").lower())
+            n = "".join(c for c in n if unicodedata.category(c) != "Mn")
+            n = re.sub(r"[^a-z0-9 ]", " ", n)
+            return re.sub(r"\s+", " ", n).strip()
+
+        xi_names = {_norm(n) for n in (xi.get("xi_a") or []) + (xi.get("xi_b") or [])}
+        team_a = xi.get("team_a") or "Team A"
+        team_b = xi.get("team_b") or "Team B"
+        xi_a = list(xi.get("xi_a") or [])
+        xi_b = list(xi.get("xi_b") or [])
+        frontend_url = (settings.FRONTEND_URL or "").rstrip("/")
+
+        async with AsyncSessionLocal() as db:
+            rooms = (await db.execute(
+                _select(_Room).where(_Room.id.in_(room_ids))
+            )).scalars().all()
+            room_by_id = {r.id: r for r in rooms}
+
+            # Pull every active game in these rooms with the user's email.
+            games = (await db.execute(
+                _select(_Game.id, _Game.room_id, _User.email)
+                .join(_User, _User.id == _Game.user_id)
+                .where(_Game.room_id.in_(room_ids), _Game.status == "active", _User.email != None)
+            )).all()
+
+            # Dedupe by (email, room_id) so re-joins don't double-mail.
+            seen: set = set()
+            for game_id, room_id, email in games:
+                if not email:
+                    continue
+                key = (email.lower(), room_id)
+                if key in seen:
+                    continue
+                seen.add(key)
+
+                room = room_by_id.get(room_id)
+                if room is None:
+                    continue
+
+                # How many of this user's picks aren't in the announced XI?
+                pws = (await db.execute(
+                    _select(_PW.player_name).where(_PW.game_id == game_id, _PW.selected == True)
+                )).scalars().all()
+                benched = sum(1 for p in pws if _norm(p) not in xi_names)
+
+                date_label = None
+                if room.match_date is not None:
+                    try:
+                        date_label = room.match_date.strftime("%a %d %b · %H:%M UTC")
+                    except Exception:
+                        date_label = None
+
+                room_url = f"{frontend_url}/room/{room.id}" if frontend_url else f"/room/{room.id}"
+
+                try:
+                    await send_playing_xi_email(
+                        email,
+                        match_name=room.match_name,
+                        league=room.league,
+                        venue=room.venue,
+                        match_date_label=date_label,
+                        team_a=team_a,
+                        team_b=team_b,
+                        xi_a=xi_a,
+                        xi_b=xi_b,
+                        benched_count=benched,
+                        room_url=room_url,
+                    )
+                except Exception as send_err:
+                    print(f"XI email to {email} failed: {send_err}")
+    except Exception as outer:
+        print(f"_notify_xi_by_email crashed: {outer}")
+
+
 async def playing_xi_poller():
     """
     Poll Gemini for the announced playing XI of upcoming matches.
@@ -615,6 +708,19 @@ async def playing_xi_poller():
                                 "announced_at": now.isoformat(),
                             }
                         })
+
+                    # Email every joinee in each room so users who aren't
+                    # currently connected still get the heads-up. Best-effort:
+                    # one bad address must not block the rest, and the email
+                    # work runs in the background so the poller loop stays
+                    # snappy. Cricket-only for now per the most recent user
+                    # request — football's squad churn is handled by the
+                    # ESPN re-sync above instead of an email blast.
+                    if sport == "cricket":
+                        asyncio.create_task(_notify_xi_by_email(
+                            room_ids=[r.id for r in rooms],
+                            xi=xi,
+                        ))
 
                     # Football: now that team sheets are out, re-sync the
                     # match-day squad from ESPN so the player picker only

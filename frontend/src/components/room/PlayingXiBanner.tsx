@@ -3,22 +3,33 @@ import { usePlayingXi } from '../../hooks/usePlayingXi';
 import { useIsMobile } from '../../hooks/useIsMobile';
 
 interface PlayingXiBannerProps {
-  /** Called when user taps "Review team". Parent opens TeamBuilderModal. */
+  /** Called when user taps "Edit team". Parent opens TeamBuilderModal. */
   onReviewTeam: () => void;
+  /** Room status — used to keep the banner sticky pre-match. */
+  roomStatus?: string;
 }
 
 /**
  * Sticky single-row banner shown once the official playing XI drops.
  * Tap (mobile) or "Details" (desktop) opens a sheet with the bench list +
- * Review/Keep buttons. Sticky until the user makes an active choice.
+ * Review/Keep buttons.
+ *
+ * Pre-match (room.status === 'open'): banner is sticky regardless of
+ * dismiss — users were missing the prompt and getting stuck with players
+ * who weren't actually in the matchday XI. Closing the sheet just hides
+ * the modal, NOT the banner. Banner only goes away once the match starts.
  */
-export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
+export function PlayingXiBanner({ onReviewTeam, roomStatus }: PlayingXiBannerProps) {
   const { bannerVisible, benchedSelected, xi, isInXi, dismiss } = usePlayingXi();
   const isMobile = useIsMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [view, setView] = useState<'benched' | 'full'>('benched');
 
-  if (!bannerVisible) return null;
+  const isPreMatch = roomStatus === 'open';
+  // Force-show pre-match: even if `dismiss` was previously called (e.g. on
+  // a prior session before this fix shipped), keep nagging until kickoff.
+  const visible = !!xi && (isPreMatch || bannerVisible);
+  if (!visible) return null;
 
   const benchCount = benchedSelected.length;
   const hasBenched = benchCount > 0;
@@ -31,13 +42,15 @@ export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
   function handleReview() {
     setSheetOpen(false);
     onReviewTeam();
-    // Don't auto-dismiss — opening the editor is the implicit dismiss path.
-    dismiss();
+    // Pre-match: don't dismiss — banner stays as a persistent prompt until
+    // the match locks. Post-match (rare path) keeps the original behavior.
+    if (!isPreMatch) dismiss();
   }
 
   function handleKeep() {
     setSheetOpen(false);
-    dismiss();
+    // Pre-match: closing the sheet just hides the modal — banner stays.
+    if (!isPreMatch) dismiss();
   }
 
   return (
@@ -149,8 +162,8 @@ export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
               </div>
               <div className="text-[12px]" style={{ color: 'var(--muted)', lineHeight: 1.5 }}>
                 {hasBenched
-                  ? `${benchCount} of your selected players ${benchCount === 1 ? 'is' : 'are'} not in the announced XI. Review your team to swap them out before the match starts.`
-                  : 'Great news — every player you picked is in the announced XI. No changes needed.'}
+                  ? `${benchCount} of your selected players ${benchCount === 1 ? 'is' : 'are'} not in the announced XI. Edit your team to swap them out before the match starts — you can edit as many times as you want until kickoff.`
+                  : 'Great news — every player you picked is in the announced XI. You can still tweak your XI any time before the match starts.'}
               </div>
             </div>
 
@@ -289,7 +302,7 @@ export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
-                Keep as-is
+                {isPreMatch ? 'Close' : 'Keep as-is'}
               </button>
               <button
                 onClick={handleReview}
@@ -306,7 +319,7 @@ export function PlayingXiBanner({ onReviewTeam }: PlayingXiBannerProps) {
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
-                Review team
+                Edit team
               </button>
             </div>
           </div>
