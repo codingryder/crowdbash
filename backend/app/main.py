@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app.core.config import settings
 from app.api.websocket import room_manager
 from app.api.routes import auth, rooms, game, quiz, leaderboard, payments, cricket
-from app.api.routes import sports, admin, matches, coins, og, sitemap
+from app.api.routes import sports, admin, matches, coins, og, sitemap, feedback
 from app.services.game_service import calculate_and_update_points, finalize_room_results
 from app.services.sport_service import get_adapter
 from app.services.edit_window_service import (
@@ -37,6 +37,7 @@ app.include_router(sports.router, prefix="/api/sports", tags=["sports"])
 app.include_router(admin.router, prefix="/api/admin", tags=["admin"])
 app.include_router(matches.router, prefix="/api/matches", tags=["matches"])
 app.include_router(coins.router, prefix="/api/coins", tags=["coins"])
+app.include_router(feedback.router, prefix="/api/feedback", tags=["feedback"])
 # OG router uses absolute paths (/api/og/... and /share/...) — no prefix.
 app.include_router(og.router, tags=["og"])
 # Sitemap is served at the root path /sitemap.xml — no prefix.
@@ -799,6 +800,38 @@ async def startup():
             print("rooms.player_edit_window_closes_at ensured")
     except Exception as e:
         print(f"rooms.player_edit_window_closes_at migration failed: {e}")
+
+    # Self-heal: user_feedback table for the in-room Feedback tab.
+    try:
+        async with AsyncSessionLocal() as db:
+            from sqlalchemy import text
+            await db.execute(text("""
+                CREATE TABLE IF NOT EXISTS user_feedback (
+                    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+                    room_id UUID REFERENCES rooms(id) ON DELETE SET NULL,
+                    user_id UUID REFERENCES users(id) ON DELETE SET NULL,
+                    username VARCHAR(100),
+                    contact VARCHAR(200),
+                    sport VARCHAR(20) NOT NULL DEFAULT 'cricket',
+                    category VARCHAR(40) NOT NULL DEFAULT 'general',
+                    severity VARCHAR(20),
+                    nps INT,
+                    message TEXT NOT NULL,
+                    answers JSONB,
+                    user_agent VARCHAR(400),
+                    created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+                )
+            """))
+            await db.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_feedback_room_created ON user_feedback (room_id, created_at)"
+            ))
+            await db.execute(text(
+                "CREATE INDEX IF NOT EXISTS idx_feedback_category_created ON user_feedback (category, created_at)"
+            ))
+            await db.commit()
+            print("user_feedback table ensured")
+    except Exception as e:
+        print(f"user_feedback migration failed: {e}")
 
     asyncio.create_task(score_poller())
     asyncio.create_task(room_sync())

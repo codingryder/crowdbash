@@ -15,6 +15,7 @@ import { ChatPanel, ChatInput } from '../components/room/ChatPanel';
 import { MyTeamTab } from '../components/room/MyTeamTab';
 import { LeaderboardTab } from '../components/room/LeaderboardTab';
 import { RewardsRoomTab } from '../components/room/RewardsRoomTab';
+import { FeedbackPanel } from '../components/room/FeedbackPanel';
 import { ShareRoomButton } from '../components/room/ShareRoomButton';
 import api from '../lib/api';
 import type { ScoreData, Sport, CricketScoreData } from '../types';
@@ -137,7 +138,7 @@ export function CrowdbashRoomPage() {
   const [pitchView, setPitchView] = useState(true);
   const [_lastUpdated, setLastUpdated] = useState<Date | null>(null);
   const [autoJoined, setAutoJoined] = useState(false);
-  const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard' | 'rewards' | 'rules'>('myteam');
+  const [activeTab, setActiveTab] = useState<'chat' | 'myteam' | 'leaderboard' | 'rewards' | 'rules' | 'feedback'>('myteam');
   const [showScorecard, setShowScorecard] = useState(false);
   const isMobile = useIsMobile();
   const [showMatchInfo, setShowMatchInfo] = useState(false);
@@ -548,6 +549,7 @@ export function CrowdbashRoomPage() {
                 { key: 'chat' as const, label: 'Chat' },
                 { key: 'rewards' as const, label: '🪙 Bashpoints' },
                 { key: 'rules' as const, label: 'How to Play' },
+                ...(sport === 'cricket' ? [{ key: 'feedback' as const, label: '💬 Feedback' }] : []),
               ]).map(tab => (
                 <div
                   key={tab.key}
@@ -666,6 +668,7 @@ export function CrowdbashRoomPage() {
                 </div>
               )}
               {activeTab === 'rewards' && <RewardsRoomTab />}
+              {activeTab === 'feedback' && sport === 'cricket' && <FeedbackPanel roomId={room.id} />}
               {activeTab === 'rules' && (
                 <div style={{ padding: '20px 24px' }}>
                   <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 900, marginBottom: 16 }}>How to Play</div>
