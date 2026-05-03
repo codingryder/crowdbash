@@ -483,13 +483,18 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
                 <button onClick={onComplete} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 8, padding: isMobile ? '5px 10px' : '7px 16px', fontSize: isMobile ? 11 : 12, fontWeight: 600, color: 'var(--muted)', cursor: 'pointer' }}>
                   {isMobile ? 'Room' : 'Back to room'}
                 </button>
-                <button onClick={handleLockTeam} disabled={!canLock || locking} style={{
-                  background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
-                  padding: isMobile ? '6px 14px' : '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: isMobile ? 12 : 13, fontWeight: 800,
-                  cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
-                }}>
-                  {locking ? '...' : (game?.squad_locked ? 'Save power ✓' : 'Lock ✓')}
-                </button>
+                {/* Lock button stays in the header on desktop only — on mobile
+                    Step 2 it's rendered full-width above "Back to player
+                    selection" so it's prominent below the pitch. */}
+                {!isMobile && (
+                  <button onClick={handleLockTeam} disabled={!canLock || locking} style={{
+                    background: 'var(--green)', color: '#071a0e', border: 'none', borderRadius: 8,
+                    padding: '8px 22px', fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 13, fontWeight: 800,
+                    cursor: canLock ? 'pointer' : 'not-allowed', opacity: canLock && !locking ? 1 : 0.3,
+                  }}>
+                    {locking ? '...' : (game?.squad_locked ? 'Save power ✓' : 'Lock ✓')}
+                  </button>
+                )}
               </div>
             </div>
             {/* Row 2 (mobile only): role chips on their own line so the Lock button never gets pushed */}
@@ -618,6 +623,40 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
                   ))}
                 </div>
                 <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 10 }}>Tap a player on the pitch to adjust power · <b style={{ color: isBalanced ? 'var(--green)' : 'var(--amber)' }}>{totalUsed}/33</b> used · <b>{availablePower}</b> available</div>
+
+                {/* Primary action: Lock the XI. Sits directly above "Back to
+                    player selection" so it's the obvious next step below the
+                    pitch on mobile. Hidden once the squad is locked — the
+                    locked-confirmation block below takes over. */}
+                {!game?.squad_locked && (
+                  <>
+                    <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center', marginBottom: 6 }}>
+                      {pickCount < 11
+                        ? `Pick ${11 - pickCount} more player${11 - pickCount === 1 ? '' : 's'} to lock`
+                        : !compositionValid
+                          ? 'Fix role mix to lock'
+                          : !isBalanced
+                            ? `Use all 33 power points to lock (${totalUsed}/33)`
+                            : "You're ready — lock your XI"}
+                    </div>
+                    <button
+                      onClick={handleLockTeam}
+                      disabled={!canLock || locking}
+                      style={{
+                        width: '100%', padding: '12px 16px', borderRadius: 9,
+                        background: 'var(--green)', color: '#071a0e', border: 'none',
+                        fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 14, fontWeight: 800,
+                        cursor: canLock && !locking ? 'pointer' : 'not-allowed',
+                        opacity: canLock && !locking ? 1 : 0.4,
+                        marginBottom: 8,
+                        display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 8,
+                      }}
+                    >
+                      {locking ? 'Locking...' : 'Lock my XI ✓'}
+                    </button>
+                  </>
+                )}
+
                 <button onClick={() => setMobileStep('pick')} style={{
                   width: '100%', padding: '10px 16px', borderRadius: 9,
                   border: '1px solid var(--border)', background: 'var(--surface)',
@@ -656,58 +695,6 @@ export function PitchWelcomeView({ roomId, roomName, sport, onComplete }: PitchW
                 </div>
               )}
 
-              {/* Sticky bottom Lock CTA — primary action below the pitch/power
-                  view so users don't have to scroll back to the cramped header
-                  Lock button. Only shown while the squad isn't locked yet;
-                  the locked-confirmation block above takes over after that. */}
-              {!game?.squad_locked && (
-                <div
-                  style={{
-                    position: 'sticky',
-                    bottom: 0,
-                    padding: '10px 14px',
-                    paddingBottom: 'max(10px, env(safe-area-inset-bottom))',
-                    background: 'var(--bg)',
-                    borderTop: '1px solid var(--border)',
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: 6,
-                  }}
-                >
-                  <div style={{ fontSize: 11, color: 'var(--muted)', textAlign: 'center' }}>
-                    {pickCount < 11
-                      ? `Pick ${11 - pickCount} more player${11 - pickCount === 1 ? '' : 's'} to lock`
-                      : !compositionValid
-                        ? 'Fix role mix to lock'
-                        : !isBalanced
-                          ? `Use all 33 power points to lock (${totalUsed}/33)`
-                          : 'You\'re ready — lock your XI'}
-                  </div>
-                  <button
-                    onClick={handleLockTeam}
-                    disabled={!canLock || locking}
-                    style={{
-                      width: '100%',
-                      background: 'var(--green)',
-                      color: '#071a0e',
-                      border: 'none',
-                      borderRadius: 12,
-                      padding: '14px 20px',
-                      fontFamily: "'Cabinet Grotesk', sans-serif",
-                      fontSize: 15,
-                      fontWeight: 800,
-                      cursor: canLock && !locking ? 'pointer' : 'not-allowed',
-                      opacity: canLock && !locking ? 1 : 0.4,
-                      display: 'flex',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      gap: 8,
-                    }}
-                  >
-                    {locking ? 'Locking...' : 'Lock my XI ✓'}
-                  </button>
-                </div>
-              )}
             </>
           )}
         </div>
