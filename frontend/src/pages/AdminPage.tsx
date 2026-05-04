@@ -41,7 +41,7 @@ export function AdminPage() {
     openPlayerEditWindow, closePlayerEditWindow,
     refreshSquads, setLateJoin,
     announceXi, clearXi,
-    broadcastRecipients, broadcastRoomInvite,
+    broadcastRecipients, broadcastRoomInvite, broadcastWinner,
     setMatchSquads,
   } = useAdminStore();
   const [tab, setTab] = useState<'rooms' | 'create' | 'custom' | 'feedback'>('rooms');
@@ -81,6 +81,7 @@ export function AdminPage() {
   const [broadcastRoom, setBroadcastRoom] = useState<AdminRoom | null>(null);
   const [csvRoom, setCsvRoom] = useState<AdminRoom | null>(null);
   const [voucherRoom, setVoucherRoom] = useState<AdminRoom | null>(null);
+  const [winnerRoom, setWinnerRoom] = useState<AdminRoom | null>(null);
 
   // Tick every 5s so the "Active Xs left" badge counts down without manual refresh.
   const [now, setNow] = useState(() => Date.now());
@@ -458,6 +459,15 @@ export function AdminPage() {
                             >
                               🎁 Voucher
                             </button>
+                            {r.status === 'completed' && (
+                              <button
+                                onClick={() => setWinnerRoom(r)}
+                                title="Email all users announcing this room's #1 finisher; optionally point them at the next room."
+                                style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(139,92,246,0.1)', color: '#a78bfa', border: '1px solid rgba(139,92,246,0.3)', cursor: 'pointer' }}
+                              >
+                                📣 Announce winner
+                              </button>
+                            )}
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
                               Delete
                             </button>
@@ -796,6 +806,15 @@ export function AdminPage() {
         <SendVoucherModal
           room={voucherRoom}
           onClose={() => setVoucherRoom(null)}
+        />
+      )}
+      {winnerRoom && (
+        <BroadcastWinnerModal
+          room={winnerRoom}
+          rooms={rooms}
+          onClose={() => setWinnerRoom(null)}
+          getRecipientCount={broadcastRecipients}
+          send={broadcastWinner}
         />
       )}
     </div>
@@ -1537,6 +1556,252 @@ function BroadcastModal({
               : recipientCount === null
                 ? 'Loading…'
                 : `Send to ${recipientCount} user${recipientCount === 1 ? '' : 's'}`}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+
+/* ─── Broadcast Winner Modal ─── */
+function BroadcastWinnerModal({
+  room, rooms, onClose, getRecipientCount, send,
+}: {
+  room: AdminRoom;
+  rooms: AdminRoom[];
+  onClose: () => void;
+  getRecipientCount: () => Promise<number | null>;
+  send: (
+    roomId: string,
+    body: { next_room_id?: string | null; test_email?: string | null },
+  ) => Promise<{
+    sent: number;
+    failed: number;
+    total: number;
+    test?: boolean;
+    winner?: string;
+    error?: string;
+    failures?: { email: string; error: string }[];
+  } | null>;
+}) {
+  const [previewWinner, setPreviewWinner] = useState<{ first_name: string; username: string; points: number } | null>(null);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewErr, setPreviewErr] = useState('');
+
+  const [nextRoomId, setNextRoomId] = useState<string>('');
+  const [testEmail, setTestEmail] = useState('');
+  const [recipientCount, setRecipientCount] = useState<number | null>(null);
+  const [busy, setBusy] = useState<'test' | 'all' | null>(null);
+  const [result, setResult] = useState('');
+  const [resultIsError, setResultIsError] = useState(false);
+  const [failedList, setFailedList] = useState<{ email: string; error: string }[]>([]);
+
+  // Pull the #1 finisher so admin sees who'll be named in the email before sending.
+  useEffect(() => {
+    let alive = true;
+    setPreviewLoading(true);
+    setPreviewErr('');
+    (async () => {
+      try {
+        const token = localStorage.getItem('crowdbash_admin_token');
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const { data } = await axios.get<{ winners: { first_name: string; username: string; points: number; rank: number }[] }>(
+          `${base}/api/admin/rooms/${room.id}/winners?top=1`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {}, timeout: 30000 },
+        );
+        if (alive) setPreviewWinner(data.winners?.[0] || null);
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { detail?: string }; status?: number } };
+        if (alive) setPreviewErr(err?.response?.data?.detail || `Failed to load winner (${err?.response?.status ?? 'network'})`);
+      } finally {
+        if (alive) setPreviewLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [room.id]);
+
+  useEffect(() => {
+    let alive = true;
+    getRecipientCount().then(c => { if (alive) setRecipientCount(c); });
+    return () => { alive = false; };
+  }, [getRecipientCount]);
+
+  // Pickable next rooms: anything that isn't the just-completed one, sorted by match_date ascending.
+  const nextRoomChoices = rooms
+    .filter(r => r.id !== room.id && (r.status === 'open' || r.status === 'locked'))
+    .sort((a, b) => {
+      const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
+      const db = b.match_date ? new Date(b.match_date).getTime() : Infinity;
+      return da - db;
+    });
+
+  const sendTest = async () => {
+    if (!testEmail.trim()) return;
+    setBusy('test');
+    setResult('');
+    setResultIsError(false);
+    setFailedList([]);
+    const r = await send(room.id, {
+      next_room_id: nextRoomId || null,
+      test_email: testEmail.trim(),
+    });
+    setBusy(null);
+    if (!r) {
+      setResult('Request failed.');
+      setResultIsError(true);
+    } else if (r.error) {
+      setResult(r.error);
+      setResultIsError(true);
+    } else if (r.failed > 0) {
+      setResult('Test send failed.');
+      setResultIsError(true);
+    } else {
+      setResult(`Test email sent to ${testEmail.trim()}${r.winner ? ` — would announce ${r.winner}` : ''}.`);
+    }
+  };
+
+  const sendAll = async () => {
+    if (recipientCount === null) return;
+    if (!confirm(
+      `Email ${recipientCount} user${recipientCount === 1 ? '' : 's'} that ${previewWinner?.first_name || previewWinner?.username || 'the winner'} won the ${room.match_name} room?`,
+    )) return;
+    setBusy('all');
+    setResult('');
+    setResultIsError(false);
+    setFailedList([]);
+    const r = await send(room.id, { next_room_id: nextRoomId || null });
+    setBusy(null);
+    if (!r) {
+      setResult('Broadcast failed.');
+      setResultIsError(true);
+    } else if (r.error) {
+      setResult(r.error);
+      setResultIsError(true);
+    } else {
+      setResult(`Sent ${r.sent} of ${r.total} (${r.failed} failed)${r.winner ? ` — announced ${r.winner}` : ''}.`);
+      setFailedList(r.failures || []);
+    }
+  };
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 100, padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 540, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 12,
+          padding: 24, maxHeight: '92vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div>
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>📣 Announce winner</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{room.match_name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16 }}>
+          Emails every verified user that this room's #1 finisher won. The winner themselves is skipped.
+        </div>
+
+        <div style={{ background: 'var(--surface2)', border: '1px solid var(--border)', borderRadius: 8, padding: 12, marginBottom: 16 }}>
+          <div style={{ fontSize: 10, fontWeight: 700, letterSpacing: '1.5px', color: 'var(--muted)', marginBottom: 6 }}>WINNER PREVIEW</div>
+          {previewLoading ? (
+            <div style={{ fontSize: 13, color: 'var(--muted)' }}>Loading winner…</div>
+          ) : previewErr ? (
+            <div style={{ fontSize: 13, color: 'var(--red)' }}>{previewErr}</div>
+          ) : !previewWinner ? (
+            <div style={{ fontSize: 13, color: 'var(--amber)' }}>
+              No eligible winner yet (needs ≥11 selected players + points &gt; 0). Sending will fail.
+            </div>
+          ) : (
+            <div style={{ fontSize: 14 }}>
+              🏆 <strong>{previewWinner.first_name || previewWinner.username}</strong>{' '}
+              with <strong style={{ color: 'var(--green)' }}>{previewWinner.points} pts</strong>
+            </div>
+          )}
+        </div>
+
+        <CustomField label="Next room CTA (optional)" hint="If picked, the email's button points at this room. Otherwise it goes to /games.">
+          <select value={nextRoomId} onChange={(e) => setNextRoomId(e.target.value)} style={fieldStyle}>
+            <option value="">— browse all games (default) —</option>
+            {nextRoomChoices.map((r) => (
+              <option key={r.id} value={r.id}>
+                {r.match_name} {r.match_date ? `· ${new Date(r.match_date).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' })}` : ''} {r.status === 'locked' ? '· LIVE' : ''}
+              </option>
+            ))}
+          </select>
+        </CustomField>
+
+        <div style={{ height: 16, borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
+          <CustomField label="Test email (optional but recommended)" hint="Send a single preview before broadcasting.">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="you@example.com"
+                style={fieldStyle}
+              />
+              <button
+                disabled={busy !== null || !testEmail.trim() || !previewWinner}
+                onClick={sendTest}
+                style={{ padding: '0 16px', fontSize: 13, fontWeight: 700, borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', cursor: busy ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: busy === 'test' ? 0.5 : 1 }}
+              >
+                {busy === 'test' ? 'Sending…' : 'Send test'}
+              </button>
+            </div>
+          </CustomField>
+        </div>
+
+        {result && (
+          <div style={{ marginTop: 16, fontSize: 13, color: resultIsError ? 'var(--red)' : 'var(--green)' }}>
+            {result}
+          </div>
+        )}
+        {failedList.length > 0 && (
+          <details style={{ marginTop: 8, fontSize: 12, color: 'var(--muted)' }}>
+            <summary style={{ cursor: 'pointer', color: 'var(--text2)' }}>
+              Show {failedList.length} failed address{failedList.length === 1 ? '' : 'es'}
+            </summary>
+            <ul style={{ margin: '8px 0 0 0', paddingLeft: 20, lineHeight: 1.5 }}>
+              {failedList.map((f, i) => (
+                <li key={i}>
+                  <span style={{ color: 'var(--text2)' }}>{f.email}</span>
+                  <span style={{ color: 'var(--faint)' }}> — {f.error}</span>
+                </li>
+              ))}
+            </ul>
+          </details>
+        )}
+
+        <div style={{ marginTop: 24, display: 'flex', gap: 12, alignItems: 'center', justifyContent: 'flex-end' }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '10px 18px', fontSize: 13, fontWeight: 600, borderRadius: 7, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={busy !== null || recipientCount === null || recipientCount === 0 || !previewWinner}
+            onClick={sendAll}
+            className="btn btn-primary"
+            style={{ padding: '10px 22px', fontSize: 14, fontWeight: 700 }}
+          >
+            {busy === 'all'
+              ? 'Sending…'
+              : recipientCount === null
+                ? 'Loading…'
+                : `📣 Announce to ${recipientCount} user${recipientCount === 1 ? '' : 's'}`}
           </button>
         </div>
       </div>

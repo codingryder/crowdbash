@@ -90,6 +90,18 @@ interface AdminState {
     error?: string;
     failures?: { email: string; error: string }[];
   } | null>;
+  broadcastWinner: (
+    roomId: string,
+    body: { next_room_id?: string | null; test_email?: string | null },
+  ) => Promise<{
+    sent: number;
+    failed: number;
+    total: number;
+    test?: boolean;
+    winner?: string;
+    error?: string;
+    failures?: { email: string; error: string }[];
+  } | null>;
 }
 
 export const useAdminStore = create<AdminState>((set, get) => ({
@@ -279,6 +291,25 @@ export const useAdminStore = create<AdminState>((set, get) => ({
       return data;
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      return null;
+    }
+  },
+
+  broadcastWinner: async (roomId, body) => {
+    try {
+      // Same fan-out scale as broadcastRoomInvite — needs the same timeout headroom.
+      const { data } = await adminApi().post(
+        `/api/admin/rooms/${roomId}/broadcast-winner`,
+        body,
+        { timeout: 60_000 },
+      );
+      return data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      if (axios.isAxiosError(err) && err.response?.data) {
+        const detail = (err.response.data as { detail?: string })?.detail;
+        if (detail) return { sent: 0, failed: 0, total: 0, error: detail };
+      }
       return null;
     }
   },
