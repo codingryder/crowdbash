@@ -40,7 +40,7 @@ export function AdminPage() {
     openEditWindow, closeEditWindow,
     openPlayerEditWindow, closePlayerEditWindow,
     refreshSquads, setLateJoin,
-    announceXi, clearXi,
+    announceXi, clearXi, syncRealXi,
     broadcastRecipients, broadcastRoomInvite, broadcastWinner,
     setMatchSquads,
   } = useAdminStore();
@@ -76,6 +76,7 @@ export function AdminPage() {
   const [playerEditDurations, setPlayerEditDurations] = useState<Record<string, number>>({});
   const [playerEditBusy, setPlayerEditBusy] = useState<Record<string, boolean>>({});
   const [xiBusy, setXiBusy] = useState<Record<string, boolean>>({});
+  const [xiSyncBusy, setXiSyncBusy] = useState<Record<string, boolean>>({});
   const [syncBusy, setSyncBusy] = useState<Record<string, boolean>>({});
   const [syncMsg, setSyncMsg] = useState('');
   const [broadcastRoom, setBroadcastRoom] = useState<AdminRoom | null>(null);
@@ -426,6 +427,36 @@ export function AdminPage() {
                             >
                               {xiBusy[r.id] ? '…' : (r.playing_xi_announced_at ? '✓ XI announced' : 'Announce XI (mock)')}
                             </button>
+                            {(r.sport === 'cricket' || r.sport === 'football') && (
+                              <button
+                                disabled={!!xiSyncBusy[r.id]}
+                                onClick={async () => {
+                                  setXiSyncBusy(m => ({ ...m, [r.id]: true }));
+                                  setSyncMsg(`Asking Gemini for ${r.match_name} team sheet… (up to ~30s)`);
+                                  const result = await syncRealXi(r.id);
+                                  if (!result) {
+                                    setSyncMsg(`Real-XI sync failed for ${r.match_name}. Check backend logs.`);
+                                  } else if (result.error) {
+                                    setSyncMsg(`Real-XI sync error: ${result.error}`);
+                                  } else if (!result.found) {
+                                    setSyncMsg(`No team sheet yet for ${r.match_name}. ${result.reason || 'Try again closer to start time.'}`);
+                                  } else {
+                                    setSyncMsg(`✅ Real XI synced for ${r.match_name} — ${result.team_a} (${result.xi_a_count}) vs ${result.team_b} (${result.xi_b_count}). Updated ${result.rooms_updated} room(s); users notified.`);
+                                  }
+                                  setXiSyncBusy(m => ({ ...m, [r.id]: false }));
+                                }}
+                                title="Force the real playing-XI Gemini fetch right now — fallback for when the 5-min auto-poller is late. Persists the announced XI, broadcasts to live tabs, and emails joinees (cricket)."
+                                style={{
+                                  padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
+                                  background: 'rgba(59,130,246,0.08)', color: 'var(--blue)',
+                                  border: '1px solid rgba(59,130,246,0.3)',
+                                  cursor: xiSyncBusy[r.id] ? 'not-allowed' : 'pointer',
+                                  opacity: xiSyncBusy[r.id] ? 0.5 : 1,
+                                }}
+                              >
+                                {xiSyncBusy[r.id] ? 'Syncing…' : '🛰️ Sync real XI'}
+                              </button>
+                            )}
                             <button
                               onClick={async () => {
                                 const enabled = !r.late_join_enabled;

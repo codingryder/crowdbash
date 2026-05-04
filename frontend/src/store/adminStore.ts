@@ -78,6 +78,16 @@ interface AdminState {
   setLateJoin: (roomId: string, enabled: boolean) => Promise<boolean>;
   announceXi: (roomId: string) => Promise<{ team_a?: string; team_b?: string; xi_a_count?: number; xi_b_count?: number } | null>;
   clearXi: (roomId: string) => Promise<boolean>;
+  syncRealXi: (roomId: string) => Promise<{
+    found: boolean;
+    reason?: string;
+    team_a?: string;
+    team_b?: string;
+    xi_a_count?: number;
+    xi_b_count?: number;
+    rooms_updated?: number;
+    error?: string;
+  } | null>;
   broadcastRecipients: () => Promise<number | null>;
   broadcastRoomInvite: (
     roomId: string,
@@ -256,6 +266,26 @@ export const useAdminStore = create<AdminState>((set, get) => ({
     } catch (err: unknown) {
       if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
       return false;
+    }
+  },
+
+  syncRealXi: async (roomId) => {
+    try {
+      // Gemini grounded search is slow — give it 60s before timing out.
+      const { data } = await adminApi().post(
+        `/api/admin/rooms/${roomId}/sync-real-xi`,
+        {},
+        { timeout: 60_000 },
+      );
+      await get().fetchRooms();
+      return data;
+    } catch (err: unknown) {
+      if (axios.isAxiosError(err) && err.response?.status === 401) get().logout();
+      if (axios.isAxiosError(err) && err.response?.data) {
+        const detail = (err.response.data as { detail?: string })?.detail;
+        if (detail) return { found: false, error: detail };
+      }
+      return null;
     }
   },
 

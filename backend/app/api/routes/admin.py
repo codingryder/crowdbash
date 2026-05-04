@@ -426,6 +426,143 @@ async def admin_clear_xi(
     return {"room_id": room_id, "cleared": True}
 
 
+@router.post("/rooms/{room_id}/sync-real-xi")
+async def admin_sync_real_xi(
+    room_id: str,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Manually fire the playing-XI Gemini fetch for a room — fallback for
+    when the 5-minute background poller hasn't picked up the team-sheet
+    drop yet, or hasn't run because the match starts in <90min and we
+    just want it NOW.
+
+    Distinct from POST /announce-xi (which is a mock that picks the
+    first 11 names from match_squads). This one calls the *same* Gemini
+    grounded-search the real poller uses, so the XI is the actual
+    announced team sheet — not arbitrary squad order.
+
+    Behaviour mirrors the poller exactly: if Gemini returns a confident
+    11-vs-11, persists across every room sharing this fixture, broadcasts
+    the WS event, fires the cricket email blast, and triggers the
+    football post-XI ESPN squad re-sync.
+
+    Forces a fresh Gemini call by deleting the per-fixture Redis cache
+    first — admin is invoking precisely because the cached/poll result
+    is stale or empty.
+
+    Returns {found: false, reason} when Gemini still doesn't have the
+    team sheet, so the admin UI can surface a useful message instead
+    of a silent no-op.
+    """
+    from app.services.live_score_service import fetch_announced_xi_via_gemini
+    from app.core.redis import redis_delete
+    from app.api.websocket import room_manager
+    import asyncio
+
+    result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
+    room = result.scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    sport = (room.sport or "cricket").lower()
+    if sport not in ("cricket", "football"):
+        raise HTTPException(status_code=400, detail=f"Sport '{sport}' not supported by Gemini XI fetch")
+
+    # Bust the per-fixture cache so we hit Gemini fresh. The cache only
+    # stores positive hits (5-min TTL), so deleting it matters when an
+    # old confident result is sitting there blocking a re-fetch.
+    try:
+        await redis_delete(f"gemini:xi:{sport}:{room.match_name}")
+    except Exception as cache_err:
+        print(f"sync-real-xi: cache bust failed (non-fatal): {cache_err}")
+
+    try:
+        xi = await fetch_announced_xi_via_gemini(room.match_name, sport)
+    except Exception as e:
+        raise HTTPException(status_code=502, detail=f"Gemini fetch failed: {e}")
+
+    if not xi:
+        return {
+            "room_id": room_id,
+            "found": False,
+            "reason": (
+                "Gemini hasn't seen the official team sheet yet. "
+                "Cricket lineups typically drop ~30 min before first ball; "
+                "football team sheets ~60 min before kickoff. Try again closer to start."
+            ),
+        }
+
+    # Mirror poller: persist on every room sharing this (sport, match_name).
+    sibling_res = await db.execute(
+        select(Room).where(Room.sport == room.sport, Room.match_name == room.match_name)
+    )
+    sibling_rooms = sibling_res.scalars().all()
+    now = datetime.now(timezone.utc)
+    xi_payload = {
+        "team_a": xi.get("team_a") or "",
+        "team_b": xi.get("team_b") or "",
+        "xi_a": list(xi.get("xi_a") or [])[:11],
+        "xi_b": list(xi.get("xi_b") or [])[:11],
+        "announced": True,
+    }
+    for r in sibling_rooms:
+        r.playing_xi = xi_payload
+        r.playing_xi_announced_at = now
+    await db.commit()
+
+    # Broadcast WS event for each room — this is what triggers the
+    # in-app banner + IN/OUT pills on the squad picker.
+    for r in sibling_rooms:
+        await room_manager.broadcast(str(r.id), {
+            "type": "playing_xi_announced",
+            "payload": {
+                "playing_xi": xi_payload,
+                "announced_at": now.isoformat(),
+            },
+        })
+
+    # Reuse the poller's email + post-XI fan-out so the manual path
+    # behaves identically to the automatic one.
+    if sport == "cricket":
+        try:
+            from app.main import _notify_xi_by_email
+            asyncio.create_task(_notify_xi_by_email(
+                room_ids=[r.id for r in sibling_rooms],
+                xi=xi_payload,
+            ))
+        except Exception as e:
+            print(f"sync-real-xi: email blast scheduling failed: {e}")
+    elif sport == "football":
+        # Same post-XI ESPN squad re-sync the poller does, so the player
+        # picker only offers starters + named subs.
+        from app.core.database import AsyncSessionLocal as _BgSession
+        for r in sibling_rooms:
+            async def _bg(rid):
+                try:
+                    async with _BgSession() as bg_db:
+                        bg_room = (await bg_db.execute(
+                            select(Room).where(Room.id == rid)
+                        )).scalar_one_or_none()
+                        if bg_room:
+                            await _populate_match_squads(bg_db, bg_room)
+                except Exception as bg_e:
+                    print(f"sync-real-xi: post-XI squad re-sync failed for {rid}: {bg_e}")
+            asyncio.create_task(_bg(r.id))
+
+    return {
+        "room_id": room_id,
+        "found": True,
+        "team_a": xi_payload["team_a"],
+        "team_b": xi_payload["team_b"],
+        "xi_a_count": len(xi_payload["xi_a"]),
+        "xi_b_count": len(xi_payload["xi_b"]),
+        "rooms_updated": len(sibling_rooms),
+        "announced_at": now.isoformat(),
+    }
+
+
 @router.post("/rooms/{room_id}/player-edit-window/close")
 async def admin_close_player_edit_window(
     room_id: str,
