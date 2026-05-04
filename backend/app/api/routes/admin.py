@@ -693,6 +693,116 @@ async def admin_room_winners(
     }
 
 
+class SendVoucherRequest(PydanticBaseModel):
+    """
+    Either user_id or recipient_email must be set. user_id is preferred —
+    pulls the email + display name from the User row so admins don't
+    accidentally typo. recipient_email lets you send to someone outside
+    the room (e.g. a friend, a runner-up off the rank list, etc.).
+    """
+    user_id: str | None = None
+    recipient_email: str | None = None
+    rank: int | None = None  # Used in the email's "1st place" / "Runner-up" label
+    voucher_provider: str = "Amazon"
+    voucher_value: str  # e.g. "₹200"
+    voucher_url: str | None = None
+    voucher_code: str | None = None
+    personal_note: str | None = None
+    test: bool = False  # If true, send to recipient_email regardless and don't touch user_id lookup
+
+
+def _rank_label(rank: int | None) -> str:
+    if rank is None:
+        return "a top finisher"
+    suffix = {1: "1st", 2: "2nd", 3: "3rd"}.get(rank, f"{rank}th")
+    return f"{suffix} place"
+
+
+@router.post("/rooms/{room_id}/send-voucher")
+async def admin_send_voucher(
+    room_id: str,
+    body: SendVoucherRequest,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """Send a manual reward voucher email to a single recipient."""
+    from app.models.user import User
+    from app.models.game import Game
+    from app.services.email_service import send_voucher_email, EmailSendError
+
+    if not body.voucher_url and not body.voucher_code:
+        raise HTTPException(status_code=400, detail="voucher_url or voucher_code is required")
+    if not body.voucher_value.strip():
+        raise HTTPException(status_code=400, detail="voucher_value is required")
+
+    try:
+        room_uuid = _uuid_mod.UUID(room_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid room id")
+
+    room = (await db.execute(select(Room).where(Room.id == room_uuid))).scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    recipient_email: str | None = None
+    recipient_name: str | None = None
+    points: int | None = None
+
+    if body.test and body.recipient_email:
+        recipient_email = body.recipient_email.strip()
+        recipient_name = "tester"
+    elif body.user_id:
+        try:
+            uid = _uuid_mod.UUID(body.user_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid user_id")
+        user = (await db.execute(select(User).where(User.id == uid))).scalar_one_or_none()
+        if not user:
+            raise HTTPException(status_code=404, detail="User not found")
+        if not user.email and not body.recipient_email:
+            raise HTTPException(status_code=400, detail="User has no email on file — supply recipient_email instead")
+        recipient_email = (body.recipient_email or user.email or "").strip()
+        recipient_name = user.first_name or user.username
+        # Fetch their points in this room for the email body
+        game = (await db.execute(
+            select(Game).where(Game.room_id == room_uuid, Game.user_id == uid, Game.status == "active")
+        )).scalar_one_or_none()
+        if game is not None:
+            points = int(game.total_points or 0)
+    elif body.recipient_email:
+        recipient_email = body.recipient_email.strip()
+    else:
+        raise HTTPException(status_code=400, detail="Provide user_id or recipient_email")
+
+    if not recipient_email:
+        raise HTTPException(status_code=400, detail="No recipient email resolved")
+
+    rank_label = _rank_label(body.rank)
+
+    try:
+        await send_voucher_email(
+            recipient_email,
+            recipient_name=recipient_name,
+            match_name=room.match_name,
+            rank_label=rank_label,
+            points=points,
+            voucher_provider=body.voucher_provider.strip() or "Amazon",
+            voucher_value=body.voucher_value.strip(),
+            voucher_url=body.voucher_url.strip() if body.voucher_url else None,
+            voucher_code=body.voucher_code.strip() if body.voucher_code else None,
+            personal_note=body.personal_note.strip() if body.personal_note else None,
+        )
+    except EmailSendError as e:
+        raise HTTPException(status_code=502, detail=f"Email send failed: {e}")
+
+    return {
+        "ok": True,
+        "sent_to": recipient_email,
+        "test": body.test,
+        "rank_label": rank_label,
+    }
+
+
 @router.post("/fetch-matches")
 async def fetch_upcoming_matches(
     sport: str = Query("cricket"),

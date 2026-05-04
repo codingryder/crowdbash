@@ -80,6 +80,7 @@ export function AdminPage() {
   const [syncMsg, setSyncMsg] = useState('');
   const [broadcastRoom, setBroadcastRoom] = useState<AdminRoom | null>(null);
   const [csvRoom, setCsvRoom] = useState<AdminRoom | null>(null);
+  const [voucherRoom, setVoucherRoom] = useState<AdminRoom | null>(null);
 
   // Tick every 5s so the "Active Xs left" badge counts down without manual refresh.
   const [now, setNow] = useState(() => Date.now());
@@ -450,6 +451,13 @@ export function AdminPage() {
                             >
                               📧 Email users
                             </button>
+                            <button
+                              onClick={() => setVoucherRoom(r)}
+                              title="Send a manual reward voucher (e.g. Amazon gift card) to a winner"
+                              style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(244,185,64,0.1)', color: 'var(--amber)', border: '1px solid rgba(244,185,64,0.3)', cursor: 'pointer' }}
+                            >
+                              🎁 Voucher
+                            </button>
                             <button onClick={() => { if (confirm(`Delete "${r.match_name}"?`)) deleteRoom(r.id); }} style={{ padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6, background: 'rgba(240,82,82,0.08)', color: 'var(--red)', border: '1px solid rgba(240,82,82,0.2)', cursor: 'pointer' }}>
                               Delete
                             </button>
@@ -784,6 +792,12 @@ export function AdminPage() {
           submit={setMatchSquads}
         />
       )}
+      {voucherRoom && (
+        <SendVoucherModal
+          room={voucherRoom}
+          onClose={() => setVoucherRoom(null)}
+        />
+      )}
     </div>
   );
 }
@@ -1088,6 +1102,281 @@ function PlayerEditControls({
 
 
 /* ─── Broadcast Modal ─── */
+interface VoucherWinner {
+  user_id: string;
+  username: string;
+  first_name: string;
+  last_name: string;
+  email: string | null;
+  phone: string | null;
+  points: number;
+  rank?: number;
+}
+
+function SendVoucherModal({ room, onClose }: { room: AdminRoom; onClose: () => void }) {
+  const [winners, setWinners] = useState<VoucherWinner[]>([]);
+  const [winnersLoading, setWinnersLoading] = useState(false);
+  const [winnersErr, setWinnersErr] = useState('');
+
+  const [recipientUserId, setRecipientUserId] = useState<string>('');
+  const [overrideEmail, setOverrideEmail] = useState('');
+  const [voucherProvider, setVoucherProvider] = useState('Amazon');
+  const [voucherValue, setVoucherValue] = useState('₹200');
+  const [voucherUrl, setVoucherUrl] = useState('');
+  const [voucherCode, setVoucherCode] = useState('');
+  const [personalNote, setPersonalNote] = useState('');
+  const [testEmail, setTestEmail] = useState('');
+  const [busy, setBusy] = useState<'send' | 'test' | null>(null);
+  const [result, setResult] = useState('');
+  const [resultIsError, setResultIsError] = useState(false);
+
+  // Pull top winners on open
+  useEffect(() => {
+    let alive = true;
+    (async () => {
+      setWinnersLoading(true);
+      setWinnersErr('');
+      try {
+        const token = localStorage.getItem('crowdbash_admin_token');
+        const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+        const { data } = await axios.get<{ winners: VoucherWinner[] }>(
+          `${base}/api/admin/rooms/${room.id}/winners?top=5`,
+          { headers: token ? { Authorization: `Bearer ${token}` } : {}, timeout: 30000 },
+        );
+        if (alive) setWinners(data.winners || []);
+      } catch (e: unknown) {
+        const err = e as { response?: { data?: { detail?: string }; status?: number } };
+        if (alive) setWinnersErr(err?.response?.data?.detail || `Failed to load winners (${err?.response?.status ?? 'network'})`);
+      } finally {
+        if (alive) setWinnersLoading(false);
+      }
+    })();
+    return () => { alive = false; };
+  }, [room.id]);
+
+  const selectedWinner = winners.find((w) => w.user_id === recipientUserId);
+
+  // Auto-fill personal note when a winner is picked
+  useEffect(() => {
+    if (!selectedWinner) return;
+    const name = selectedWinner.first_name || selectedWinner.username;
+    const rankPretty = selectedWinner.rank === 1 ? '1st place' :
+                       selectedWinner.rank === 2 ? '2nd place' :
+                       selectedWinner.rank === 3 ? '3rd place' :
+                       'top of the leaderboard';
+    setPersonalNote(
+      `Hey ${name} — congratulations on finishing ${rankPretty} in the ${room.match_name} room with ${selectedWinner.points} points. Thanks for playing — here's a small ${voucherProvider} thank-you. — Crowdbash`,
+    );
+  }, [selectedWinner, room.match_name, voucherProvider]);
+
+  async function send(test: boolean) {
+    if (!voucherValue.trim()) {
+      setResult('Voucher value is required');
+      setResultIsError(true);
+      return;
+    }
+    if (!voucherUrl.trim() && !voucherCode.trim()) {
+      setResult('Provide a voucher URL or a voucher code (or both)');
+      setResultIsError(true);
+      return;
+    }
+    if (test && !testEmail.trim()) {
+      setResult('Enter a test email first');
+      setResultIsError(true);
+      return;
+    }
+    if (!test && !recipientUserId && !overrideEmail.trim()) {
+      setResult('Pick a winner or paste a recipient email');
+      setResultIsError(true);
+      return;
+    }
+    setBusy(test ? 'test' : 'send');
+    setResult('');
+    setResultIsError(false);
+    try {
+      const token = localStorage.getItem('crowdbash_admin_token');
+      const base = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+      const body = {
+        user_id: test ? null : (recipientUserId || null),
+        recipient_email: test ? testEmail.trim() : (overrideEmail.trim() || null),
+        rank: selectedWinner?.rank ?? null,
+        voucher_provider: voucherProvider.trim() || 'Amazon',
+        voucher_value: voucherValue.trim(),
+        voucher_url: voucherUrl.trim() || null,
+        voucher_code: voucherCode.trim() || null,
+        personal_note: personalNote.trim() || null,
+        test,
+      };
+      const { data } = await axios.post<{ ok: boolean; sent_to: string }>(
+        `${base}/api/admin/rooms/${room.id}/send-voucher`,
+        body,
+        { headers: token ? { Authorization: `Bearer ${token}` } : {}, timeout: 30000 },
+      );
+      setResult(`Sent to ${data.sent_to}${test ? ' (test)' : ''}.`);
+      setResultIsError(false);
+    } catch (e: unknown) {
+      const err = e as { response?: { data?: { detail?: string }; status?: number } };
+      setResult(err?.response?.data?.detail || `Send failed (${err?.response?.status ?? 'network'})`);
+      setResultIsError(true);
+    } finally {
+      setBusy(null);
+    }
+  }
+
+  return (
+    <div
+      onClick={onClose}
+      style={{
+        position: 'fixed', inset: 0, background: 'rgba(0,0,0,0.6)',
+        display: 'flex', alignItems: 'center', justifyContent: 'center',
+        zIndex: 100, padding: 16,
+      }}
+    >
+      <div
+        onClick={(e) => e.stopPropagation()}
+        style={{
+          width: '100%', maxWidth: 560, background: 'var(--surface)',
+          border: '1px solid var(--border)', borderRadius: 12,
+          padding: 24, maxHeight: '92vh', overflowY: 'auto',
+        }}
+      >
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
+          <div>
+            <div style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 18, fontWeight: 800 }}>🎁 Send voucher</div>
+            <div style={{ fontSize: 12, color: 'var(--muted)', marginTop: 2 }}>{room.match_name}</div>
+          </div>
+          <button onClick={onClose} style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 22, cursor: 'pointer', lineHeight: 1 }}>×</button>
+        </div>
+
+        <div style={{ fontSize: 11, color: 'var(--muted)', marginBottom: 16 }}>
+          Sends a one-off reward email. The recipient gets a button to claim the voucher; the personal note appears in a highlighted box above it.
+        </div>
+
+        {/* Winner picker */}
+        <CustomField label="Recipient" hint="Pulled from the room leaderboard. Pick the winner — email auto-fills.">
+          {winnersLoading ? (
+            <div style={{ ...fieldStyle, color: 'var(--muted)', display: 'flex', alignItems: 'center' }}>Loading winners…</div>
+          ) : winnersErr ? (
+            <div style={{ ...fieldStyle, color: 'var(--red)' }}>{winnersErr}</div>
+          ) : winners.length === 0 ? (
+            <div style={{ ...fieldStyle, color: 'var(--muted)' }}>No qualifying players in this room yet.</div>
+          ) : (
+            <select value={recipientUserId} onChange={(e) => setRecipientUserId(e.target.value)} style={fieldStyle}>
+              <option value="">— pick a winner —</option>
+              {winners.map((w) => (
+                <option key={w.user_id} value={w.user_id}>
+                  #{w.rank ?? '?'} · {w.first_name || w.username} · {w.points} pts {w.email ? `· ${w.email}` : '· (no email)'}
+                </option>
+              ))}
+            </select>
+          )}
+        </CustomField>
+
+        <div style={{ height: 12 }} />
+        <CustomField label="Override recipient email (optional)" hint="Use this if the winner has no email on file, or to send to a different address.">
+          <input
+            type="email"
+            value={overrideEmail}
+            onChange={(e) => setOverrideEmail(e.target.value)}
+            placeholder={selectedWinner?.email || 'name@example.com'}
+            style={fieldStyle}
+          />
+        </CustomField>
+
+        <div style={{ height: 16, borderTop: '1px solid var(--border)', marginTop: 16 }} />
+
+        <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginTop: 8 }}>
+          <CustomField label="Voucher provider">
+            <input value={voucherProvider} onChange={(e) => setVoucherProvider(e.target.value)} style={fieldStyle} />
+          </CustomField>
+          <CustomField label="Value">
+            <input value={voucherValue} onChange={(e) => setVoucherValue(e.target.value)} placeholder="₹200" style={fieldStyle} />
+          </CustomField>
+        </div>
+
+        <div style={{ height: 12 }} />
+        <CustomField label="Voucher URL" hint="Pasted into a 'Redeem your voucher' button.">
+          <input
+            value={voucherUrl}
+            onChange={(e) => setVoucherUrl(e.target.value)}
+            placeholder="https://www.amazon.in/gc/redeem?claimCode=…"
+            style={fieldStyle}
+          />
+        </CustomField>
+
+        <div style={{ height: 12 }} />
+        <CustomField label="Voucher code (optional)" hint="Shown in a copy-friendly monospace box above the button. Use either, or both.">
+          <input
+            value={voucherCode}
+            onChange={(e) => setVoucherCode(e.target.value)}
+            placeholder="e.g. AMZ-XXXX-XXXXX"
+            style={{ ...fieldStyle, fontFamily: 'ui-monospace, SFMono-Regular, monospace' }}
+          />
+        </CustomField>
+
+        <div style={{ height: 12 }} />
+        <CustomField label="Personal note" hint="Auto-fills when you pick a winner. Edit freely.">
+          <textarea
+            value={personalNote}
+            onChange={(e) => setPersonalNote(e.target.value)}
+            rows={4}
+            style={{ ...fieldStyle, resize: 'vertical', fontFamily: 'inherit' }}
+          />
+        </CustomField>
+
+        <div style={{ height: 16, borderTop: '1px solid var(--border)', marginTop: 16, paddingTop: 16 }}>
+          <CustomField label="Send a test email first (optional but recommended)" hint="Doesn't touch the recipient — just emails this address with the same template + voucher.">
+            <div style={{ display: 'flex', gap: 8 }}>
+              <input
+                type="email"
+                value={testEmail}
+                onChange={(e) => setTestEmail(e.target.value)}
+                placeholder="you@example.com"
+                style={fieldStyle}
+              />
+              <button
+                disabled={busy !== null || !testEmail.trim()}
+                onClick={() => send(true)}
+                style={{ padding: '0 16px', fontSize: 13, fontWeight: 700, borderRadius: 7, background: 'var(--surface2)', color: 'var(--text)', border: '1px solid var(--border)', cursor: busy ? 'not-allowed' : 'pointer', whiteSpace: 'nowrap', opacity: busy === 'test' ? 0.5 : 1 }}
+              >
+                {busy === 'test' ? 'Sending…' : 'Send test'}
+              </button>
+            </div>
+          </CustomField>
+        </div>
+
+        {result && (
+          <div style={{ marginTop: 16, fontSize: 13, color: resultIsError ? 'var(--red)' : 'var(--green)' }}>
+            {result}
+          </div>
+        )}
+
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginTop: 20 }}>
+          <button
+            onClick={onClose}
+            style={{ padding: '8px 16px', fontSize: 13, fontWeight: 600, borderRadius: 8, background: 'var(--surface2)', color: 'var(--muted)', border: '1px solid var(--border)', cursor: 'pointer' }}
+          >
+            Cancel
+          </button>
+          <button
+            disabled={busy !== null}
+            onClick={() => send(false)}
+            style={{
+              padding: '10px 22px', fontSize: 13, fontWeight: 800, borderRadius: 8,
+              background: 'var(--amber)', color: '#1a1500', border: 'none',
+              cursor: busy ? 'not-allowed' : 'pointer',
+              opacity: busy === 'send' ? 0.5 : 1,
+              fontFamily: "'Cabinet Grotesk', sans-serif",
+            }}
+          >
+            {busy === 'send' ? 'Sending…' : '🎁 Send voucher'}
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 function BroadcastModal({
   room, onClose, getRecipientCount, send,
 }: {
