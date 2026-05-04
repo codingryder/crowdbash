@@ -419,7 +419,7 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
       {/* Body */}
       <div className="flex-1 overflow-hidden">
         {step === 'pick' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-[252px_1fr] h-full overflow-hidden">
+          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] h-full overflow-hidden">
             {/* Bench (left) */}
             <div className="flex flex-col overflow-hidden" style={{ borderRight: '1px solid var(--b1)', background: 'var(--bg2)' }}>
               <div className="px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--b1)' }}>
@@ -514,11 +514,13 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
                         radius={7}
                       />
                       <div className="flex-1 min-w-0">
-                        <div className="text-[12px] font-medium truncate flex items-center gap-1.5" style={{ color: isSelected ? 'var(--tx)' : 'var(--tx2)' }}>
-                          <span className="truncate">{p.player_name}</span>
+                        <div className="text-[12px] font-medium" style={{ color: isSelected ? 'var(--tx)' : 'var(--tx2)' }}>
+                          {p.player_name}
+                        </div>
+                        <div className="text-[10px] flex items-center gap-1.5 flex-wrap" style={{ color: 'var(--mu)' }}>
+                          <span>{p.team}</span>
                           {xiAnnounced && <XiStatusBadge inXi={isInXi(p.player_name)} />}
                         </div>
-                        <div className="text-[10px]" style={{ color: 'var(--mu)' }}>{p.team}</div>
                       </div>
                       <span
                         className="font-cabinet text-[9px] font-bold rounded px-1.5 py-0.5 shrink-0"

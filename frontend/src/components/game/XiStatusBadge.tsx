@@ -5,7 +5,7 @@ interface XiStatusBadgeProps {
 
 /**
  * Small visible marker shown next to a player's name once the official
- * Playing XI has dropped. Green "PLAYING" if the player is in today's
+ * Playing XI has dropped. Green "IN" if the player is in today's
  * announced XI, red "OUT" if they're benched / not in the matchday squad.
  *
  * Render only when `usePlayingXi().announced` is true — otherwise the
@@ -41,7 +41,7 @@ export function XiStatusBadge({ inXi, size = 'xs' }: XiStatusBadgeProps) {
           background: inXi ? 'var(--green)' : 'var(--red)',
         }}
       />
-      {inXi ? 'PLAYING' : 'OUT'}
+      {inXi ? 'IN' : 'OUT'}
     </span>
   );
 }
