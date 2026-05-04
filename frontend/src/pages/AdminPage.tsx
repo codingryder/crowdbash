@@ -402,20 +402,20 @@ export function AdminPage() {
                                 setXiBusy(m => ({ ...m, [r.id]: true }));
                                 if (r.playing_xi_announced_at) {
                                   const ok = await clearXi(r.id);
-                                  setSyncMsg(ok ? `Cleared mock XI on ${r.match_name}.` : `Failed to clear XI on ${r.match_name}.`);
+                                  setSyncMsg(ok ? `Cleared playing XI on ${r.match_name}.` : `Failed to clear XI on ${r.match_name}.`);
                                 } else {
                                   const result = await announceXi(r.id);
                                   if (result === null) {
                                     setSyncMsg(`Failed to announce XI for ${r.match_name}. Sync the squad first?`);
                                   } else {
-                                    setSyncMsg(`Mock XI announced for ${r.match_name} (${result.xi_a_count} + ${result.xi_b_count} players).`);
+                                    setSyncMsg(`Playing XI announced for ${r.match_name} (${result.xi_a_count} + ${result.xi_b_count} players).`);
                                   }
                                 }
                                 setXiBusy(m => ({ ...m, [r.id]: false }));
                               }}
                               title={r.playing_xi_announced_at
-                                ? "Clear the mock playing-XI announcement so the banner / Review-team flow can be re-tested."
-                                : "Announce a mock XI (auto-picks first 11 from match_squads per team) — bypasses the 5-min Gemini poll for testing."}
+                                ? "Clear the playing-XI announcement (banner + IN/OUT pills) for this room."
+                                : "Announce the playing XI manually — auto-picks the first 11 from match_squads per team. Use 'Sync real XI' instead to pull the actual announced team sheet via Gemini."}
                               style={{
                                 padding: '4px 10px', fontSize: 11, fontWeight: 700, borderRadius: 6,
                                 background: r.playing_xi_announced_at ? 'rgba(45,214,122,0.15)' : 'var(--surface2)',
@@ -425,7 +425,7 @@ export function AdminPage() {
                                 opacity: xiBusy[r.id] ? 0.5 : 1,
                               }}
                             >
-                              {xiBusy[r.id] ? '…' : (r.playing_xi_announced_at ? '✓ XI announced' : 'Announce XI (mock)')}
+                              {xiBusy[r.id] ? '…' : (r.playing_xi_announced_at ? '✓ XI announced' : 'Announce XI')}
                             </button>
                             {(r.sport === 'cricket' || r.sport === 'football') && (
                               <button

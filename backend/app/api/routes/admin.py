@@ -415,7 +415,7 @@ async def admin_clear_xi(
     _admin: str = Depends(get_admin_user),
     db: AsyncSession = Depends(get_db),
 ):
-    """Clear any mock XI announcement on the room — for resetting the test flow."""
+    """Clear any playing-XI announcement on the room — resets the banner + IN/OUT pills."""
     result = await db.execute(select(Room).where(Room.id == _uuid_mod.UUID(room_id)))
     room = result.scalar_one_or_none()
     if not room:
@@ -438,10 +438,10 @@ async def admin_sync_real_xi(
     drop yet, or hasn't run because the match starts in <90min and we
     just want it NOW.
 
-    Distinct from POST /announce-xi (which is a mock that picks the
-    first 11 names from match_squads). This one calls the *same* Gemini
-    grounded-search the real poller uses, so the XI is the actual
-    announced team sheet — not arbitrary squad order.
+    Distinct from POST /announce-xi (which auto-picks the first 11 names
+    from match_squads — fine for QA but not real lineup data). This one
+    calls the *same* Gemini grounded-search the real poller uses, so the
+    XI is the actual announced team sheet — not arbitrary squad order.
 
     Behaviour mirrors the poller exactly: if Gemini returns a confident
     11-vs-11, persists across every room sharing this fixture, broadcasts
