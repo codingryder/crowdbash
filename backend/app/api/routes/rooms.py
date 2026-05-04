@@ -133,6 +133,75 @@ async def list_rooms(
     return [_room_to_dict(r) for r in rooms]
 
 
+@router.get("/last-winner")
+async def get_last_winner(db: AsyncSession = Depends(get_db)):
+    """
+    Public-facing teaser for the homepage banner. Returns the #1 finisher
+    from the most recently completed admin-created room. We surface
+    first_name (with last initial) rather than email, and gate on
+    email_verified so spectator-only or unverified accounts don't end up
+    in the banner.
+
+    Returns 200 with `{"winner": null}` rather than 404 when nothing is
+    eligible — the banner just hides itself.
+    """
+    from app.models.game import Game, PlayerWeightage
+    from app.models.user import User
+    from sqlalchemy import func as _func
+
+    # Most recent completed room first.
+    rooms_res = await db.execute(
+        select(Room)
+        .where(Room.status == "completed", Room.admin_created == True)  # noqa: E712
+        .order_by(Room.completed_at.desc().nullslast(), Room.created_at.desc())
+        .limit(5)  # Walk the last few in case the freshest has no eligible games yet.
+    )
+    rooms = rooms_res.scalars().all()
+    if not rooms:
+        return {"winner": None}
+
+    selected_count_subq = (
+        select(_func.count())
+        .select_from(PlayerWeightage)
+        .where(
+            PlayerWeightage.game_id == Game.id,
+            PlayerWeightage.selected == True,  # noqa: E712
+        )
+        .correlate(Game)
+        .scalar_subquery()
+    )
+
+    for room in rooms:
+        rows = (await db.execute(
+            select(Game, User, selected_count_subq.label("sel"))
+            .join(User, User.id == Game.user_id)
+            .where(Game.room_id == room.id, Game.status == "active")
+            .order_by(Game.total_points.desc().nullslast(), Game.created_at.asc())
+        )).all()
+
+        for game, user, sel in rows:
+            if (sel or 0) < 11:
+                continue
+            if (game.total_points or 0) <= 0:
+                continue
+            display = (user.first_name or user.username or "A player").strip()
+            if user.first_name and user.last_name:
+                display = f"{user.first_name} {user.last_name[0]}."
+            return {
+                "winner": {
+                    "display_name": display,
+                    "points": int(game.total_points or 0),
+                    "room_id": str(room.id),
+                    "match_name": room.match_name,
+                    "sport": room.sport,
+                    "league": room.league,
+                    "completed_at": room.completed_at.isoformat() if room.completed_at else None,
+                }
+            }
+
+    return {"winner": None}
+
+
 @router.get("/scorecard/{room_id}")
 async def get_scorecard(room_id: str, db: AsyncSession = Depends(get_db)):
     """Get live scorecard for a room from the sport API."""

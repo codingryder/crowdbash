@@ -5,10 +5,24 @@ import type { Room } from '../types';
 import { formatMatchDate, splitTeams, teamAbbr, cricketAbbr } from '../types';
 import { useSeo } from '../hooks/useSeo';
 
+type LastWinner = {
+  display_name: string;
+  points: number;
+  room_id: string;
+  match_name: string;
+  sport: string | null;
+  league: string | null;
+  completed_at: string | null;
+};
+
 export function HomePage() {
   const [rooms, setRooms] = useState<Room[]>([]);
   const [_loading, setLoading] = useState(true);
   const [howItWorksSport, setHowItWorksSport] = useState<'cricket' | 'football'>('cricket');
+  const [lastWinner, setLastWinner] = useState<LastWinner | null>(null);
+  const [winnerDismissed, setWinnerDismissed] = useState<boolean>(() => {
+    try { return sessionStorage.getItem('cb:lastWinnerDismissed') === '1'; } catch { return false; }
+  });
 
   useSeo({
     title: 'Crowdbash — Free fantasy cricket & football leagues, live power reshuffles',
@@ -48,7 +62,18 @@ export function HomePage() {
       } finally { setLoading(false); }
     }
     fetchData();
+
+    // Best-effort: if the endpoint isn't deployed yet or returns null,
+    // the banner just stays hidden.
+    api.get('/api/rooms/last-winner')
+      .then(({ data }) => { if (data?.winner) setLastWinner(data.winner); })
+      .catch(() => {});
   }, []);
+
+  const dismissWinner = () => {
+    setWinnerDismissed(true);
+    try { sessionStorage.setItem('cb:lastWinnerDismissed', '1'); } catch {}
+  };
 
   const upcoming = rooms.filter(r => r.status === 'open').sort((a, b) => {
     const da = a.match_date ? new Date(a.match_date).getTime() : Infinity;
@@ -124,6 +149,11 @@ export function HomePage() {
           </div>
         </div>
       </section>
+
+      {/* ═══ LAST WINNER BANNER ═══ */}
+      {lastWinner && !winnerDismissed && (
+        <LastWinnerBanner winner={lastWinner} onDismiss={dismissWinner} />
+      )}
 
       {/* ═══ HOW IT WORKS ═══ */}
       <div id="how-it-works" style={{ borderTop: '1px solid var(--border)' }}>
@@ -325,6 +355,48 @@ export function HomePage() {
         <Link to="/games" className="inline-block no-underline transition-all hover:-translate-y-0.5" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 11, padding: '15px 36px', fontSize: 16, fontWeight: 800 }}>
           Find a live game room →
         </Link>
+      </div>
+    </div>
+  );
+}
+
+/* ═══ LAST WINNER BANNER ═══ */
+function LastWinnerBanner({ winner, onDismiss }: { winner: LastWinner; onDismiss: () => void }) {
+  const sportEmoji = winner.sport === 'football' ? '⚽' : '🏏';
+  return (
+    <div style={{ borderTop: '1px solid var(--border)', borderBottom: '1px solid var(--border)', background: 'linear-gradient(90deg, rgba(45,214,122,0.06) 0%, rgba(244,185,64,0.05) 100%)' }}>
+      <div className="flex flex-wrap items-center justify-between gap-4" style={{ maxWidth: 1080, margin: '0 auto', padding: '14px 36px' }}>
+        <div className="flex items-center gap-4 min-w-0">
+          <div className="shrink-0 flex items-center justify-center" style={{ width: 40, height: 40, borderRadius: '50%', background: 'rgba(244,185,64,0.15)', fontSize: 20 }}>
+            🏆
+          </div>
+          <div className="min-w-0">
+            <div className="flex items-center gap-2" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", fontSize: 10, fontWeight: 700, letterSpacing: '2px', color: 'var(--green)' }}>
+              <span>LAST GAME WINNER</span>
+              <span style={{ color: 'var(--muted)' }}>·</span>
+              <span style={{ color: 'var(--text2)' }}>{sportEmoji} {winner.league || winner.match_name}</span>
+            </div>
+            <div className="truncate" style={{ fontSize: 15, marginTop: 2 }}>
+              <strong>{winner.display_name}</strong> took #1 with{' '}
+              <strong style={{ color: 'var(--green)' }}>{winner.points} pts</strong>
+              <span style={{ color: 'var(--muted)' }}> · </span>
+              <span style={{ color: 'var(--text2)' }}>could've been you.</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2 shrink-0">
+          <Link to="/games" className="no-underline" style={{ fontFamily: "'Cabinet Grotesk', sans-serif", background: 'var(--green)', color: '#071a0e', borderRadius: 8, padding: '8px 16px', fontSize: 13, fontWeight: 800 }}>
+            Join next game →
+          </Link>
+          <button
+            onClick={onDismiss}
+            aria-label="Dismiss"
+            className="cursor-pointer"
+            style={{ background: 'transparent', border: 'none', color: 'var(--muted)', fontSize: 18, lineHeight: 1, padding: 4 }}
+          >
+            ×
+          </button>
+        </div>
       </div>
     </div>
   );

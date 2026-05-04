@@ -620,6 +620,157 @@ async def broadcast_room_invite(
     return result
 
 
+class BroadcastWinnerRequest(PydanticBaseModel):
+    """
+    Announce the #1 finisher of `room_id` (the *last* room) to every
+    verified user. `next_room_id` is optional — when set, the email
+    CTA points at that upcoming room; otherwise it falls back to the
+    /games browse page.
+    """
+    next_room_id: str | None = None
+    test_email: str | None = None
+
+
+@router.post("/rooms/{room_id}/broadcast-winner")
+async def broadcast_winner_announcement(
+    room_id: str,
+    body: BroadcastWinnerRequest,
+    _admin: str = Depends(get_admin_user),
+    db: AsyncSession = Depends(get_db),
+):
+    """
+    Email every verified user that `room_id`'s #1 finisher won, and
+    point them at the next room. Mirrors broadcast_room_invite — same
+    rate-limit dance, same per-recipient swallowing.
+    """
+    from app.models.user import User
+    from app.models.game import Game, PlayerWeightage
+    from app.services.email_service import send_winner_announcement_email
+    from sqlalchemy import func as _func
+    import asyncio
+    from datetime import timezone, timedelta
+
+    try:
+        room_uuid = _uuid_mod.UUID(room_id)
+    except (ValueError, TypeError):
+        raise HTTPException(status_code=400, detail="Invalid room id")
+
+    room = (await db.execute(select(Room).where(Room.id == room_uuid))).scalar_one_or_none()
+    if not room:
+        raise HTTPException(status_code=404, detail="Room not found")
+
+    # Resolve the winner using the same eligibility rules as /winners.
+    selected_count_subq = (
+        select(_func.count())
+        .select_from(PlayerWeightage)
+        .where(
+            PlayerWeightage.game_id == Game.id,
+            PlayerWeightage.selected == True,  # noqa: E712
+        )
+        .correlate(Game)
+        .scalar_subquery()
+    )
+    rows = (await db.execute(
+        select(Game, User, selected_count_subq.label("sel"))
+        .join(User, User.id == Game.user_id)
+        .where(Game.room_id == room_uuid, Game.status == "active")
+        .order_by(Game.total_points.desc().nullslast(), Game.created_at.asc())
+    )).all()
+
+    winner_game = None
+    winner_user = None
+    for game, user, sel in rows:
+        if (sel or 0) < 11:
+            continue
+        if (game.total_points or 0) <= 0:
+            continue
+        winner_game = game
+        winner_user = user
+        break
+    if not winner_game or not winner_user:
+        raise HTTPException(status_code=400, detail="No eligible winner in this room yet")
+
+    display = (winner_user.first_name or winner_user.username or "A player").strip()
+    if winner_user.first_name and winner_user.last_name:
+        display = f"{winner_user.first_name} {winner_user.last_name[0]}."
+
+    last_match_meta_parts = [p for p in [room.league, room.match_format, room.venue] if p]
+    last_match_meta = " · ".join(last_match_meta_parts) or None
+
+    # Optional next-room CTA
+    next_room_url = ""
+    next_match_name: str | None = None
+    next_match_meta: str | None = None
+    if body.next_room_id:
+        try:
+            next_uuid = _uuid_mod.UUID(body.next_room_id)
+        except (ValueError, TypeError):
+            raise HTTPException(status_code=400, detail="Invalid next_room_id")
+        next_room = (await db.execute(select(Room).where(Room.id == next_uuid))).scalar_one_or_none()
+        if not next_room:
+            raise HTTPException(status_code=404, detail="next_room_id not found")
+        next_room_url = f"https://crowdbash.codingryder.com/share/room/{next_room.id}"
+        next_match_name = next_room.match_name
+        next_meta_parts = [p for p in [next_room.league, next_room.match_format, next_room.venue] if p]
+        if next_room.match_date:
+            ist = next_room.match_date.astimezone(timezone(timedelta(hours=5, minutes=30)))
+            next_meta_parts.append(ist.strftime("%a %d %b · %I:%M %p IST"))
+        next_match_meta = " · ".join(next_meta_parts) or None
+
+    games_url = "https://crowdbash.codingryder.com/games"
+
+    common = dict(
+        winner_display_name=display,
+        winner_points=int(winner_game.total_points or 0),
+        last_match_name=room.match_name,
+        last_match_meta=last_match_meta,
+        next_match_name=next_match_name,
+        next_match_meta=next_match_meta,
+        next_room_url=next_room_url or games_url,
+        games_url=games_url,
+    )
+
+    if body.test_email:
+        try:
+            await send_winner_announcement_email(body.test_email.strip(), **common)
+            return {"sent": 1, "failed": 0, "total": 1, "test": True, "winner": display}
+        except Exception as e:
+            return {"sent": 0, "failed": 1, "total": 1, "test": True, "error": str(e)}
+
+    users_res = await db.execute(
+        select(User).where(
+            User.email_verified == True,  # noqa: E712
+            User.email.is_not(None),
+        )
+    )
+    users = users_res.scalars().all()
+
+    sent = 0
+    failures: list[dict] = []
+    for u in users:
+        # Skip the winner themselves — sending them a "X just won" email
+        # they won is a bad look.
+        if str(u.id) == str(winner_user.id):
+            continue
+        try:
+            await send_winner_announcement_email(u.email, **common)
+            sent += 1
+        except Exception as e:
+            failures.append({"email": u.email, "error": str(e)})
+        await asyncio.sleep(0.55)
+
+    result: dict = {
+        "sent": sent,
+        "failed": len(failures),
+        "total": len(users),
+        "test": False,
+        "winner": display,
+    }
+    if failures:
+        result["failures"] = failures
+    return result
+
+
 @router.get("/rooms/{room_id}/winners")
 async def admin_room_winners(
     room_id: str,

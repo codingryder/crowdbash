@@ -279,6 +279,117 @@ async def send_voucher_email(
     logger.info("Voucher email queued to %s (resend_id=%s, status=%s)", email, resend_id, res.status_code)
 
 
+async def send_winner_announcement_email(
+    email: str,
+    *,
+    winner_display_name: str,
+    winner_points: int,
+    last_match_name: str,
+    last_match_meta: str | None,
+    next_match_name: str | None,
+    next_match_meta: str | None,
+    next_room_url: str,
+    games_url: str,
+) -> None:
+    """Mass email teaser: someone won the last game, here's the next one.
+
+    Same fan-out caveats as send_room_invite_email — caller swallows
+    per-recipient errors. `next_match_*` is optional; if not supplied
+    we fall back to a generic "browse all games" CTA.
+    """
+    if not settings.RESEND_API_KEY:
+        print(f"[DEV] Winner email to {email}: {winner_display_name} won {winner_points} on {last_match_name}")
+        return
+
+    from_email = "Crowdbash <noreply@codingryder.com>"
+
+    last_meta_block = (
+        f'<div style="color: #6E7A8A; font-size: 13px; margin-bottom: 16px;">{last_match_meta}</div>'
+        if last_match_meta else ''
+    )
+
+    if next_match_name:
+        cta_label = "Join the next game →"
+        next_meta = (
+            f'<div style="color: #6E7A8A; font-size: 13px; margin-top: 4px;">{next_match_meta}</div>'
+            if next_match_meta else ''
+        )
+        next_block = f"""
+            <div style="background: #F6F8FA; border: 1px solid #E5E8EC; border-radius: 12px; padding: 18px 20px; margin: 22px 0;">
+                <div style="font-size: 11px; font-weight: 700; letter-spacing: 1.5px; color: #6E7A8A; margin-bottom: 8px;">UP NEXT</div>
+                <div style="font-size: 17px; font-weight: 700; color: #1A1A1A;">{next_match_name}</div>
+                {next_meta}
+            </div>
+        """
+        cta_href = next_room_url
+    else:
+        cta_label = "Browse live games →"
+        next_block = ''
+        cta_href = games_url
+
+    subject = f"{winner_display_name} just won on Crowdbash — you in for the next one?"
+    html = f"""
+        <div style="font-family: sans-serif; max-width: 520px; margin: 0 auto; padding: 24px; color: #1A1A1A;">
+            <h2 style="color: #F4B940; font-family: 'Syne', sans-serif; margin: 0 0 24px;">Crowdbash</h2>
+
+            <h3 style="font-size: 22px; margin: 0 0 6px;">🏆 We have a winner.</h3>
+            <p style="font-size: 15px; line-height: 1.6; margin: 0 0 14px;">
+                <strong>{winner_display_name}</strong> just took #1 on <strong>{last_match_name}</strong>
+                with <strong>{winner_points} points</strong>.
+            </p>
+            {last_meta_block}
+
+            <p style="font-size: 15px; line-height: 1.6; margin: 18px 0 0;">
+                Could've been you. Next game is one click away — pick your XI, set your power, reshuffle live.
+            </p>
+
+            {next_block}
+
+            <div style="text-align: center; margin: 26px 0;">
+                <a href="{cta_href}" style="display: inline-block; background: #F4B940; color: #111418; font-weight: 700; padding: 14px 32px; border-radius: 12px; text-decoration: none;">{cta_label}</a>
+            </div>
+
+            <p style="color: #6E7A8A; font-size: 11px; margin-top: 28px; line-height: 1.5;">
+                You're receiving this because you joined Crowdbash. We send at most one of these
+                per game cycle.
+            </p>
+        </div>
+    """
+
+    try:
+        async with httpx.AsyncClient(timeout=10.0) as client:
+            res = await client.post(
+                "https://api.resend.com/emails",
+                headers={
+                    "Authorization": f"Bearer {settings.RESEND_API_KEY}",
+                    "Content-Type": "application/json",
+                },
+                json={
+                    "from": from_email,
+                    "to": [email],
+                    "subject": subject,
+                    "html": html,
+                },
+            )
+    except httpx.HTTPError as e:
+        logger.exception("Winner broadcast transport error to %s: %s", email, e)
+        raise EmailSendError(f"Email transport error: {e}") from e
+
+    if res.status_code >= 400:
+        logger.error("Resend rejected winner broadcast to %s: %s %s", email, res.status_code, res.text)
+        raise EmailSendError(
+            f"Resend rejected send: {res.status_code}",
+            status=res.status_code,
+            provider_response=res.text,
+        )
+
+    try:
+        resend_id = res.json().get("id")
+    except Exception:
+        resend_id = None
+    logger.info("Winner broadcast queued to %s (resend_id=%s, status=%s)", email, resend_id, res.status_code)
+
+
 async def send_playing_xi_email(
     email: str,
     *,
