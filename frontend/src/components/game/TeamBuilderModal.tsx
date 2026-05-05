@@ -419,9 +419,9 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
       {/* Body */}
       <div className="flex-1 overflow-hidden">
         {step === 'pick' ? (
-          <div className="grid grid-cols-1 lg:grid-cols-[320px_1fr] h-full overflow-hidden">
+          <div className="grid grid-cols-1 grid-rows-[1fr_auto] lg:grid-cols-[320px_1fr] lg:grid-rows-1 h-full overflow-hidden">
             {/* Bench (left) */}
-            <div className="flex flex-col overflow-hidden" style={{ borderRight: '1px solid var(--b1)', background: 'var(--bg2)' }}>
+            <div className="flex flex-col overflow-hidden min-h-0" style={{ borderRight: '1px solid var(--b1)', background: 'var(--bg2)' }}>
               <div className="px-4 pt-3 pb-2 shrink-0" style={{ borderBottom: '1px solid var(--b1)' }}>
                 <div className="font-cabinet text-[13px] font-extrabold mb-0.5">Player bench</div>
                 <div className="text-[10px]" style={{ color: swapTargetId ? 'var(--green)' : 'var(--mu)' }}>
@@ -535,7 +535,10 @@ export function TeamBuilderModal({ roomName: _roomName, sport, onSelectSquad, on
             </div>
 
             {/* Selected preview (right / mobile: below) */}
-            <div className="flex flex-col overflow-y-auto p-6" style={{ background: 'var(--bg)' }}>
+            <div
+              className="flex flex-col overflow-y-auto p-4 lg:p-6 max-h-[42vh] lg:max-h-none"
+              style={{ background: 'var(--bg)', borderTop: '1px solid var(--b1)' }}
+            >
               <div className="font-cabinet text-[13px] font-extrabold mb-3">
                 Your XI <span style={{ color: 'var(--green)' }}>({count}/11)</span>
               </div>
