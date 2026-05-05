@@ -10,26 +10,19 @@ interface PlayingXiBannerProps {
 }
 
 /**
- * Sticky single-row banner shown once the official playing XI drops.
+ * Sticky single-row banner shown only between XI announcement and kickoff.
  * Tap (mobile) or "Details" (desktop) opens a sheet with the bench list +
- * Review/Keep buttons.
- *
- * Pre-match (room.status === 'open'): banner is sticky regardless of
- * dismiss — users were missing the prompt and getting stuck with players
- * who weren't actually in the matchday XI. Closing the sheet just hides
- * the modal, NOT the banner. Banner only goes away once the match starts.
+ * Review/Keep buttons. Closing the sheet hides the modal, NOT the banner —
+ * the banner is sticky until the match locks (room.status flips off 'open'),
+ * at which point it disappears entirely.
  */
 export function PlayingXiBanner({ onReviewTeam, roomStatus }: PlayingXiBannerProps) {
-  const { bannerVisible, benchedSelected, xi, isInXi, dismiss } = usePlayingXi();
+  const { benchedSelected, xi, isInXi } = usePlayingXi();
   const isMobile = useIsMobile();
   const [sheetOpen, setSheetOpen] = useState(false);
   const [view, setView] = useState<'benched' | 'full'>('benched');
 
-  const isPreMatch = roomStatus === 'open';
-  // Force-show pre-match: even if `dismiss` was previously called (e.g. on
-  // a prior session before this fix shipped), keep nagging until kickoff.
-  const visible = !!xi && (isPreMatch || bannerVisible);
-  if (!visible) return null;
+  if (!xi || roomStatus !== 'open') return null;
 
   const benchCount = benchedSelected.length;
   const hasBenched = benchCount > 0;
@@ -42,15 +35,10 @@ export function PlayingXiBanner({ onReviewTeam, roomStatus }: PlayingXiBannerPro
   function handleReview() {
     setSheetOpen(false);
     onReviewTeam();
-    // Pre-match: don't dismiss — banner stays as a persistent prompt until
-    // the match locks. Post-match (rare path) keeps the original behavior.
-    if (!isPreMatch) dismiss();
   }
 
   function handleKeep() {
     setSheetOpen(false);
-    // Pre-match: closing the sheet just hides the modal — banner stays.
-    if (!isPreMatch) dismiss();
   }
 
   return (
@@ -302,7 +290,7 @@ export function PlayingXiBanner({ onReviewTeam, roomStatus }: PlayingXiBannerPro
                   fontFamily: "'DM Sans', sans-serif",
                 }}
               >
-                {isPreMatch ? 'Close' : 'Keep as-is'}
+                Close
               </button>
               <button
                 onClick={handleReview}
